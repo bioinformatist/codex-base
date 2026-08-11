@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+  printf 'codex-improve-scout: %s\n' "$1" >&2
+  exit 2
+}
+
+[ "$#" -eq 2 ] || fail "usage: codex-improve-scout WORKTREE OUTPUT_LAST_MESSAGE"
+worktree="$1"
+output="$2"
+[ -d "$worktree" ] || fail "worktree is not a directory: $worktree"
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+if [ -n "${CODEX_IMPROVE_ROLES_JSON:-}" ]; then
+  roles_json="$CODEX_IMPROVE_ROLES_JSON"
+else
+  roles_file="${CODEX_IMPROVE_ROLES_FILE:-$script_dir/../config/roles.json}"
+  [ -r "$roles_file" ] || fail "role configuration is unavailable: $roles_file"
+  roles_json="$(<"$roles_file")"
+fi
+role_json="$(jq -ce '.scout | select(
+  (.profile | type == "string" and length > 0) and
+  (.model | type == "string" and length > 0) and
+  (.reasoningEffort | type == "string" and length > 0) and
+  (.verbosity | type == "string" and length > 0) and
+  (.sandbox == "read-only") and (.approval == "never") and
+  (.networkAccess == false) and (.writableRoots == []) and
+  (.initialTimeout | type == "number"))' <<<"$roles_json" 2>/dev/null)" ||
+  fail "scout role configuration is missing or invalid"
+
+model="$(jq -r '.model' <<<"$role_json")"
+reasoning="$(jq -r '.reasoningEffort' <<<"$role_json")"
+verbosity="$(jq -r '.verbosity' <<<"$role_json")"
+
+exec codex exec --strict-config --ephemeral --json \
+  --model "$model" \
+  -c "model_reasoning_effort=\"$reasoning\"" \
+  -c "model_verbosity=\"$verbosity\"" \
+  -c 'approval_policy="never"' \
+  -c 'sandbox_mode="read-only"' \
+  --disable multi_agent \
+  --output-last-message "$output" \
+  -C "$worktree" -

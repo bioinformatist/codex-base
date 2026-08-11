@@ -1,0 +1,6 @@
+interface:
+  display_name: "TDD"
+  short_description: "Drive changes through behavior tests"
+  default_prompt: "Use $tdd to implement this change through a red-green-refactor loop."
+policy:
+  allow_implicit_invocation: true

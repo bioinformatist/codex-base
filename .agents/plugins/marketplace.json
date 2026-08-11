@@ -1,0 +1,21 @@
+{
+  "name": "bioinformatist-codex",
+  "interface": {
+    "displayName": "bioinformatist Codex"
+  },
+  "plugins": [
+    {
+      "name": "codex-base",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex-base"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL",
+        "products": ["codex"]
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

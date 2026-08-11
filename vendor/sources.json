@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "name": "mattpocock-skills",
+      "repository": "https://github.com/mattpocock/skills",
+      "revision": "2ab958093e83e0ec752e6c1c5932da465bf23e0c",
+      "license": "MIT",
+      "includedPaths": [
+        "skills/engineering/codebase-design",
+        "skills/engineering/diagnosing-bugs",
+        "skills/engineering/domain-modeling",
+        "skills/engineering/resolving-merge-conflicts",
+        "skills/engineering/tdd",
+        "skills/productivity/grilling",
+        "skills/productivity/handoff"
+      ],
+      "patched": true
+    },
+    {
+      "name": "shadcn-improve",
+      "repository": "https://github.com/shadcn/improve",
+      "revision": "03369ee6d7cafbfcecc4346539b05b3dc0a603bb",
+      "license": "MIT",
+      "includedPaths": [
+        "skills/improve/references/audit-playbook.md",
+        "skills/improve/references/plan-template.md"
+      ],
+      "patched": true
+    },
+    {
+      "name": "stop-slop",
+      "repository": "https://github.com/hardikpandya/stop-slop",
+      "revision": "8da1f030185bdfe8471220585162991eaeb970e9",
+      "license": "MIT",
+      "includedPaths": ["references"],
+      "patched": true
+    },
+    {
+      "name": "ponytail",
+      "repository": "https://github.com/DietrichGebert/ponytail",
+      "version": "4.8.3",
+      "revision": "v4.8.3",
+      "license": "MIT",
+      "includedPaths": ["skills/ponytail-review", "skills/ponytail-audit", "skills/ponytail-debt"],
+      "patched": false
+    },
+    {
+      "name": "playwright-cli",
+      "repository": "https://github.com/microsoft/playwright-cli",
+      "version": "0.1.17",
+      "revision": "v0.1.17",
+      "license": "Apache-2.0",
+      "includedPaths": ["skills/playwright-cli"],
+      "patched": true
+    }
+  ]
+}

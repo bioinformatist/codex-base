@@ -1,0 +1,6 @@
+interface:
+  display_name: "Playwright CLI"
+  short_description: "Automate and inspect browsers headlessly"
+  default_prompt: "Use $playwright-cli to inspect and automate this web page with a headless-first workflow."
+policy:
+  allow_implicit_invocation: true

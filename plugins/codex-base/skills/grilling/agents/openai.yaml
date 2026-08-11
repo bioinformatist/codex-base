@@ -1,0 +1,6 @@
+interface:
+  display_name: "Grilling"
+  short_description: "Stress-test a plan by asking one question at a time"
+  default_prompt: "Use $grilling to stress-test this plan before implementation."
+policy:
+  allow_implicit_invocation: false

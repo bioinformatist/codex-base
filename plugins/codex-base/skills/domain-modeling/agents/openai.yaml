@@ -1,0 +1,6 @@
+interface:
+  display_name: "Domain Modeling"
+  short_description: "Sharpen domain language and durable decisions"
+  default_prompt: "Use $domain-modeling to resolve domain terminology or record an ADR-worthy decision."
+policy:
+  allow_implicit_invocation: true

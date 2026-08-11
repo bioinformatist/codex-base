@@ -1,0 +1,6 @@
+interface:
+  display_name: "Diagnosing Bugs"
+  short_description: "Debug hard bugs with a tight feedback loop"
+  default_prompt: "Use $diagnosing-bugs to build a tight repro loop and diagnose this bug."
+policy:
+  allow_implicit_invocation: true

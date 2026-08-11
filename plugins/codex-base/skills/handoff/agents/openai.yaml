@@ -1,0 +1,6 @@
+interface:
+  display_name: "Handoff"
+  short_description: "Write a redacted temporary session handoff"
+  default_prompt: "Use $handoff to prepare a redacted continuation document for the next session."
+policy:
+  allow_implicit_invocation: false

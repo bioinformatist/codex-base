@@ -1,0 +1,6 @@
+interface:
+  display_name: "Improve"
+  short_description: "Audit codebases and hand off isolated execution"
+  default_prompt: "Use $improve to audit this codebase, vet the findings, and prepare self-contained implementation plans."
+policy:
+  allow_implicit_invocation: true

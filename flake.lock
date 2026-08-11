@@ -1,0 +1,174 @@
+{
+  "nodes": {
+    "codex-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786063808,
+        "narHash": "sha256-NKeOxp9vLcx7tpghqhpS3ocPqUDP2PircNwkJNpHBPo=",
+        "owner": "openai",
+        "repo": "codex",
+        "rev": "be6e8eac029b183056b7e4402879f15d2c85f61b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "openai",
+        "ref": "rust-v0.147.0",
+        "repo": "codex",
+        "type": "github"
+      }
+    },
+    "home-manager": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1785119570,
+        "narHash": "sha256-Rgs2xKnGLFWQscxUaXX07oyZeuMDOHEbqDOsgliLFGM=",
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "d4fd24667c8cbef124bb70a20380cab75ec8474d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "ref": "release-26.05",
+        "repo": "home-manager",
+        "type": "github"
+      }
+    },
+    "mattpocock-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785230297,
+        "narHash": "sha256-dQtG6usJWlg/FqTajrjcs8GSdymH92WsgLiUaCfvKPA=",
+        "owner": "mattpocock",
+        "repo": "skills",
+        "rev": "2ab958093e83e0ec752e6c1c5932da465bf23e0c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "mattpocock",
+        "repo": "skills",
+        "rev": "2ab958093e83e0ec752e6c1c5932da465bf23e0c",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1786106723,
+        "narHash": "sha256-zDSUbpoeo/9ZmD2+wXnzxoo1+uhL8vxc0b8yuYMKYq0=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "f13ff45afd1bb73e640eaa08a7066dbed07e3238",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs-tools": {
+      "locked": {
+        "lastModified": 1786106723,
+        "narHash": "sha256-zDSUbpoeo/9ZmD2+wXnzxoo1+uhL8vxc0b8yuYMKYq0=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "f13ff45afd1bb73e640eaa08a7066dbed07e3238",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "playwright-cli": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783624179,
+        "narHash": "sha256-tc/2Qck3mm6BqWTu2lvvfsM0/BHO/Z0ZvCdFZ7QQqKI=",
+        "owner": "microsoft",
+        "repo": "playwright-cli",
+        "rev": "793cfb32572733cbcb401e6f28d05a7a914ce408",
+        "type": "github"
+      },
+      "original": {
+        "owner": "microsoft",
+        "ref": "v0.1.17",
+        "repo": "playwright-cli",
+        "type": "github"
+      }
+    },
+    "ponytail": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1782268332,
+        "narHash": "sha256-4ZT89GA5xnomNBIzY8Kh1yYP0AC9SeVhv406DEKpE3A=",
+        "owner": "DietrichGebert",
+        "repo": "ponytail",
+        "rev": "025da371cd7539c3eb0ad859b08b3ca55e695f16",
+        "type": "github"
+      },
+      "original": {
+        "owner": "DietrichGebert",
+        "ref": "v4.8.3",
+        "repo": "ponytail",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "codex-src": "codex-src",
+        "home-manager": "home-manager",
+        "mattpocock-skills": "mattpocock-skills",
+        "nixpkgs": "nixpkgs",
+        "nixpkgs-tools": "nixpkgs-tools",
+        "playwright-cli": "playwright-cli",
+        "ponytail": "ponytail",
+        "shadcn-improve": "shadcn-improve",
+        "stop-slop": "stop-slop"
+      }
+    },
+    "shadcn-improve": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1781504319,
+        "narHash": "sha256-m0a1n8xguDI2nooJ856sWPofh+tZI5VvIrVZrQH6XgY=",
+        "owner": "shadcn",
+        "repo": "improve",
+        "rev": "03369ee6d7cafbfcecc4346539b05b3dc0a603bb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "shadcn",
+        "repo": "improve",
+        "rev": "03369ee6d7cafbfcecc4346539b05b3dc0a603bb",
+        "type": "github"
+      }
+    },
+    "stop-slop": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1773773436,
+        "narHash": "sha256-JMqlCRVEAfwG1TLMDpnamznkBfkmX6e2XyETTTH/TSE=",
+        "owner": "hardikpandya",
+        "repo": "stop-slop",
+        "rev": "8da1f030185bdfe8471220585162991eaeb970e9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hardikpandya",
+        "repo": "stop-slop",
+        "rev": "8da1f030185bdfe8471220585162991eaeb970e9",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

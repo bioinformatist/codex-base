@@ -1,0 +1,482 @@
+#!/usr/bin/env bash
+
+set +e
+set -uo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: codex-improve-review ROLE WORKTREE EXPECTED_TREE DOSSIER
+
+Run one bounded Improve review. ROLE must be correctness or elegance,
+WORKTREE must be a linked Improve worktree, EXPECTED_TREE must be its exact
+candidate tree, and DOSSIER must be a complete non-empty file.
+EOF
+}
+
+fail_input() {
+  printf 'codex-improve-review: %s\n' "$1" >&2
+  exit 2
+}
+
+candidate_index=""
+cleanup_candidate_index() {
+  if [ -n "$candidate_index" ]; then
+    rm -f -- "$candidate_index"
+    candidate_index=""
+  fi
+}
+trap cleanup_candidate_index EXIT HUP INT TERM
+
+validate_linked_improve_worktree() {
+  worktree="$(realpath -- "$1" 2>/dev/null)" ||
+    fail_input "cannot resolve worktree: $1"
+  local git_root
+  git_root="$(git -C "$worktree" rev-parse --show-toplevel 2>/dev/null)" ||
+    fail_input "worktree is not inside a Git repository: $1"
+  git_root="$(realpath -- "$git_root")" ||
+    fail_input "cannot resolve Git worktree root: $1"
+  if [ "$worktree" != "$git_root" ]; then
+    fail_input "worktree must be the Git worktree root: $1"
+  fi
+
+  local registered=0
+  local linked=0
+  local branch_ref=""
+  local entry_worktree=""
+  local entry_branch=""
+  local entry_root
+  while IFS= read -r -d '' field; do
+    if [ -z "$field" ]; then
+      if [ -n "$entry_worktree" ]; then
+        entry_root="$(realpath -- "${entry_worktree#worktree }" 2>/dev/null || true)"
+        if [ "$entry_root" = "$worktree" ]; then
+          registered=1
+          if [ -n "$entry_branch" ]; then
+            branch_ref="${entry_branch#branch }"
+          fi
+        fi
+      fi
+      entry_worktree=""
+      entry_branch=""
+      continue
+    fi
+    case "$field" in
+      worktree\ *) entry_worktree="$field" ;;
+      branch\ *) entry_branch="$field" ;;
+    esac
+  done < <(git -C "$worktree" worktree list --porcelain -z)
+
+  local git_dir
+  git_dir="$(git -C "$worktree" rev-parse --path-format=absolute --git-dir 2>/dev/null)" ||
+    fail_input "cannot resolve Git directory: $1"
+  local common_dir
+  common_dir="$(git -C "$worktree" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ||
+    fail_input "cannot resolve common Git directory: $1"
+  if [ "$(realpath -- "$git_dir")" != "$(realpath -- "$common_dir")" ]; then
+    linked=1
+  fi
+  if [ "$registered" -ne 1 ]; then
+    fail_input "worktree is not a registered Git worktree: $1"
+  fi
+  if [ "$linked" -ne 1 ]; then
+    fail_input "worktree must be a linked worktree, not the main worktree: $1"
+  fi
+  case "$branch_ref" in
+    refs/heads/codex/improve-*) ;;
+    *) fail_input "worktree branch must match refs/heads/codex/improve-*: $branch_ref" ;;
+  esac
+}
+
+reject_unmerged_index() {
+  local unmerged
+  unmerged="$(git -C "$worktree" ls-files -u)" ||
+    fail_input "cannot inspect worktree index"
+  if [ -n "$unmerged" ]; then
+    fail_input "worktree index contains unmerged entries"
+  fi
+}
+
+compute_candidate() {
+  reject_unmerged_index
+  candidate_index="$(mktemp "${TMPDIR:-/tmp}/codex-improve-review-index.XXXXXX")" ||
+    fail_input "cannot create temporary Git index"
+  rm -f -- "$candidate_index" ||
+    fail_input "cannot initialize temporary Git index"
+  if ! GIT_INDEX_FILE="$candidate_index" git -C "$worktree" read-tree HEAD; then
+    cleanup_candidate_index
+    fail_input "cannot initialize temporary Git index"
+  fi
+  if ! GIT_INDEX_FILE="$candidate_index" git -C "$worktree" add -A; then
+    cleanup_candidate_index
+    fail_input "cannot add candidate state to temporary Git index"
+  fi
+  candidate_tree="$(GIT_INDEX_FILE="$candidate_index" git -C "$worktree" write-tree)" ||
+    {
+      cleanup_candidate_index
+      fail_input "cannot write candidate tree"
+    }
+  cleanup_candidate_index
+}
+
+validate_expected_tree() {
+  expected_tree="$1"
+  local resolved_tree
+  if [ -z "$expected_tree" ] ||
+    ! resolved_tree="$(git -C "$worktree" rev-parse --verify "$expected_tree^{tree}" 2>/dev/null)" ||
+    [ "$resolved_tree" != "$expected_tree" ] ||
+    [ "$(git -C "$worktree" cat-file -t "$expected_tree" 2>/dev/null)" != "tree" ]; then
+    fail_input "expected tree must be the full object ID of a Git tree"
+  fi
+}
+
+if [ "$#" -ne 4 ]; then
+  usage >&2
+  exit 2
+fi
+
+role="$1"
+case "$role" in
+  correctness|elegance) ;;
+  *) fail_input "role must be correctness or elegance" ;;
+esac
+
+roles_json="${CODEX_IMPROVE_ROLES_JSON:-}"
+if [ -z "$roles_json" ]; then
+  script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+  roles_file="${CODEX_IMPROVE_ROLES_FILE:-$script_dir/../config/roles.json}"
+  [ -r "$roles_file" ] || fail_input "reviewer role configuration is unavailable: $roles_file"
+  roles_json="$(<"$roles_file")"
+fi
+if ! role_json="$(jq -ce --arg role "$role" '
+  .[$role]
+  | select(
+    (.profile | type == "string" and length > 0)
+    and (.model | type == "string" and length > 0)
+    and (.reasoningEffort | type == "string" and length > 0)
+    and (.verbosity | type == "string" and length > 0)
+    and (.sandbox | type == "string" and length > 0)
+    and (.approval | type == "string" and length > 0)
+    and (.writableRoots | type == "array")
+    and (.tokenLimit | type == "number")
+    and (.reminders | type == "array")
+    and (.initialTimeout | type == "number"))
+' <<<"$roles_json" 2>/dev/null)"; then
+  fail_input "generated reviewer role configuration is missing or invalid"
+fi
+profile="$(jq -r '.profile' <<<"$role_json")"
+model="$(jq -r '.model' <<<"$role_json")"
+reasoning_effort="$(jq -r '.reasoningEffort' <<<"$role_json")"
+verbosity="$(jq -r '.verbosity' <<<"$role_json")"
+sandbox="$(jq -r '.sandbox' <<<"$role_json")"
+approval="$(jq -r '.approval' <<<"$role_json")"
+writable_roots="$(jq -c '.writableRoots' <<<"$role_json")"
+review_token_limit="$(jq -r '.tokenLimit' <<<"$role_json")"
+reminders="$(jq -c '.reminders' <<<"$role_json")"
+absolute_seconds="$(jq -r '.initialTimeout' <<<"$role_json")"
+
+validate_linked_improve_worktree "$2"
+validate_expected_tree "$3"
+compute_candidate
+if [ "$candidate_tree" != "$expected_tree" ]; then
+  fail_input "candidate tree does not match expected tree"
+fi
+
+if [ ! -f "$4" ] || [ ! -r "$4" ] || [ ! -s "$4" ]; then
+  fail_input "dossier must be a readable non-empty file: $4"
+fi
+dossier="$(realpath -- "$4")" || fail_input "cannot resolve dossier: $4"
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+schema="${CODEX_IMPROVE_REVIEW_SCHEMA:-$script_dir/../references/review-verdict.schema.json}"
+if [ ! -r "$schema" ] || ! jq -e . "$schema" >/dev/null 2>&1; then
+  fail_input "verdict schema is unavailable or invalid: $schema"
+fi
+
+quiet_seconds=180
+kill_after_seconds=5
+poll_seconds=1
+
+umask 077
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+artifact_parent="$state_home/codex-improve/reviews"
+mkdir -p "$artifact_parent" || fail_input "cannot create review artifact directory"
+artifact_dir="$(mktemp -d "$artifact_parent/$(date -u +%Y%m%dT%H%M%SZ)-$role-XXXXXX")" ||
+  fail_input "cannot create review artifact directory"
+event_log="$artifact_dir/events.jsonl"
+final_output="$artifact_dir/final.json"
+diagnostic_log="$artifact_dir/stderr.log"
+prompt_file="$artifact_dir/prompt.txt"
+if ! { : >"$event_log" && : >"$final_output" && : >"$diagnostic_log"; }; then
+  fail_input "cannot initialize review artifacts"
+fi
+
+emit_review_prompt() {
+  cat <<'EOF'
+You are an independent reviewer for one atomic Improve implementation. Treat
+the dossier below as the complete bounded evidence contract. Host-injected
+repository instructions identified in the dossier remain authoritative. Do not
+launch agents, load workflow skills, reread the Improve planning references, or
+broaden the repository audit. Read repository source only to answer a named
+evidence gap that the dossier does not settle.
+
+Build coverage only for the requested implementation checks. A named runtime,
+physical, human, or external check owned after implementation review belongs in
+deferred_acceptance; it is not coverage, a finding, or a review_blocker. At
+50000 weighted tokens remaining, stop broad recon. At 25000, pursue only named
+evidence gaps. At 10000, stop tool use and render the verdict. Return only the
+JSON object required by the output schema, with evidence for every finding,
+coverage item, blocker, and deferred acceptance.
+EOF
+  printf '\nExpected Improve candidate tree: %s\nThe dossier applies only to this exact candidate input; do not recover another tree identity from its prose.\n' \
+    "$expected_tree"
+
+  if [ "$role" = "correctness" ]; then
+    printf '\nCorrectness role: check behavior, safety, regressions, tests, and plan and Engineering-contract compliance.\n'
+  else
+    cat <<'EOF'
+
+Elegance role: check reuse, justified abstraction, locality, speculative
+flexibility, compatibility layers, and removable code. The dossier contains the
+main agent's single Ponytail pass when that lens applies. Treat those suggestions
+as hypotheses: reject any that weaken settled semantics, correctness,
+repository rules, or necessary tests. Never use a line-count score as an
+acceptance criterion. Include only supported, actionable suggestions as
+findings. Do not reopen settled user decisions without contradictory evidence.
+EOF
+  fi
+
+  printf '\n--- BEGIN BOUNDED DOSSIER ---\n'
+  cat "$dossier" || return 1
+  printf '\n--- END BOUNDED DOSSIER ---\n'
+}
+
+emit_review_prompt >"$prompt_file" || fail_input "cannot snapshot review dossier"
+
+has_rollout_budget_exhaustion() {
+  jq -Rse '
+    split("\n") as $lines
+    | (if $lines[-1] == "" then $lines[:-1] else $lines end) as $lines
+    | if ($lines | length) > 0 and all($lines[]; test("\\S")) then
+        try (($lines | map(fromjson)) as $events
+          | if all($events[]; type == "object") then
+              any($events[];
+                .type == "error"
+                  and .message == "shared rollout token budget exhausted")
+            else false
+            end)
+        catch false
+      else false
+      end
+  ' "$event_log" >/dev/null 2>&1
+}
+
+started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+started_epoch="$(date +%s)"
+cancelled=""
+supervisor_pid=""
+
+# shellcheck disable=SC2329 # Invoked by INT and TERM traps.
+cancel_review() {
+  cancelled="$1"
+  if [ -n "$supervisor_pid" ]; then
+    kill -s "$1" "$supervisor_pid" 2>/dev/null || true
+  fi
+}
+
+trap 'cancel_review INT' INT
+trap 'cancel_review TERM' TERM
+
+timeout \
+  --signal=INT \
+  --kill-after="${kill_after_seconds}s" \
+  "${absolute_seconds}s" \
+  codex exec \
+  --strict-config \
+  --ephemeral \
+  --json \
+  --model "$model" \
+  --sandbox "$sandbox" \
+  -c "model_reasoning_effort=\"$reasoning_effort\"" \
+  -c "model_verbosity=\"$verbosity\"" \
+  -c "approval_policy=\"$approval\"" \
+  -c "sandbox_workspace_write.writable_roots=$writable_roots" \
+  -c "features.rollout_budget.enabled=true" \
+  -c "features.rollout_budget.limit_tokens=$review_token_limit" \
+  -c "features.rollout_budget.reminder_at_remaining_tokens=$reminders" \
+  -c "features.rollout_budget.sampling_token_weight=1.0" \
+  -c "features.rollout_budget.prefill_token_weight=1.0" \
+  --disable multi_agent \
+  --disable goals \
+  --disable memories \
+  --output-schema "$schema" \
+  --output-last-message "$final_output" \
+  -C "$worktree" \
+  - \
+  <"$prompt_file" \
+  >"$event_log" \
+  2>"$diagnostic_log" &
+supervisor_pid="$!"
+
+last_event_epoch="$started_epoch"
+last_event_count=0
+max_event_gap_seconds=0
+quiet_interval_observed=0
+while kill -0 "$supervisor_pid" 2>/dev/null; do
+  sleep "$poll_seconds"
+  event_count="$(wc -l <"$event_log")"
+  now_epoch="$(date +%s)"
+  if [ "$event_count" -gt "$last_event_count" ]; then
+    last_event_count="$event_count"
+    last_event_epoch="$now_epoch"
+  fi
+  event_gap_seconds="$((now_epoch - last_event_epoch))"
+  if [ "$event_gap_seconds" -gt "$max_event_gap_seconds" ]; then
+    max_event_gap_seconds="$event_gap_seconds"
+  fi
+  if [ "$event_gap_seconds" -ge "$quiet_seconds" ] && [ "$quiet_interval_observed" -eq 0 ]; then
+    quiet_interval_observed=1
+    printf 'codex-improve-review: no new JSONL event for %s seconds; continuing\n' \
+      "$quiet_seconds" >>"$diagnostic_log"
+  fi
+done
+
+wait "$supervisor_pid"
+codex_status="$?"
+
+# GNU timeout owns this process group; drain a descendant that outlived it.
+if kill -0 -- "-$supervisor_pid" 2>/dev/null; then
+  kill -TERM -- "-$supervisor_pid" 2>/dev/null || true
+  sleep 0.1
+  kill -KILL -- "-$supervisor_pid" 2>/dev/null || true
+fi
+trap '' INT TERM
+
+finished_epoch="$(date +%s)"
+elapsed_seconds="$((finished_epoch - started_epoch))"
+final_gap="$((finished_epoch - last_event_epoch))"
+if [ "$final_gap" -gt "$max_event_gap_seconds" ]; then
+  max_event_gap_seconds="$final_gap"
+fi
+if [ "$max_event_gap_seconds" -ge "$quiet_seconds" ]; then
+  quiet_interval_observed=1
+fi
+
+result="INCONCLUSIVE"
+exit_reason=""
+event_log_valid=0
+rollout_budget_exhausted=0
+if has_rollout_budget_exhaustion; then
+  rollout_budget_exhausted=1
+fi
+if [ -n "$cancelled" ]; then
+  exit_reason="wrapper_signal_$cancelled"
+elif [ "$codex_status" -eq 124 ] || [ "$codex_status" -eq 137 ]; then
+  exit_reason="absolute_timeout"
+elif [ "$codex_status" -ne 0 ] && [ "$rollout_budget_exhausted" -eq 1 ]; then
+  exit_reason="rollout_budget_exhausted"
+elif [ "$codex_status" -ne 0 ]; then
+  exit_reason="codex_exit_$codex_status"
+elif ! jq -Rse '
+  split("\n") as $lines
+  | (if $lines[-1] == "" then $lines[:-1] else $lines end)
+  | length > 0
+    and all(.[]; . != "" and (try (fromjson | type == "object") catch false))
+' "$event_log" >/dev/null 2>&1; then
+  exit_reason="invalid_event_log"
+else
+  event_log_valid=1
+  if verdict="$(jq -er -s '
+    def nonblank: type == "string" and test("\\S");
+    if length == 1 then .[0] else empty end
+    | select(
+    (.summary | nonblank)
+    and (.findings | type == "array")
+    and all(.findings[];
+      (.check | nonblank) and (.location | nonblank) and (.claim | nonblank)
+      and (.evidence | nonblank) and (.action | nonblank))
+    and (.coverage | type == "array" and length > 0)
+    and all(.coverage[]; (.check | nonblank) and (.evidence | nonblank))
+    and (.review_blockers | type == "array")
+    and all(.review_blockers[]; (.item | nonblank) and (.impact | nonblank))
+    and (.deferred_acceptance | type == "array")
+    and all(.deferred_acceptance[];
+      (.check | nonblank) and (.owner | nonblank) and (.reason | nonblank)
+      and (.evidence_required | nonblank))
+    and (
+      (.verdict == "APPROVE" and (.findings | length == 0)
+        and all(.coverage[]; .status == "PASS") and (.review_blockers | length == 0))
+      or (.verdict == "REVISE" and (.findings | length > 0)
+        and any(.coverage[]; .status == "FAIL") and all(.coverage[]; .status != "BLOCKED")
+        and (.review_blockers | length == 0))
+      or (.verdict == "BLOCK"
+        and (any(.coverage[]; .status == "BLOCKED") or (.review_blockers | length > 0)))
+    )
+    )
+    | .verdict
+  ' "$final_output" 2>/dev/null)"; then
+    result="$verdict"
+    exit_reason="completed"
+  else
+    exit_reason="invalid_final_output"
+  fi
+fi
+
+stats='{"token_usage":{"input_tokens":0,"cached_input_tokens":0,"output_tokens":0},"tool_event_count":0}'
+if [ "$event_log_valid" -eq 1 ]; then
+  stats="$(jq -c -s '
+    def n: if type == "number" then . else 0 end;
+    ([.[] | select(.type? == "turn.completed") | .usage? | select(type == "object")] | last // {}) as $usage
+    | {
+        token_usage: {
+          input_tokens: (($usage.input_tokens // 0) | n),
+          cached_input_tokens: (($usage.cached_input_tokens // 0) | n),
+          output_tokens: (($usage.output_tokens // 0) | n)
+        },
+        tool_event_count: ([.[] | select(.type? == "item.completed") | .item.type? | select(. != "reasoning" and . != "agent_message")] | length)
+      }
+  ' "$event_log")"
+fi
+
+metric="$(jq -nc \
+  --arg timestamp "$started_at" \
+  --arg role "$role" \
+  --arg profile "$profile" \
+  --arg result "$result" \
+  --arg reason "$exit_reason" \
+  --argjson elapsed_seconds "$elapsed_seconds" \
+  --argjson stats "$stats" \
+  --argjson max_event_gap_seconds "$max_event_gap_seconds" \
+  --argjson quiet_interval_observed "$quiet_interval_observed" \
+  --argjson exit_status "$codex_status" \
+  --argjson active_token_limit "$review_token_limit" \
+  --argjson rollout_budget_exhausted "$rollout_budget_exhausted" \
+  '{timestamp: $timestamp, role: $role, profile: $profile, elapsed_seconds: $elapsed_seconds,
+    token_usage: $stats.token_usage, tool_event_count: $stats.tool_event_count,
+    max_event_gap_seconds: $max_event_gap_seconds,
+    quiet_interval_observed: ($quiet_interval_observed == 1), exit_status: $exit_status,
+    active_token_limit: $active_token_limit,
+    fuse_flags: {rollout_budget_exhausted: ($rollout_budget_exhausted == 1)}}
+   + if $result == "INCONCLUSIVE" then {inconclusive_reason: $reason} else {verdict: $result} end')"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/codex-improve"
+if mkdir -p "$state_dir" 2>/dev/null; then
+  printf '%s\n' "$metric" >>"$state_dir/review-metrics.jsonl" 2>/dev/null ||
+    printf 'codex-improve-review: metrics unavailable\n' >&2
+else
+  printf 'codex-improve-review: metrics unavailable\n' >&2
+fi
+
+printf 'IMPROVE_REVIEW_ROLE=%s\n' "$role"
+printf 'IMPROVE_REVIEW_PROFILE=%s\n' "$profile"
+printf 'IMPROVE_REVIEW_RESULT=%s\n' "$result"
+printf 'IMPROVE_REVIEW_ELAPSED_SECONDS=%s\n' "$elapsed_seconds"
+printf 'IMPROVE_REVIEW_MAX_EVENT_GAP_SECONDS=%s\n' "$max_event_gap_seconds"
+printf 'IMPROVE_REVIEW_QUIET_INTERVAL_OBSERVED=%s\n' "$quiet_interval_observed"
+printf 'IMPROVE_REVIEW_ACTIVE_TOKEN_LIMIT=%s\n' "$review_token_limit"
+printf 'IMPROVE_REVIEW_ROLLOUT_BUDGET_EXHAUSTED=%s\n' "$rollout_budget_exhausted"
+printf 'IMPROVE_REVIEW_EVENT_LOG=%s\n' "$event_log"
+printf 'IMPROVE_REVIEW_FINAL_OUTPUT=%s\n' "$final_output"
+printf 'IMPROVE_REVIEW_DIAGNOSTIC_LOG=%s\n' "$diagnostic_log"
+printf 'IMPROVE_REVIEW_EXIT_REASON=%s\n' "$exit_reason"
+printf 'IMPROVE_REVIEWED_CANDIDATE_TREE=%s\n' "$expected_tree"
+
+[ "$result" != "INCONCLUSIVE" ]

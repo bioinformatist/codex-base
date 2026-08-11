@@ -1,0 +1,6 @@
+interface:
+  display_name: "Stop Slop"
+  short_description: "Polish publishable prose without AI tells"
+  default_prompt: "Use $stop-slop to tighten this PR or issue text without changing technical facts."
+policy:
+  allow_implicit_invocation: true

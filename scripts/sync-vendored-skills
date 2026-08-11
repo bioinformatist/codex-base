@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+check=0
+case "${1:-}" in
+  "") ;;
+  --check) check=1 ;;
+  *) printf 'usage: sync-vendored-skills [--check]\n' >&2; exit 2 ;;
+esac
+
+repo="$(git rev-parse --show-toplevel)"
+generated="$(nix build --no-link --print-out-paths "$repo#generated-skills")"
+target="$repo/plugins/codex-base/skills"
+
+if [ "$check" -eq 1 ]; then
+  diff -ruN --no-dereference "$generated" "$target"
+  exit
+fi
+
+tmp="$(mktemp -d "$repo/.skills-sync.XXXXXX")"
+trap 'rm -rf -- "$tmp"' EXIT
+cp -R "$generated/." "$tmp/"
+chmod -R u+w "$tmp"
+chmod -R u+w "$target"
+rm -rf -- "$target"
+mv -- "$tmp" "$target"
+trap - EXIT
