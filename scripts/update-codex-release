@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: scripts/update-codex-release [--release-json PATH]
+
+Without arguments, read the latest OpenAI Codex release with GitHub CLI.
+Use --release-json only to update from a local release JSON fixture.
+EOF
+}
+
+release_json=""
+case "$#" in
+  0)
+    ;;
+  2)
+    [[ "$1" == "--release-json" && -n "$2" ]] || { usage; exit 2; }
+    release_json="$2"
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+  || { echo "update-codex-release: repository root is not a Git checkout" >&2; exit 1; }
+[[ -z "$(git status --porcelain --untracked-files=all)" ]] \
+  || { echo "update-codex-release: checkout must be clean before updating" >&2; exit 1; }
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+metadata="$tmp_dir/release.json"
+
+if [[ -n "$release_json" ]]; then
+  [[ -f "$release_json" ]] \
+    || { echo "update-codex-release: release JSON does not exist: $release_json" >&2; exit 1; }
+  cp "$release_json" "$metadata"
+else
+  command -v gh >/dev/null \
+    || { echo "update-codex-release: gh is required in production mode" >&2; exit 1; }
+  gh api repos/openai/codex/releases/latest > "$metadata"
+fi
+
+tag="$(jq -er '.tag_name | strings | select(test("^rust-v[0-9A-Za-z.+-]+$"))' "$metadata")" \
+  || { echo "update-codex-release: release tag must match rust-v followed by version characters" >&2; exit 1; }
+version="${tag#rust-v}"
+
+asset_digest() {
+  local asset="$1"
+  local count digest
+
+  count="$(jq --arg asset "$asset" '[.assets[]? | select(.name == $asset)] | length' "$metadata")" \
+    || { echo "update-codex-release: invalid release JSON" >&2; exit 1; }
+  [[ "$count" -eq 1 ]] \
+    || { echo "update-codex-release: expected exactly one ${asset}, found ${count}" >&2; exit 1; }
+  digest="$(jq -er --arg asset "$asset" '.assets[] | select(.name == $asset) | .digest | strings' "$metadata")" \
+    || { echo "update-codex-release: ${asset} has no digest" >&2; exit 1; }
+  [[ "$digest" =~ ^sha256:[[:xdigit:]]{64}$ ]] \
+    || { echo "update-codex-release: ${asset} digest is not sha256:<64 hex digits>" >&2; exit 1; }
+  printf '%s\n' "${digest#sha256:}"
+}
+
+codex_hex="$(asset_digest codex-x86_64-unknown-linux-musl.tar.gz)"
+host_hex="$(asset_digest codex-code-mode-host-x86_64-unknown-linux-musl.tar.gz)"
+codex_hash="$(nix hash convert --hash-algo sha256 --from base16 --to sri "$codex_hex")"
+host_hash="$(nix hash convert --hash-algo sha256 --from base16 --to sri "$host_hex")"
+[[ "$codex_hash" =~ ^sha256-[A-Za-z0-9+/]{43}=$ ]] \
+  || { echo "update-codex-release: converted Codex digest is not SRI SHA-256" >&2; exit 1; }
+[[ "$host_hash" =~ ^sha256-[A-Za-z0-9+/]{43}=$ ]] \
+  || { echo "update-codex-release: converted Code Mode Host digest is not SRI SHA-256" >&2; exit 1; }
+
+require_count() {
+  local expected="$1"
+  local pattern="$2"
+  local file="$3"
+  local description="$4"
+  local count
+
+  count="$(grep -Ec "$pattern" "$file" || true)"
+  [[ "$count" -eq "$expected" ]] \
+    || { echo "update-codex-release: expected ${expected} ${description} in ${file}, found ${count}" >&2; exit 1; }
+}
+
+require_count 1 '^[[:space:]]*codexVersion = "[^"]+";[[:space:]]*$' nix/packages.nix 'codexVersion assignment'
+require_count 1 '^[[:space:]]*codexHash = "[^"]+";[[:space:]]*$' nix/packages.nix 'codexHash assignment'
+require_count 1 '^[[:space:]]*codexCodeModeHostHash = "[^"]+";[[:space:]]*$' nix/packages.nix 'codexCodeModeHostHash assignment'
+require_count 1 '^[[:space:]]*codex-src = \{ url = "github:openai/codex/rust-v[^"]+"; flake = false; \};[[:space:]]*$' flake.nix 'codex-src ref'
+require_count 1 '^installs Codex [^[:space:]]+ and Code Mode Host' README.md 'installed Codex version'
+
+sed -i -E \
+  -e "s|^([[:space:]]*codexVersion = )\"[^\"]+\";[[:space:]]*$|\\1\"${version}\";|" \
+  -e "s|^([[:space:]]*codexHash = )\"[^\"]+\";[[:space:]]*$|\\1\"${codex_hash}\";|" \
+  -e "s|^([[:space:]]*codexCodeModeHostHash = )\"[^\"]+\";[[:space:]]*$|\\1\"${host_hash}\";|" \
+  nix/packages.nix
+sed -i -E \
+  "s|^([[:space:]]*codex-src = \\{ url = \"github:openai/codex/)rust-v[^\"]+(\"; flake = false; \\};)[[:space:]]*$|\\1${tag}\\2|" \
+  flake.nix
+sed -i -E \
+  "s|^(installs Codex )[^[:space:]]+( and Code Mode Host)|\\1${version}\\2|" \
+  README.md
+
+if ! git diff --quiet -- README.md flake.nix nix/packages.nix; then
+  nix flake update codex-src
+fi
+
+bash scripts/check-codex-release
+
+changed_paths="$tmp_dir/changed-paths"
+{
+  git diff --name-only
+  git diff --cached --name-only
+  git ls-files --others --exclude-standard
+} | sed '/^$/d' | sort -u > "$changed_paths"
+
+unexpected="$(grep -Ev '^(README\.md|flake\.nix|flake\.lock|nix/packages\.nix)$' "$changed_paths" || true)"
+[[ -z "$unexpected" ]] || {
+  echo "update-codex-release: update touched paths outside the allowlist:" >&2
+  printf '%s\n' "$unexpected" >&2
+  exit 1
+}
+
+if [[ -s "$changed_paths" ]]; then
+  echo "Updated Codex release pins to ${version}."
+else
+  echo "Codex release pins are already current at ${version}."
+fi

@@ -52,6 +52,22 @@ in {
     while IFS= read -r file; do bash -n "$file"; shellcheck "$file"; done < <(find ${srcRoot}/scripts ${srcRoot}/src ${srcRoot}/tests -type f \( -name '*.bash' -o -name '*.sh' -o -perm -0100 \))
     touch $out
   '';
+  codex-release-consistency = mkTest "codex-release-consistency" shellTools ''
+    bash ${srcRoot}/scripts/check-codex-release
+    touch $out
+  '';
+  codex-release-updater = mkTest "codex-release-updater-tests" shellTools ''
+    bash ${srcRoot}/tests/codex-release-updater.bash
+    touch $out
+  '';
+  workflow-lint = mkTest "workflow-lint" [ pkgs.actionlint pkgs.gnugrep ] ''
+    actionlint ${srcRoot}/.github/workflows/*.yml
+    workflow=${srcRoot}/.github/workflows/maintenance-codex.yml
+    test "$(grep -Fxc '      - uses: actions/checkout@v4' "$workflow")" -eq 1
+    grep -F -A 5 '      - uses: actions/checkout@v4' "$workflow" \
+      | grep -Fqx '          ref: main'
+    touch $out
+  '';
   improve-exec = mkTest "improve-exec-tests" shellTools ''
     CODEX_IMPROVE_EXEC_SCHEMA=${srcRoot}/src/improve/references/executor-report.schema.json CODEX_IMPROVE_ROLES_FILE=${srcRoot}/src/improve/config/roles.json bash ${srcRoot}/tests/improve/exec-runner.bash ${srcRoot}/src/improve/scripts/codex-improve-exec
     touch $out
