@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+packages_file="$repo_root/nix/packages.nix"
+flake_file="$repo_root/flake.nix"
+lock_file="$repo_root/flake.lock"
+readme_file="$repo_root/README.md"
+
+fail() {
+  echo "codex release consistency: $*" >&2
+  exit 1
+}
+
+assignment() {
+  local name="$1"
+  local matches value
+
+  matches="$(sed -n -E "s/^[[:space:]]*${name} = \"([^\"]*)\";[[:space:]]*$/\\1/p" "$packages_file")"
+  [[ "$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l)" -eq 1 ]] \
+    || fail "expected exactly one nonempty ${name} assignment in nix/packages.nix"
+  value="$(printf '%s\n' "$matches" | sed -n '1p')"
+  [[ -n "$value" ]] || fail "${name} must not be empty"
+  printf '%s\n' "$value"
+}
+
+codex_version="$(assignment codexVersion)"
+codex_hash="$(assignment codexHash)"
+host_hash="$(assignment codexCodeModeHostHash)"
+expected_ref="rust-v${codex_version}"
+
+flake_refs="$(sed -n -E 's/^[[:space:]]*codex-src = \{ url = "github:openai\/codex\/([^"]+)"; flake = false; \};[[:space:]]*$/\1/p' "$flake_file")"
+[[ "$(printf '%s\n' "$flake_refs" | sed '/^$/d' | wc -l)" -eq 1 ]] \
+  || fail "expected exactly one codex-src ref in flake.nix"
+[[ "$flake_refs" == "$expected_ref" ]] \
+  || fail "flake.nix codex-src ref is ${flake_refs}, expected ${expected_ref}"
+
+lock_ref="$(jq -er '.nodes["codex-src"].original.ref | strings | select(length > 0)' "$lock_file")" \
+  || fail "flake.lock has no codex-src original ref"
+[[ "$lock_ref" == "$expected_ref" ]] \
+  || fail "flake.lock codex-src original ref is ${lock_ref}, expected ${expected_ref}"
+
+readme_versions="$(sed -n -E 's/^installs Codex ([^[:space:]]+) and Code Mode Host.*$/\1/p' "$readme_file")"
+[[ "$(printf '%s\n' "$readme_versions" | sed '/^$/d' | wc -l)" -eq 1 ]] \
+  || fail "expected exactly one installed Codex version in README.md"
+[[ "$readme_versions" == "$codex_version" ]] \
+  || fail "README.md installs Codex ${readme_versions}, expected ${codex_version}"
+
+sri_sha256='^sha256-[A-Za-z0-9+/]{43}=$'
+[[ "$codex_hash" =~ $sri_sha256 ]] || fail "codexHash is not an SRI SHA-256 value"
+[[ "$host_hash" =~ $sri_sha256 ]] || fail "codexCodeModeHostHash is not an SRI SHA-256 value"
+
+echo "Codex release pins are consistent at ${codex_version}."

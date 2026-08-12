@@ -15,6 +15,11 @@ installs Codex 0.147.0 and Code Mode Host, Node 24, Playwright CLI 0.1.17,
 global guidance and rules, MCP routing, unnamespaced skills such as `$improve`,
 and the `codex-improve-*` PATH commands.
 
+This repository owns the Codex and Code Mode Host release pins. Its dedicated
+maintenance workflow updates both binaries, the matching Codex source pin, and
+this version statement together; see [updating](docs/updating.md) for the
+operator contract.
+
 ## Plugin installation
 
 After the repository is published, add its marketplace and install the plugin:
@@ -48,5 +53,4 @@ module:
 Build individual packages with `nix build .#codex` or run the vendoring parity
 gate with `nix run .#sync-vendored-skills -- --check`.
 
-See [architecture](docs/architecture.md) for ownership boundaries and
-[updating](docs/updating.md) for the pinned refresh workflow.
+See [architecture](docs/architecture.md) for ownership boundaries.

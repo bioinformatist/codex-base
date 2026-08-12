@@ -1,0 +1,153 @@
+name: Maintain Codex Release
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */4 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maintenance-codex
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      MAINTENANCE_BRANCH: maint/codex
+    steps:
+      - name: Require maintenance credential
+        env:
+          MAINTENANCE_PAT: ${{ secrets.MAINTENANCE_PAT }}
+        shell: bash
+        run: |
+          if [[ -z "$MAINTENANCE_PAT" ]]; then
+            echo "MAINTENANCE_PAT is required for Codex release maintenance." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.MAINTENANCE_PAT }}
+
+      - uses: DeterminateSystems/nix-installer-action@v17
+
+      - name: Configure Git identity
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Update Codex release pins
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: scripts/update-codex-release
+
+      - name: Detect changes
+        id: changes
+        shell: bash
+        run: |
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Close stale pull request and branch
+        if: steps.changes.outputs.changed == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.MAINTENANCE_PAT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r number; do
+            [[ -n "$number" ]] || continue
+            gh pr close "$number" --repo "$GITHUB_REPOSITORY" --comment "Closing because the pinned Codex release is current."
+          done < <(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state open \
+              --base main \
+              --head "$MAINTENANCE_BRANCH" \
+              --json number \
+              --jq '.[].number'
+          )
+
+          if git ls-remote --exit-code --heads origin "refs/heads/$MAINTENANCE_BRANCH" >/dev/null 2>&1; then
+            git push origin --delete "$MAINTENANCE_BRANCH"
+          fi
+
+      - name: Verify update
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          nix run .#sync-vendored-skills -- --check
+          nix flake check --allow-import-from-derivation
+
+      - name: Commit and update maintenance branch
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add README.md flake.nix flake.lock nix/packages.nix
+          git commit -m "chore(maint): update codex"
+
+          remote_ref="refs/heads/$MAINTENANCE_BRANCH"
+          if git ls-remote --exit-code --heads origin "$remote_ref" >/dev/null 2>&1; then
+            git fetch origin "$remote_ref:refs/remotes/origin/$MAINTENANCE_BRANCH"
+            remote_oid="$(git rev-parse "refs/remotes/origin/$MAINTENANCE_BRANCH")"
+            git push \
+              --force-with-lease="$remote_ref:$remote_oid" \
+              origin "HEAD:$remote_ref"
+          else
+            git push \
+              --force-with-lease="$remote_ref:" \
+              origin "HEAD:$remote_ref"
+          fi
+
+      - name: Create or update pull request
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.MAINTENANCE_PAT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pr_number="$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state open \
+              --base main \
+              --head "$MAINTENANCE_BRANCH" \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -z "$pr_number" ]]; then
+            pr_url="$(
+              gh pr create \
+                --repo "$GITHUB_REPOSITORY" \
+                --base main \
+                --head "$MAINTENANCE_BRANCH" \
+                --title "chore(maint): update codex" \
+                --body "Update Codex, Code Mode Host, the matching source lock, and release documentation."
+            )"
+            pr_number="$(gh pr view "$pr_url" --repo "$GITHUB_REPOSITORY" --json number --jq .number)"
+          else
+            gh pr edit "$pr_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "chore(maint): update codex" \
+              --body "Update Codex, Code Mode Host, the matching source lock, and release documentation."
+          fi
+
+          if [[ "$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]; then
+            gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY"
+          fi
+          gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --auto --squash
