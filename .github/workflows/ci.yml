@@ -14,3 +14,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@v17
       - run: nix flake check --allow-import-from-derivation
+
+  plugin-portability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test the plugin without Nix
+        shell: bash
+        run: |
+          if command -v nix >/dev/null; then
+            echo "plugin portability must run without Nix" >&2
+            exit 1
+          fi
+          tests/plugin-portability.bash
