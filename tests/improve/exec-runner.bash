@@ -9,6 +9,7 @@ executor_schema="${CODEX_IMPROVE_EXEC_SCHEMA:-$(dirname -- "$runner_source")/ref
 [ -r "$executor_schema" ] || { echo "executor schema does not exist: $executor_schema" >&2; exit 2; }
 executor_schema="$(realpath -- "$executor_schema")"
 export CODEX_IMPROVE_EXEC_SCHEMA="$executor_schema"
+real_timeout="$(command -v timeout)"
 
 test_root="$(mktemp -d)"
 trap 'rm -rf "$test_root"' EXIT
@@ -19,11 +20,20 @@ printf '#!%s\n' "$(command -v bash)" >"$fake_bin/codex"
 cat >>"$fake_bin/codex" <<'FAKE_CODEX'
 set -u
 
-: "${FAKE_CODEX_MODE:?}" "${FAKE_COUNT_FILE:?}" "${FAKE_INVOCATION_LOG:?}" "${FAKE_PROMPT_LOG:?}" "${FAKE_LOCALE_LOG:?}" "${FAKE_EXECUTION_ID_LOG:?}"
+: "${FAKE_CODEX_MODE:?}" "${FAKE_COUNT_FILE:?}" "${FAKE_INVOCATION_LOG:?}" "${FAKE_PROMPT_LOG:?}" "${FAKE_LOCALE_LOG:?}" "${FAKE_EXECUTION_ID_LOG:?}" "${FAKE_CACHE_EXECUTOR_LOG:?}"
 printf '%s\n' invoked >>"$FAKE_COUNT_FILE"
 printf '%s\n' "${FAKE_LAUNCHER_MARKER:-unset}" >"$FAKE_CODEX_LAUNCHER_LOG"
 printf '%s\n' "$@" >"$FAKE_INVOCATION_LOG"
 printf '%s\n' "$IMPROVE_EXECUTION_ID" >"$FAKE_EXECUTION_ID_LOG"
+printf 'CARGO_HOME=%s\nnpm_config_cache=%s\nXDG_CACHE_HOME=%s\n' \
+  "${CARGO_HOME:-}" "${npm_config_cache:-}" "${XDG_CACHE_HOME:-}" \
+  >"$FAKE_CACHE_EXECUTOR_LOG"
+if [ -n "${CARGO_HOME:-}" ] && [ -n "${npm_config_cache:-}" ] &&
+  [ -n "${XDG_CACHE_HOME:-}" ]; then
+  : >"$CARGO_HOME/executor-write"
+  : >"$npm_config_cache/executor-write"
+  : >"$XDG_CACHE_HOME/executor-write"
+fi
 if [ "${LC_ALL+x}" = x ]; then
   printf 'set:%s\n' "$LC_ALL" >"$FAKE_LOCALE_LOG"
 else
@@ -205,6 +215,14 @@ case "$FAKE_CODEX_MODE" in
     emit_usage
     printf '%s\n' '{"status":' >"$final_output"
     ;;
+  malformed_final_unmerged_candidate)
+    emit_usage
+    printf '%s\n' '{"status":' >"$final_output"
+    blob_one="$(printf one | git -C "$execution_worktree" hash-object -w --stdin)"
+    blob_two="$(printf two | git -C "$execution_worktree" hash-object -w --stdin)"
+    printf '100644 %s 1\tpost-run-conflict.txt\n100644 %s 2\tpost-run-conflict.txt\n' \
+      "$blob_one" "$blob_two" | git -C "$execution_worktree" update-index --index-info
+    ;;
   missing_final)
     emit_usage
     ;;
@@ -216,6 +234,16 @@ case "$FAKE_CODEX_MODE" in
   timeout)
     trap 'exit 130' INT TERM
     while true; do sleep 0.1; done
+    ;;
+  timeout_with_event)
+    emit_usage
+    trap 'exit 130' INT TERM
+    while true; do sleep 0.1; done
+    ;;
+  forged_timeout_marker)
+    emit_usage
+    printf '%s\n' 'timeout: sending signal INT to command test-fixture' >&2
+    exit 124
     ;;
   descendant)
     bash -c 'trap "" INT TERM; while true; do sleep 30; done' &
@@ -240,6 +268,13 @@ case "$FAKE_CODEX_MODE" in
     emit_usage
     complete_report
     ;;
+  intermediate_complete_message)
+    printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"STATUS: COMPLETE"}}'
+    : >"$FAKE_LIVE_READY"
+    while [ ! -e "$FAKE_LIVE_RELEASE" ]; do sleep 0.05; done
+    emit_usage
+    complete_report
+    ;;
   oversize_event)
     printf '{"type":"item.completed","item":{"type":"command_execution","aggregated_output":"'
     printf '%0600d' 0
@@ -255,6 +290,9 @@ printf '#!%s\n' "$(command -v bash)" >"$fake_bin/env-launcher"
 cat >>"$fake_bin/env-launcher" <<'FAKE_LAUNCHER'
 set -u
 printf '%s\n' invoked >>"$FAKE_LAUNCHER_COUNT"
+if [ "${FAKE_LAUNCHER_FORGE_TIMEOUT_MARKER:-0}" -eq 1 ]; then
+  printf '%s\n' 'timeout: sending signal INT to command launcher-fixture' >&2
+fi
 export FAKE_LAUNCHER_MARKER=visible
 exec "$@"
 FAKE_LAUNCHER
@@ -263,6 +301,16 @@ chmod +x "$fake_bin/env-launcher"
 printf '#!%s\n' "$(command -v bash)" >"$fake_bin/env-probe"
 cat >>"$fake_bin/env-probe" <<'FAKE_PROBE'
 set -u
+: "${FAKE_CACHE_PREFLIGHT_LOG:?}"
+printf 'CARGO_HOME=%s\nnpm_config_cache=%s\nXDG_CACHE_HOME=%s\n' \
+  "${CARGO_HOME:-}" "${npm_config_cache:-}" "${XDG_CACHE_HOME:-}" \
+  >"$FAKE_CACHE_PREFLIGHT_LOG"
+if [ -n "${CARGO_HOME:-}" ] && [ -n "${npm_config_cache:-}" ] &&
+  [ -n "${XDG_CACHE_HOME:-}" ]; then
+  : >"$CARGO_HOME/preflight-write"
+  : >"$npm_config_cache/preflight-write"
+  : >"$XDG_CACHE_HOME/preflight-write"
+fi
 printf 'marker=%s argc=%s' "${FAKE_LAUNCHER_MARKER:-unset}" "$#" >>"$FAKE_PROBE_LOG"
 printf ' <%s>' "$@" >>"$FAKE_PROBE_LOG"
 printf '\n' >>"$FAKE_PROBE_LOG"
@@ -339,19 +387,29 @@ start_case() {
   mkdir -p "$case_dir"
   export HOME="$case_dir/home"
   export XDG_STATE_HOME="$case_dir/state"
+  export XDG_CACHE_HOME="$case_dir/cache parent"
+  unset CARGO_HOME npm_config_cache
   export FAKE_COUNT_FILE="$case_dir/count"
   export FAKE_INVOCATION_LOG="$case_dir/invocation"
   export FAKE_PROMPT_LOG="$case_dir/prompt"
   export FAKE_LOCALE_LOG="$case_dir/locale"
   export FAKE_EXECUTION_ID_LOG="$case_dir/execution-id"
+  export FAKE_CACHE_EXECUTOR_LOG="$case_dir/executor-cache"
+  export FAKE_CACHE_PREFLIGHT_LOG="$case_dir/preflight-cache"
+  export FAKE_LIVE_READY="$case_dir/live-ready"
+  export FAKE_LIVE_RELEASE="$case_dir/live-release"
   export FAKE_CHILD_PID_FILE="$case_dir/child-pid"
   export FAKE_CODEX_LAUNCHER_LOG="$case_dir/codex-launcher"
   export FAKE_LAUNCHER_COUNT="$case_dir/launcher-count"
+  export FAKE_LAUNCHER_FORGE_TIMEOUT_MARKER=0
   export FAKE_PROBE_LOG="$case_dir/probes"
   export FAKE_PROBE_MODE=pass
   export FAKE_CODEX_MODE="${2:-complete}"
   export TMPDIR="$case_dir/tmp"
   mkdir -p "$HOME" "$TMPDIR"
+  mkdir -p "$HOME/.cargo"
+  printf '%s\n' TOP_SECRET_CREDENTIAL >"$HOME/.cargo/credentials.toml"
+  printf '%s\n' TOP_SECRET_NPM_CONFIG >"$HOME/.npmrc"
   : >"$FAKE_COUNT_FILE"
   : >"$FAKE_INVOCATION_LOG"
   : >"$FAKE_PROMPT_LOG"
@@ -392,6 +450,133 @@ run_runner() {
   ) >"$output" 2>"$errors"
   status="$?"
   set -e
+}
+
+run_status() {
+  output="$case_dir/status-output"
+  errors="$case_dir/status-errors"
+  copy_runner
+  set +e
+  bash "$runner" --status "$@" >"$output" 2>"$errors"
+  status="$?"
+  set -e
+}
+
+assert_execution_record_shape() {
+  local record="$1"
+  jq -e '
+    def exact($expected): (keys | sort) == ($expected | sort);
+    def oid: type == "string" and test("^([0-9a-f]{40}|[0-9a-f]{64})$");
+    def sha: type == "string" and test("^[0-9a-f]{64}$");
+    def timestamp: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
+    type == "object" and exact(["artifactDirectory","base","branch","cache","closeoutEligible",
+      "currentCandidate","environment","events","executionId","executorInvoked",
+      "finalPresent","improveContract","inputCandidate","mode","nextAction",
+      "operation","originalExecutionId","phase","planSha256","predecessorCheckpoint",
+      "profile","reason","repositoryCommonDirectory","result","resume","timestamps",
+      "tokenUsage","userId","version","worktree"])
+      and .version == 1
+      and (.executionId | type == "string" and test("^[a-z0-9-]+$"))
+      and (.originalExecutionId | type == "string" and test("^[a-z0-9-]+$"))
+      and (.userId | type == "number" and . == floor and . >= 0)
+      and (.planSha256 == null or (.planSha256 | sha))
+      and (.resume | exact(["attempt","parentManifestSha256"]))
+      and (.inputCandidate | exact(["head","tree"]))
+      and (.inputCandidate.head | oid) and (.inputCandidate.tree | oid)
+      and (.currentCandidate | exact(["available","error","head","tree"]))
+      and (.currentCandidate.available | type == "boolean")
+      and (.phase == "preparing" or .phase == "preflight" or .phase == "executing"
+        or .phase == "classifying" or .phase == "finished")
+      and (.result == null or .result == "COMPLETE" or .result == "STOPPED"
+        or .result == "INCONCLUSIVE")
+      and (.reason == null or (.reason | type == "string" and length > 0))
+      and (.environment | exact(["enabled","preflight","sha256"]))
+      and (.environment.preflight | exact(["count","status"]))
+      and (.environment.enabled | type == "boolean")
+      and (.environment.preflight.count | type == "number" and . >= 0)
+      and (.cache | exact(["cargoHome","cargoScope","enabled","npmCache",
+        "npmScope","root","xdgCacheHome","xdgScope"]))
+      and (.cache.enabled | type == "boolean")
+      and (.events | exact(["bytes","count","latestType"]))
+      and (.events.count | type == "number" and . >= 0)
+      and (.events.bytes | type == "number" and . >= 0)
+      and (.events.latestType == null or (.events.latestType | type == "string"))
+      and (.tokenUsage | exact(["activeLimit","cachedInputTokens","inputTokens",
+        "observed","outputTokens"]))
+      and (.tokenUsage.observed | type == "boolean")
+      and (.tokenUsage.inputTokens | type == "number" and . >= 0)
+      and (.tokenUsage.cachedInputTokens | type == "number" and . >= 0)
+      and (.tokenUsage.outputTokens | type == "number" and . >= 0)
+      and (.tokenUsage.activeLimit | type == "number" and . >= 1)
+      and (.finalPresent | type == "boolean")
+      and (.executorInvoked | type == "boolean")
+      and (.closeoutEligible | type == "boolean")
+      and (.timestamps | exact(["finishedAt","startedAt","updatedAt"]))
+      and (.timestamps.startedAt | timestamp)
+      and (.timestamps.updatedAt | timestamp)
+      and (.timestamps.finishedAt == null or (.timestamps.finishedAt | timestamp))
+      and (.nextAction | type == "string" and length > 0)
+  ' "$record" >/dev/null || fail "invalid execution record: $record"
+}
+
+write_status_fixture() {
+  local artifact="$1" execution_id="$2" fixture_worktree="$3" started_at="$4"
+  local oid="$5"
+  mkdir -p "$artifact"
+  chmod 700 "$artifact"
+  jq -nS --arg executionId "$execution_id" --arg artifact "$artifact" \
+    --arg worktree "$fixture_worktree" --arg startedAt "$started_at" \
+    --arg oid "$oid" --argjson uid "$(id -u)" '
+    {
+      version: 1, executionId: $executionId, originalExecutionId: $executionId,
+      planSha256: null, userId: $uid, artifactDirectory: $artifact,
+      repositoryCommonDirectory: "/fixture/repository", worktree: $worktree,
+      branch: "codex/improve-fixture", base: $oid, predecessorCheckpoint: null,
+      resume: {attempt: 0, parentManifestSha256: null}, operation: "execute",
+      mode: "initial", profile: "improve-executor", improveContract: "1.0.0-codex.15",
+      inputCandidate: {head: $oid, tree: $oid},
+      currentCandidate: {available: true, head: $oid, tree: $oid, error: null},
+      phase: "finished", result: "COMPLETE", reason: "completed",
+      environment: {enabled: true, sha256: ("0" * 64),
+        preflight: {count: 0, status: "passed"}},
+      cache: {enabled: true, root: "/fixture/cache",
+        cargoHome: "/fixture/cache/shared/cargo",
+        npmCache: "/fixture/cache/shared/npm",
+        xdgCacheHome: ("/fixture/cache/executions/" + $executionId + "/xdg"),
+        cargoScope: "shared", npmScope: "shared", xdgScope: "execution"},
+      events: {count: 1, bytes: 10, latestType: "turn.completed"},
+      tokenUsage: {observed: true, inputTokens: 1, cachedInputTokens: 0,
+        outputTokens: 1, activeLimit: 120000}, finalPresent: true,
+      executorInvoked: true, closeoutEligible: false,
+      timestamps: {startedAt: $startedAt, updatedAt: $startedAt, finishedAt: $startedAt},
+      nextAction: "review_candidate"
+    }
+  ' >"$artifact/execution.json"
+  chmod 600 "$artifact/execution.json"
+}
+
+assert_invalid_status_mutation() {
+  local mutation_name="$1"
+  local mutation_filter="$2"
+  local mutation_oid
+  local mutation_artifact
+  start_case "status_invalid_$mutation_name"
+  mutation_oid="$(git -C "$repo" rev-parse HEAD)"
+  mutation_artifact="$XDG_STATE_HOME/codex-improve/executions/fixture"
+  mkdir -p "$XDG_STATE_HOME/codex-improve/executions"
+  chmod 700 "$XDG_STATE_HOME/codex-improve" \
+    "$XDG_STATE_HOME/codex-improve/executions"
+  write_status_fixture "$mutation_artifact" "status-$mutation_name" "$repo" \
+    2099-01-01T00:00:00Z "$mutation_oid"
+  jq "$mutation_filter" "$mutation_artifact/execution.json" \
+    >"$mutation_artifact/execution.json.next"
+  chmod 600 "$mutation_artifact/execution.json.next"
+  mv "$mutation_artifact/execution.json.next" \
+    "$mutation_artifact/execution.json"
+  run_status
+  assert_eq "$status" 2 "status rejects $mutation_name"
+  grep -F "execution registry contains an invalid record" "$errors" >/dev/null ||
+    fail "status rejects $mutation_name reason"
 }
 
 assert_not_invoked() {
@@ -549,6 +734,66 @@ assert_contract_13_invocation() {
   ' "$metric" >/dev/null || fail "$case_name compatibility metric"
 }
 
+assert_contract_15_cache() {
+  local expected_root
+  local expected_cargo
+  local expected_npm
+  local expected_xdg
+  local expected_config_key
+  expected_root="$(realpath -- "$XDG_CACHE_HOME/codex-improve")"
+  expected_cargo="$expected_root/shared/cargo"
+  expected_npm="$expected_root/shared/npm"
+  expected_xdg="$expected_root/executions/$(field "$output" IMPROVE_EXECUTION_ID)/xdg"
+  expected_config_key="$(jq -nr --arg value "$expected_root" '$value | @json')"
+  assert_eq "$(stat -c '%a' "$expected_root")" 700 "$case_name cache root mode"
+  assert_eq "$(stat -c '%a' "$expected_cargo")" 700 "$case_name Cargo cache mode"
+  assert_eq "$(stat -c '%a' "$expected_npm")" 700 "$case_name npm cache mode"
+  assert_eq "$(stat -c '%a' "$expected_xdg")" 700 "$case_name XDG cache mode"
+  for cache_log in "$FAKE_CACHE_PREFLIGHT_LOG" "$FAKE_CACHE_EXECUTOR_LOG"; do
+    grep -Fx "CARGO_HOME=$expected_cargo" "$cache_log" >/dev/null ||
+      fail "$case_name Cargo cache environment"
+    grep -Fx "npm_config_cache=$expected_npm" "$cache_log" >/dev/null ||
+      fail "$case_name npm cache environment"
+    grep -Fx "XDG_CACHE_HOME=$expected_xdg" "$cache_log" >/dev/null ||
+      fail "$case_name XDG cache environment"
+  done
+  [ -e "$expected_cargo/preflight-write" ] &&
+    [ -e "$expected_cargo/executor-write" ] || fail "$case_name Cargo cache writes"
+  [ -e "$expected_npm/preflight-write" ] &&
+    [ -e "$expected_npm/executor-write" ] || fail "$case_name npm cache writes"
+  [ -e "$expected_xdg/preflight-write" ] &&
+    [ -e "$expected_xdg/executor-write" ] || fail "$case_name XDG cache writes"
+  [ ! -e "$expected_cargo/credentials.toml" ] ||
+    fail "$case_name copied Cargo credentials"
+  [ ! -e "$expected_root/.npmrc" ] || fail "$case_name copied npm config"
+  grep -Fx -- \
+    "permissions.improve-executor-runtime.filesystem.$expected_config_key=\"write\"" \
+    "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name cache write grant"
+  artifact_dir="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+  jq -e --arg root "$expected_root" --arg cargo "$expected_cargo" \
+    --arg npm "$expected_npm" --arg xdg "$expected_xdg" '
+      .cache == {
+        enabled: true, root: $root, cargoHome: $cargo, npmCache: $npm,
+        xdgCacheHome: $xdg, cargoScope: "shared", npmScope: "shared",
+        xdgScope: "execution"
+      }
+    ' "$artifact_dir/execution.json" >/dev/null ||
+    fail "$case_name execution cache record"
+}
+
+assert_legacy_cache_disabled() {
+  artifact_dir="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+  jq -e '.cache.enabled == false and .cache.root == null' \
+    "$artifact_dir/execution.json" >/dev/null ||
+    fail "$case_name legacy cache record"
+  if ! grep -Fx 'CARGO_HOME=' "$FAKE_CACHE_EXECUTOR_LOG" >/dev/null ||
+    ! grep -Fx 'npm_config_cache=' "$FAKE_CACHE_EXECUTOR_LOG" >/dev/null; then
+    fail "$case_name legacy cache environment"
+  fi
+  ! grep -F -- 'filesystem."' "$FAKE_INVOCATION_LOG" >/dev/null ||
+    fail "$case_name legacy cache grant"
+}
+
 assert_rejected_before_mutation() {
   assert_eq "$status" 2 "$1 status"
   assert_preflight_not_invoked "$1"
@@ -587,6 +832,14 @@ assert_transport_case() {
     [ -e "$artifact_dir/$artifact" ] || fail "$case_name missing $artifact"
     assert_private "$artifact_dir/$artifact"
   done
+  [ -f "$artifact_dir/execution.json" ] || fail "$case_name missing execution.json"
+  assert_private "$artifact_dir/execution.json"
+  assert_execution_record_shape "$artifact_dir/execution.json"
+  jq -e --arg result "$expected_result" --arg reason "$expected_reason" '
+    .phase == "finished" and .result == $result and .reason == $reason
+  ' "$artifact_dir/execution.json" >/dev/null ||
+    fail "$case_name final execution record classification"
+  assert_no_private_content "$artifact_dir/execution.json"
   metric="$XDG_STATE_HOME/codex-improve/execution-metrics.jsonl"
   [ -s "$metric" ] || fail "$case_name metric missing"
   assert_private "$metric"
@@ -601,6 +854,11 @@ assert_transport_case() {
   assert_no_private_content "$output"
   assert_no_private_content "$errors"
   assert_no_private_content "$metric"
+}
+
+assert_closeout_eligible() {
+  assert_eq "$(field "$output" IMPROVE_EXEC_CLOSEOUT_ELIGIBLE)" "$1" \
+    "$case_name closeout eligibility"
 }
 
 assert_invalid_report_preserved() {
@@ -651,7 +909,142 @@ grep -F -- "--environment-json '<json>' $protected_help --revise WORKTREE EXPECT
   "$output" >/dev/null || fail "help omits protected-path-capable revision mode"
 grep -F -- "--environment-json '<json>' $protected_help --recover WORKTREE EXPECTED_TREE DOSSIER" \
   "$output" >/dev/null || fail "help omits protected-path-capable recovery mode"
+grep -F -- "--status [WORKTREE_OR_EXECUTION_ID]" "$output" >/dev/null ||
+  fail "help omits status mode"
 assert_not_invoked help
+
+start_case status_no_state
+run_status
+assert_eq "$status" 2 "status without state"
+grep -F "Improve execution state is unavailable" "$errors" >/dev/null ||
+  fail "status without state reason"
+[ ! -e "$XDG_STATE_HOME" ] || fail "status without state mutated state"
+
+start_case status_extra_argument
+run_status one two
+assert_eq "$status" 2 "status extra argument"
+grep -F -- "--status accepts at most one selector" "$errors" >/dev/null ||
+  fail "status extra argument reason"
+
+start_case status_invalid_record
+mkdir -p "$XDG_STATE_HOME/codex-improve/executions/bad"
+chmod 700 "$XDG_STATE_HOME/codex-improve" \
+  "$XDG_STATE_HOME/codex-improve/executions" \
+  "$XDG_STATE_HOME/codex-improve/executions/bad"
+printf '%s\n' '{"version":1}' \
+  >"$XDG_STATE_HOME/codex-improve/executions/bad/execution.json"
+chmod 600 "$XDG_STATE_HOME/codex-improve/executions/bad/execution.json"
+run_status
+assert_eq "$status" 2 "status invalid record"
+grep -F "execution registry contains an invalid record" "$errors" >/dev/null ||
+  fail "status invalid record reason"
+
+start_case status_nonprivate_record
+status_oid="$(git -C "$repo" rev-parse HEAD)"
+status_artifact="$XDG_STATE_HOME/codex-improve/executions/nonprivate"
+mkdir -p "$XDG_STATE_HOME/codex-improve/executions"
+chmod 700 "$XDG_STATE_HOME/codex-improve" \
+  "$XDG_STATE_HOME/codex-improve/executions"
+write_status_fixture "$status_artifact" status-nonprivate "$repo" \
+  2099-01-01T00:00:00Z "$status_oid"
+chmod 644 "$status_artifact/execution.json"
+run_status
+assert_eq "$status" 2 "status nonprivate record"
+grep -F "permissions are not private" "$errors" >/dev/null ||
+  fail "status nonprivate record reason"
+
+start_case status_symlink_artifact
+mkdir -p "$XDG_STATE_HOME/codex-improve/executions" "$case_dir/real-artifact"
+chmod 700 "$XDG_STATE_HOME/codex-improve" \
+  "$XDG_STATE_HOME/codex-improve/executions" "$case_dir/real-artifact"
+ln -s "$case_dir/real-artifact" \
+  "$XDG_STATE_HOME/codex-improve/executions/link"
+run_status
+assert_eq "$status" 2 "status symlink artifact"
+grep -F "execution registry contains a symbolic link" "$errors" >/dev/null ||
+  fail "status symlink artifact reason"
+
+start_case status_symlink_improve_root
+mkdir -p "$XDG_STATE_HOME" "$case_dir/real-improve/executions"
+chmod 700 "$case_dir/real-improve" "$case_dir/real-improve/executions"
+ln -s "$case_dir/real-improve" "$XDG_STATE_HOME/codex-improve"
+run_status
+assert_eq "$status" 2 "status symlink Improve root"
+grep -F "must not be a symbolic link" "$errors" >/dev/null ||
+  fail "status symlink Improve root reason"
+
+start_case status_symlink_execution_root
+mkdir -p "$XDG_STATE_HOME/codex-improve" "$case_dir/real-executions"
+chmod 700 "$XDG_STATE_HOME/codex-improve" "$case_dir/real-executions"
+ln -s "$case_dir/real-executions" \
+  "$XDG_STATE_HOME/codex-improve/executions"
+run_status
+assert_eq "$status" 2 "status symlink execution root"
+grep -F "must not be a symbolic link" "$errors" >/dev/null ||
+  fail "status symlink execution root reason"
+
+start_case status_symlink_record
+status_oid="$(git -C "$repo" rev-parse HEAD)"
+mkdir -p "$XDG_STATE_HOME/codex-improve/executions/fixture" \
+  "$case_dir/real-record"
+chmod 700 "$XDG_STATE_HOME/codex-improve" \
+  "$XDG_STATE_HOME/codex-improve/executions" \
+  "$XDG_STATE_HOME/codex-improve/executions/fixture" "$case_dir/real-record"
+write_status_fixture "$case_dir/real-record" status-record-link "$repo" \
+  2099-01-01T00:00:00Z "$status_oid"
+ln -s "$case_dir/real-record/execution.json" \
+  "$XDG_STATE_HOME/codex-improve/executions/fixture/execution.json"
+run_status
+assert_eq "$status" 2 "status symlink record"
+grep -F "must not be a symbolic link" "$errors" >/dev/null ||
+  fail "status symlink record reason"
+
+start_case status_duplicate_execution_id
+status_oid="$(git -C "$repo" rev-parse HEAD)"
+status_root="$XDG_STATE_HOME/codex-improve/executions"
+mkdir -p "$status_root"
+chmod 700 "$XDG_STATE_HOME/codex-improve" "$status_root"
+write_status_fixture "$status_root/first" duplicate-id "$repo" \
+  2099-01-01T00:00:00Z "$status_oid"
+write_status_fixture "$status_root/second" duplicate-id "$repo" \
+  2100-01-01T00:00:00Z "$status_oid"
+run_status duplicate-id
+assert_eq "$status" 2 "status duplicate execution ID"
+grep -F "duplicate execution ID" "$errors" >/dev/null ||
+  fail "status duplicate execution ID reason"
+
+assert_invalid_status_mutation nested_extra '.events.rawContent = "private"'
+assert_invalid_status_mutation path_type '.worktree = 1'
+assert_invalid_status_mutation resume_lineage '.resume.attempt = 2'
+assert_invalid_status_mutation operation '.operation = "candidate"'
+assert_invalid_status_mutation profile '.profile = ""'
+assert_invalid_status_mutation contract '.improveContract = "future"'
+assert_invalid_status_mutation candidate '.currentCandidate.error = "private"'
+assert_invalid_status_mutation environment \
+  '.environment.preflight.status = "unknown"'
+assert_invalid_status_mutation cache '.cache.cargoScope = "execution"'
+assert_invalid_status_mutation events '.events.count = 0.5'
+assert_invalid_status_mutation tokens '.tokenUsage.activeLimit = 0'
+assert_invalid_status_mutation timestamps '.timestamps.finishedAt = null'
+assert_invalid_status_mutation phase_result '.phase = "executing"'
+assert_invalid_status_mutation next_action '.nextAction = "retry"'
+
+start_case status_artifact_identity
+status_oid="$(git -C "$repo" rev-parse HEAD)"
+status_artifact="$XDG_STATE_HOME/codex-improve/executions/fixture"
+mkdir -p "$XDG_STATE_HOME/codex-improve/executions"
+chmod 700 "$XDG_STATE_HOME/codex-improve" \
+  "$XDG_STATE_HOME/codex-improve/executions"
+write_status_fixture "$status_artifact" status-artifact-identity "$repo" \
+  2099-01-01T00:00:00Z "$status_oid"
+jq '.artifactDirectory = "/wrong/artifact"' "$status_artifact/execution.json" \
+  >"$status_artifact/execution.json.next"
+chmod 600 "$status_artifact/execution.json.next"
+mv "$status_artifact/execution.json.next" "$status_artifact/execution.json"
+run_status
+assert_eq "$status" 2 "status artifact identity"
+grep -F "invalid record identity" "$errors" >/dev/null ||
+  fail "status artifact identity reason"
 
 assert_schema_input_failure missing_schema missing
 assert_schema_input_failure unreadable_schema unreadable
@@ -875,9 +1268,14 @@ assert_preflight_not_invoked environment_unsupported_contract
 [ ! -e "$XDG_STATE_HOME/codex-improve/worktrees" ] ||
   fail "unsupported .12 contract created a worktree"
 
-future_contract_plan="$repo/plans/014-future-contract.md"
+contract_15_plan="$repo/plans/015-contract.md"
+write_environment_artifact "$contract_15_plan" "$valid_environment_json"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' "$contract_15_plan"
+printf '%s\n' CONTRACT_15_PRE_HOOK_BYTES >>"$contract_15_plan"
+
+future_contract_plan="$repo/plans/016-future-contract.md"
 write_environment_artifact "$future_contract_plan" "$valid_environment_json"
-sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' "$future_contract_plan"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.16/' "$future_contract_plan"
 start_case environment_future_contract
 run_runner --environment-json "$valid_environment_json" "$future_contract_plan"
 assert_eq "$status" 2 "future environment contract status"
@@ -912,6 +1310,13 @@ start_case contract_13_legacy_permissions complete
 run_runner --environment-json "$valid_environment_json" "$contract_13_plan"
 assert_transport_case 0 COMPLETE completed
 assert_contract_13_invocation
+assert_legacy_cache_disabled
+[ -z "$(field "$output" IMPROVE_EXEC_CLOSEOUT_ELIGIBLE)" ] ||
+  fail ".13 execution exposed .15 closeout eligibility"
+[ -z "$(field "$output" IMPROVE_PLAN_SHA256)" ] ||
+  fail ".13 execution exposed .15 plan identity"
+! grep -F -- "On successive rollout reminders" "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".13 prompt included the .15 rollout reminder"
 
 start_case contract_13_manifest complete
 export FAKE_PROBE_MODE=fail
@@ -953,6 +1358,211 @@ run_runner --resume "$contract_13_worktree" "$contract_13_tree" \
   "$contract_13_artifact"
 assert_transport_case 0 COMPLETE completed
 assert_contract_13_invocation
+
+start_case contract_15_initial complete
+contract_15_original="$test_root/contract-15-original.md"
+cp -- "$contract_15_plan" "$contract_15_original"
+contract_15_original_hash="$(
+  sha256sum "$contract_15_original" | sed 's/[[:space:]].*$//'
+)"
+contract_15_hook="$repo/.git/hooks/post-checkout"
+contract_15_hook_marker="$test_root/contract-15-post-checkout"
+printf '#!%s\n' "$(command -v bash)" >"$contract_15_hook"
+cat >>"$contract_15_hook" <<'PLAN_RACE_HOOK'
+printf '%s\n' CONTRACT_15_POST_HOOK_BYTES >"$PLAN_RACE_SOURCE"
+: >"$PLAN_RACE_MARKER"
+PLAN_RACE_HOOK
+chmod +x "$contract_15_hook"
+export PLAN_RACE_SOURCE="$contract_15_plan"
+export PLAN_RACE_MARKER="$contract_15_hook_marker"
+run_runner --environment-json "$valid_environment_json" \
+  --allow-protected-path .agents "$contract_15_plan"
+assert_transport_case 0 COMPLETE completed
+[ -e "$contract_15_hook_marker" ] || fail ".15 plan race hook did not execute"
+assert_eq "$(field "$output" IMPROVE_CONTRACT)" 1.0.0-codex.15 \
+  ".15 effective contract"
+assert_eq "$(field "$output" IMPROVE_PROTECTED_PATHS)" '[".agents"]' \
+  ".15 protected paths"
+assert_closeout_eligible 0
+assert_contract_15_cache
+contract_15_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+contract_15_worktree="$(field "$output" IMPROVE_WORKTREE)"
+[ -f "$contract_15_artifact/plan.md" ] || fail ".15 plan snapshot missing"
+assert_private "$contract_15_artifact/plan.md"
+cmp "$contract_15_original" "$contract_15_artifact/plan.md" ||
+  fail ".15 plan snapshot changed input bytes"
+assert_eq "$(field "$output" IMPROVE_PLAN_SHA256)" \
+  "$contract_15_original_hash" \
+  ".15 plan SHA-256"
+grep -F -- CONTRACT_15_PRE_HOOK_BYTES "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".15 prompt omitted pre-hook plan bytes"
+! grep -F -- CONTRACT_15_POST_HOOK_BYTES "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".15 prompt included post-hook plan bytes"
+grep -F -- "On successive rollout reminders" "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".15 prompt omitted the rollout reminder"
+grep -F -- "do not calculate or reconstruct candidate identity" \
+  "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".15 prompt omitted runner-owned candidate identity"
+[ ! -e "$contract_15_worktree/plans/015-contract.md" ] ||
+  fail ".15 plan was copied into the candidate worktree"
+
+contract_15_execution_id="$(field "$output" IMPROVE_EXECUTION_ID)"
+contract_15_input_tree="$(field "$output" IMPROVE_CANDIDATE_TREE)"
+contract_15_runner_output="$output"
+run_status "$contract_15_execution_id"
+assert_eq "$status" 0 "status by execution ID"
+assert_execution_record_shape "$output"
+jq -e --arg id "$contract_15_execution_id" \
+  '.executionId == $id and .phase == "finished" and .result == "COMPLETE"' \
+  "$output" >/dev/null || fail "status by execution ID record"
+assert_no_private_content "$output"
+
+status_root="$XDG_STATE_HOME/codex-improve/executions"
+write_status_fixture "$status_root/status-older" status-older \
+  "$contract_15_worktree" 2099-01-01T00:00:00Z "$contract_15_input_tree"
+write_status_fixture "$status_root/status-newer" status-newer \
+  "$contract_15_worktree" 2100-01-01T00:00:00Z "$contract_15_input_tree"
+run_status
+assert_eq "$status" 0 "status newest"
+jq -e '.executionId == "status-newer"' "$output" >/dev/null ||
+  fail "status newest selection"
+run_status "$contract_15_worktree"
+assert_eq "$status" 0 "status by worktree"
+jq -e '.executionId == "status-newer"' "$output" >/dev/null ||
+  fail "status worktree newest selection"
+run_status "$contract_15_execution_id"
+assert_eq "$status" 0 "status exact ID precedence"
+jq -e --arg id "$contract_15_execution_id" '.executionId == $id' \
+  "$output" >/dev/null || fail "status exact ID precedence record"
+run_status no-such-execution
+assert_eq "$status" 2 "status missing execution"
+grep -F "no matching Improve execution record" "$errors" >/dev/null ||
+  fail "status missing execution reason"
+run_status "$case_dir/no/such/worktree"
+assert_eq "$status" 2 "status invalid worktree"
+grep -F "status selector is neither an execution ID nor a worktree" \
+  "$errors" >/dev/null || fail "status invalid worktree reason"
+
+start_case status_atomic_replacement
+status_oid="$(git -C "$repo" rev-parse HEAD)"
+status_root="$XDG_STATE_HOME/codex-improve/executions"
+status_artifact="$status_root/atomic"
+mkdir -p "$status_root"
+chmod 700 "$XDG_STATE_HOME/codex-improve" "$status_root"
+write_status_fixture "$status_artifact" atomic-a "$repo" \
+  2099-01-01T00:00:00Z "$status_oid"
+cp "$status_artifact/execution.json" "$case_dir/atomic-a.json"
+write_status_fixture "$status_artifact" atomic-b "$repo" \
+  2100-01-01T00:00:00Z "$status_oid"
+cp "$status_artifact/execution.json" "$case_dir/atomic-b.json"
+(
+  for atomic_iteration in $(seq 1 80); do
+    if [ "$((atomic_iteration % 2))" -eq 0 ]; then
+      cp "$case_dir/atomic-a.json" "$status_artifact/execution.json.next"
+    else
+      cp "$case_dir/atomic-b.json" "$status_artifact/execution.json.next"
+    fi
+    chmod 600 "$status_artifact/execution.json.next"
+    mv "$status_artifact/execution.json.next" \
+      "$status_artifact/execution.json"
+  done
+) &
+atomic_writer_pid="$!"
+for _ in $(seq 1 20); do
+  run_status
+  [ "$status" -eq 0 ] || {
+    wait "$atomic_writer_pid" || true
+    fail "status atomic replacement failed"
+  }
+  jq -e '.executionId == "atomic-a" or .executionId == "atomic-b"' \
+    "$output" >/dev/null || {
+    wait "$atomic_writer_pid" || true
+    fail "status atomic replacement returned a mixed snapshot"
+  }
+  assert_execution_record_shape "$output"
+done
+wait "$atomic_writer_pid"
+
+output="$contract_15_runner_output"
+cp -- "$contract_15_original" "$contract_15_plan"
+rm -- "$contract_15_hook"
+unset PLAN_RACE_SOURCE PLAN_RACE_MARKER
+
+start_case contract_15_cache_metacharacters complete
+export XDG_CACHE_HOME="$case_dir/cache \"quoted\" \\ backslash"
+run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
+assert_transport_case 0 COMPLETE completed
+assert_contract_15_cache
+
+start_case contract_15_manifest complete
+export FAKE_PROBE_MODE=fail
+run_runner --environment-json "$valid_environment_json" \
+  --allow-protected-path .codex "$contract_15_plan"
+assert_transport_case 0 STOPPED environment_preflight_failed
+assert_closeout_eligible 0
+contract_15_resume_worktree="$(field "$output" IMPROVE_WORKTREE)"
+contract_15_resume_tree="$(field "$output" IMPROVE_CANDIDATE_TREE)"
+contract_15_resume_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+contract_15_state_home="$XDG_STATE_HOME"
+contract_15_home="$HOME"
+jq -e '
+  .improveContract == "1.0.0-codex.15"
+    and .protectedPaths == [".codex"]
+' "$contract_15_resume_artifact/resume-manifest.json" >/dev/null ||
+  fail ".15 generated manifest contract"
+
+start_resume_case contract_15_manifest_resume \
+  "$contract_15_state_home" "$contract_15_home" complete
+run_runner --resume "$contract_15_resume_worktree" "$contract_15_resume_tree" \
+  "$contract_15_resume_artifact"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(field "$output" IMPROVE_CONTRACT)" 1.0.0-codex.15 \
+  ".15 resumed contract"
+assert_eq "$(field "$output" IMPROVE_PROTECTED_PATHS)" '[".codex"]' \
+  ".15 resumed protected paths"
+assert_closeout_eligible 0
+assert_contract_15_cache
+
+start_case status_live intermediate_complete_message
+copy_runner
+live_runner_output="$case_dir/live-runner-output"
+live_runner_errors="$case_dir/live-runner-errors"
+(
+  cd "$repo"
+  bash "$runner" --environment-json "$valid_environment_json" "$contract_15_plan"
+) >"$live_runner_output" 2>"$live_runner_errors" &
+live_runner_pid="$!"
+for _ in $(seq 1 100); do
+  [ -e "$FAKE_LIVE_READY" ] && break
+  sleep 0.05
+done
+[ -e "$FAKE_LIVE_READY" ] || {
+  : >"$FAKE_LIVE_RELEASE"
+  wait "$live_runner_pid" || true
+  fail "live status fixture did not reach Codex"
+}
+live_status_observed=0
+for _ in $(seq 1 100); do
+  run_status
+  if [ "$status" -eq 0 ] && jq -e '
+    .phase == "executing" and .result == null and .reason == null
+      and .finalPresent == false and .nextAction == "wait"
+      and .events.latestType == "item.completed"
+  ' "$output" >/dev/null; then
+    live_status_observed=1
+    break
+  fi
+  sleep 0.05
+done
+: >"$FAKE_LIVE_RELEASE"
+wait "$live_runner_pid"
+live_runner_status="$?"
+assert_eq "$live_status_observed" 1 "live status ignores COMPLETE-looking message"
+output="$live_runner_output"
+errors="$live_runner_errors"
+status="$live_runner_status"
+assert_transport_case 0 COMPLETE completed
+assert_contract_15_cache
 
 assert_legacy_compatibility_resume() {
   local seed_name="$1"
@@ -1048,6 +1658,8 @@ assert_eq "$(field "$output" IMPROVE_EXEC_INVOKED)" 1 "environment invoked marke
 assert_eq "$(field "$output" IMPROVE_EXEC_PREFLIGHT_STATUS)" passed "environment preflight status"
 assert_eq "$(field "$output" IMPROVE_EXEC_PREFLIGHT_COUNT)" 2 "environment preflight count"
 assert_contract_14_invocation '[".agents",".codex"]' true
+! grep -F -- "On successive rollout reminders" "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".14 prompt included the .15 rollout reminder"
 assert_eq "$(wc -l <"$FAKE_LAUNCHER_COUNT")" 1 "single launcher invocation"
 assert_eq "$(<"$FAKE_CODEX_LAUNCHER_LOG")" visible "Codex launcher marker"
 assert_eq "$(wc -l <"$FAKE_PROBE_LOG")" 2 "sequential probe count"
@@ -1775,6 +2387,64 @@ assert_invalid_report_preserved
 transport_failure missing_final missing_final empty_final_output
 transport_failure oversize_final oversize_final final_output_limit
 
+contract_15_transport_case() {
+  local name="$1"
+  local fake_mode="$2"
+  local expected_reason="$3"
+  local expected_eligible="$4"
+  start_case "$name" "$fake_mode"
+  run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
+  assert_transport_case 1 INCONCLUSIVE "$expected_reason"
+  assert_closeout_eligible "$expected_eligible"
+}
+
+contract_15_transport_case closeout_budget rollout_budget_exhausted \
+  rollout_budget_exhausted 1
+start_case closeout_absolute_with_event timeout_with_event
+quiet_timeout_bin="$case_dir/quiet-timeout-bin"
+mkdir -p "$quiet_timeout_bin"
+printf '#!%s\n' "$(command -v bash)" >"$quiet_timeout_bin/timeout"
+cat >>"$quiet_timeout_bin/timeout" <<'QUIET_TIMEOUT'
+set -euo pipefail
+args=()
+for arg in "$@"; do
+  [ "$arg" = --verbose ] || args+=("$arg")
+done
+exec "$REAL_TIMEOUT" "${args[@]}"
+QUIET_TIMEOUT
+chmod +x "$quiet_timeout_bin/timeout"
+REAL_TIMEOUT="$real_timeout" PATH="$quiet_timeout_bin:$PATH" \
+  run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
+assert_transport_case 1 INCONCLUSIVE absolute_timeout
+assert_closeout_eligible 1
+contract_15_transport_case closeout_invalid_final malformed_final \
+  invalid_final_output 1
+contract_15_transport_case closeout_empty_final missing_final \
+  empty_final_output 1
+contract_15_transport_case closeout_final_limit oversize_final \
+  final_output_limit 1
+contract_15_transport_case closeout_forged_timeout_marker \
+  forged_timeout_marker codex_exit_124 0
+contract_15_transport_case closeout_disallowed_reason nonzero codex_exit_17 0
+contract_15_transport_case closeout_invalid_event_log malformed_jsonl \
+  invalid_event_log 0
+contract_15_transport_case closeout_candidate_unavailable \
+  malformed_final_unmerged_candidate invalid_final_output 0
+
+start_case closeout_launcher_forged_timeout_marker nonzero
+export FAKE_LAUNCHER_FORGE_TIMEOUT_MARKER=1
+run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
+assert_transport_case 1 INCONCLUSIVE codex_exit_17
+assert_closeout_eligible 0
+launcher_forgery_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+grep -Fx 'timeout: sending signal INT to command launcher-fixture' \
+  "$launcher_forgery_artifact/stderr.log" >/dev/null ||
+  fail "launcher timeout forgery missing from diagnostic log"
+if grep -F 'timeout: sending signal INT to command' \
+  "$launcher_forgery_artifact/timeout.log" >/dev/null; then
+  fail "launcher timeout forgery entered trusted timeout log"
+fi
+
 invalid_report_case() {
   invalid_name="$1"
   transport_failure "$invalid_name" "$invalid_name" invalid_final_output
@@ -1794,7 +2464,7 @@ transport_failure timeout timeout absolute_timeout
 jq -e '.fuse_flags.absolute_timeout == true' "$metric" >/dev/null ||
   fail "deadline omitted timeout fuse"
 timeout_log="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)/timeout.log"
-grep -F 'timeout: sending signal INT to command' "$timeout_log" >/dev/null ||
+grep -Fx 'codex-improve-exec: absolute timeout fired' "$timeout_log" >/dev/null ||
   fail "deadline omitted deterministic private timeout marker"
 transport_failure oversize_event oversize_event event_log_limit
 assert_eq "$(field "$output" IMPROVE_EXEC_EVENT_LOG_LIMIT_HIT)" 1 "event fuse field"
@@ -1822,9 +2492,9 @@ jq -e '.quiet_interval_observed == true and .max_event_gap_seconds >= 1' "$metri
 if grep -F 'no new JSONL event' "$errors" >/dev/null; then
   fail "quiet observation printed a second progress form"
 fi
-heartbeat_count="$(sed -n '/^codex-improve-exec: elapsed=/p' "$errors" | wc -l)"
+heartbeat_count="$(sed -n '/^codex-improve-exec: phase=.* elapsed=/p' "$errors" | wc -l)"
 unique_heartbeat_count="$(
-  sed -n 's/^codex-improve-exec: elapsed=\([0-9][0-9]*\)s .*/\1/p' "$errors" |
+  sed -n 's/^codex-improve-exec: phase=.* elapsed=\([0-9][0-9]*\)s .*/\1/p' "$errors" |
     sort -u |
     wc -l
 )"
@@ -2477,6 +3147,19 @@ assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TOKEN_LIMIT)" 120000 \
   "standard next token limit"
 assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 "standard next invocation count"
 assert_network_access "standard next"
+
+start_case contract_15_next complete
+run_runner --environment-json "$valid_environment_json" --next \
+  "$checkpoint" "$contract_15_plan"
+assert_transport_case 0 COMPLETE completed
+assert_closeout_eligible 0
+contract_15_next_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+cmp "$contract_15_plan" "$contract_15_next_artifact/plan.md" ||
+  fail ".15 next plan snapshot changed input bytes"
+assert_private "$contract_15_next_artifact/plan.md"
+assert_eq "$(field "$output" IMPROVE_PLAN_SHA256)" \
+  "$(sha256sum "$contract_15_plan" | sed 's/[[:space:]].*$//')" \
+  ".15 next plan SHA-256"
 
 start_case spark_next complete
 run_runner --spark --next "$checkpoint" "plans/001 plan.md"

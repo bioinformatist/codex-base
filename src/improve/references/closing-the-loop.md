@@ -1,19 +1,21 @@
 # Closing The Loop
 
-The advisor never edits source code. An executor works in a new persistent Git
+Audit and planning remain read-only. An executor works in a new persistent Git
 worktree; the main agent verifies the result and returns an implementation
-verdict. The worktree is preserved until the user decides what to do with it.
+verdict, with only the single deterministic gate-repair permission defined
+below. The worktree is preserved until the user decides what to do with it.
 
 ## Environment preflight and resume
 
-For `.14`, pass the artifact's environment JSON as the first option. Add an
-explicit protected-path grant only after user approval:
+For `.14` or `.15`, pass the artifact's environment JSON as the first option.
+Add an explicit protected-path grant only after user approval:
 
 ```console
 codex-improve-exec --environment-json '<exact-json>' [--allow-protected-path .agents] [--allow-protected-path .codex] [--spark|--deep] <artifact>
 codex-improve-exec --environment-json '<exact-json>' [--allow-protected-path .agents] [--allow-protected-path .codex] [--spark|--deep] --revise WORKTREE EXPECTED_TREE DOSSIER
 codex-improve-exec --environment-json '<exact-json>' [--allow-protected-path .agents] [--allow-protected-path .codex] [--spark|--deep] --recover WORKTREE EXPECTED_TREE DOSSIER
 codex-improve-exec --environment-json '<exact-json>' [--allow-protected-path .agents] [--allow-protected-path .codex] [--spark|--deep] --next CHECKPOINT PLAN
+codex-improve-exec --status [WORKTREE_OR_EXECUTION_ID]
 ```
 
 The runner validates the JSON against the artifact before creating or reusing a
@@ -31,6 +33,11 @@ IMPROVE_EXEC_PREFLIGHT_LOG=...
 IMPROVE_EXEC_RESUME_MANIFEST=...
 ```
 
+For `.15`, every execution also prints
+`IMPROVE_EXEC_CLOSEOUT_ELIGIBLE=0|1`. Initial and `--next` additionally print
+`IMPROVE_PLAN_SHA256=...` for the exact private plan snapshot; earlier contracts
+retain their existing fields.
+
 The grant is never inferred from artifact prose. Only `.agents` and `.codex`
 are accepted, `.git` is always forbidden, and no flag retains the existing
 denial. A granted root must be absent or a physical directory when the runner
@@ -40,8 +47,9 @@ before the launcher and probes and repeats the check after probes and candidate
 verification, immediately before Codex. A failure at the second boundary uses
 the nonresumable mutated-preflight classification. Symlinks nested below a
 physical granted directory remain governed by the sandbox. `.13`
-artifacts retain legacy execution and resume semantics and reject
-the new option. Revisions and recoveries must restate the approved set; resume
+artifacts retain their existing execution and resume semantics and reject
+the protected-path option. `.14` and `.15` share the protected-path behavior.
+Revisions and recoveries must restate the approved set; resume
 reconstructs it from the authenticated manifest and accepts no override.
 
 The preflight log, wrapper, and optional resume manifest are private execution
@@ -83,11 +91,12 @@ and other transport failures are also nonresumable. Never retry automatically,
 migrate legacy artifacts, or ask an executor to call candidate, checkpoint, or
 resume.
 
-Artifacts declaring `.12` are unsupported and must be re-reviewed and
-restamped before execution. Artifacts declaring `.11`, or no Improve contract,
-retain `legacy_unchecked` behavior when no environment JSON is supplied. They
-may opt in by carrying a matching block and CLI value. Any other declared
-contract version fails closed.
+Artifacts declaring `.13`, `.14`, or `.15` require a matching environment JSON.
+Artifacts declaring `.12` are unsupported and must be re-reviewed and restamped
+before execution. Artifacts declaring `.11`, or no Improve contract, retain
+`legacy_unchecked` behavior when no environment JSON is supplied. They may opt
+in by carrying a matching block and CLI value. Any other declared contract
+version fails closed.
 
 ## Execute A Plan
 
@@ -198,7 +207,7 @@ IMPROVE_EXEC_DIAGNOSTIC_LOG=...
 IMPROVE_EXEC_METRICS=...
 ```
 
-The executor must touch only in-scope files, run verification, honor STOP conditions, and leave changes uncommitted. It must not merge, push, modify the plan index, remove the worktree, or launch other agents. It does not load or reread Improve, its references, or Ponytail; required repository skills remain available when an implementation need actually triggers them. It avoids purposeless repeated broad reads of unchanged long files and duplicate skill copies. Targeted rereads are allowed after editing the exact region, after truncated output, or to answer one named unresolved question.
+The executor must touch only in-scope files, run verification, honor STOP conditions, and leave changes uncommitted. It must not merge, push, modify the plan index, remove the worktree, or launch other agents. It does not calculate or reconstruct plan or candidate identity and does not invoke candidate, checkpoint, or resume operations. It does not load or reread Improve, its references, or Ponytail; required repository skills remain available when an implementation need actually triggers them. It avoids purposeless repeated broad reads of unchanged long files and duplicate skill copies. Targeted rereads are allowed after editing the exact region, after truncated output, or to answer one named unresolved question.
 
 Executor worktrees live under `$XDG_STATE_HOME/codex-improve/worktrees`, falling
 back to `~/.local/state`, so an interruption or reboot does not silently discard
@@ -210,9 +219,31 @@ JSONL events, final message, stderr diagnostics, and GNU timeout's verbose
 signal record private under
 `$XDG_STATE_HOME/codex-improve/executions`, falling back to `~/.local/state`.
 Raw Codex output is never streamed to the caller. While Codex runs, the helper
-prints at most one content-free heartbeat per minute with elapsed time, event
-count, and event bytes. It records an observation after three minutes without a
-new event but does not interrupt quiet reasoning solely for that reason.
+prints at most one content-free heartbeat per minute with the current lifecycle
+phase, elapsed time, event count, and event bytes. It records an observation
+after three minutes without a new event but does not interrupt quiet reasoning
+solely for that reason.
+
+For `.15`, each artifact directory also contains a mode-0600 `execution.json`
+record. The runner atomically refreshes this validated versioned record across
+`preparing`, `preflight`, `executing`, `classifying`, and `finished`; it records
+lineage, current candidate availability, environment/preflight state,
+content-free event and token observations, final classification, and the next
+caller action. `codex-improve-exec --status` prints the newest record;
+an exact execution identity selects that run, while a worktree path selects its
+newest run. The query is read-only, ignores legacy artifacts with no record,
+does not invoke Codex, and fails closed on matching-state ambiguity or invalid,
+nonprivate, or symlinked registry entries. A live agent message that happens to
+say `COMPLETE` is not a final result: only transport classification moves the
+record to `finished`.
+
+The same `.15` invocation creates a user-owned mode-0700 physical cache root
+below the caller's `XDG_CACHE_HOME` (or its standard fallback). It exports a
+shared `CARGO_HOME`, a shared `npm_config_cache`, and a per-execution
+`XDG_CACHE_HOME` identically to preflight and Codex, and grants the sandbox
+write access only to that physical cache root. The runner does not copy ambient
+Cargo/npm credentials or configuration into it. Earlier contracts keep their
+existing cache environment and receive no cache-root grant.
 
 Each initial, `--next`, revision, and recovery invocation creates one fresh
 opaque lowercase execution identity from runtime-only values. The helper
@@ -311,6 +342,35 @@ calibration review using the existing content-free metrics and observed
 acceptance defects. Do not tune thresholds or broaden Spark routing without
 explicit user approval.
 
+### Reconcile An Eligible Inconclusive Execution
+
+For `.15`, the runner emits `IMPROVE_EXEC_CLOSEOUT_ELIGIBLE=0` or `1` without
+changing its transport classification. Eligibility is `1` only when the result
+is still `INCONCLUSIVE`, the JSONL event log is valid, the candidate is
+available, and the exit reason is `rollout_budget_exhausted`,
+`absolute_timeout`, `empty_final_output`, `invalid_final_output`, or
+`final_output_limit`. It never converts, masks, or overrides the original
+`INCONCLUSIVE` result or exit reason.
+
+Eligibility opens one independent main-agent reconciliation path; it does not
+retry Codex and is not automatic approval. Verify the private `plan.md` bytes
+against `IMPROVE_PLAN_SHA256` and the reviewed plan, verify the returned
+candidate identity, inspect the complete initial candidate diff and preserved
+transport artifacts, and classify every done criterion and Engineering-contract
+row against the gate ledger. For each gate and reviewer ID, preserve evidence
+only when its complete trigger mapping and relevant environment identity prove
+the candidate delta irrelevant. Missing or uncertain mappings fail closed by
+invalidating that ID, and `always-invalidated` IDs always run.
+
+If the candidate needs no edits and every invalidated implementation gate
+passes, continue to ordinary implementation review while retaining and
+reporting the original `INCONCLUSIVE` execution result. An exact deterministic
+gate fault may use the single main-agent repair permission below. Remaining
+executor work, contradictory semantics, new scope, an Engineering-contract
+change, a plan/hash/candidate mismatch, missing required evidence, or a failed
+gate prevents closeout reconciliation. A missing field or value `0` is never
+inferred as eligible; follow the recovery and explicit-approval rules below.
+
 ### Recover An Inconclusive Initial Execution
 
 Automatic recovery is available only when an initial execution is
@@ -321,11 +381,13 @@ a plan change. A model-level `STOPPED` is conclusive and does not trigger
 recovery. Revision and review `INCONCLUSIVE` outcomes retain the same
 explicit-approval policy; recovery never applies to them.
 
-Before recovery, the main agent inspects the complete original plan, preserved
-diff, final output, JSONL events, diagnostics, timeout record, and relevant
-implementation gates. Reconcile each done criterion and Engineering-contract
-row as completed, partially completed, or remaining, and verify that every
-existing hunk still traces to the approved plan and settled semantic anchors.
+Before recovery, the main agent inspects the exact private plan snapshot and
+hash, preserved diff, final output, JSONL events, diagnostics, timeout record,
+and gate ledger. Reconcile each done criterion and Engineering-contract row as
+completed, partially completed, or remaining, and verify that every existing
+hunk still traces to the approved plan and settled semantic anchors. Preserve
+gate evidence only through its declared triggers; invalidate an incomplete or
+uncertain mapping and every `always-invalidated` gate.
 New scope, a changed Engineering contract, or contradictory semantics rejects
 recovery and returns to planning or user approval. An inconclusive initial run
 that left no required edits still needs one verification-and-closeout slice;
@@ -376,22 +438,26 @@ dossier's paths, and runs every named check. Its `COMPLETE` report means only
 that one slice is complete.
 
 Recovery is sequential in the same persistent worktree. After each completed
-slice, the main agent reads the whole new diff, verifies that it remains within
-the original plan and current dossier, and runs the slice's gates before
-dispatching the next dependency. Any recovery slice `STOPPED` or
+slice, the main agent reads the exact old-to-new candidate delta and gate-ledger
+transition, expands into earlier hunks wherever mapping or behavior is
+uncertain, verifies that the candidate remains within the original plan and
+current dossier, and runs the invalidated slice gates before dispatching the
+next dependency. Any recovery slice `STOPPED` or
 `INCONCLUSIVE`, scope or semantic drift, failed gate, or Engineering-contract
 change halts the attempt with the exact worktree, dossier, and private execution
 artifact paths. Never decompose or recover a recovery slice. After all slices,
-run the full original plan gates and continue through the ordinary
-implementation review below.
+capture the new candidate identity, append its ledger transition, run only the
+invalidated and `always-invalidated` gates, and continue through the ordinary
+implementation review below. Recovery count alone never triggers a full suite.
 
 ### Revise Before Integration
 
 A failed review or acceptance against the still-current pre-integration
-worktree may receive at most two narrow revision rounds. Prepare a complete
-revision dossier containing:
+worktree may receive at most two narrow revision rounds. Prepare a
+decision-complete delta dossier containing:
 
-- the complete current plan and semantic anchors;
+- original plan path and immutable hash, plus only the affected semantic
+  anchors, plan constraints, and Engineering-contract rows;
 - revision round, current checkpoint, branch, worktree, original Spark,
   standard, or deep execution lane/profile as provenance, selected revision
   lane, current routing evidence, and diff identity;
@@ -400,7 +466,8 @@ revision dossier containing:
   environment failure, or new scope or Engineering contract;
 - the approved semantic amendment, when one exists;
 - permitted paths, affected gates, and exact verification commands;
-- prior reviewer evidence that remains valid and evidence that must be rerun;
+- the old and expected candidate identities, changed paths, and gate-ledger
+  entries showing preserved evidence and evidence that must be rerun;
   and
 - explicit STOP conditions.
 
@@ -436,9 +503,14 @@ worktree; never revise the obsolete pre-integration worktree.
 
 Treat the executor report and diff as untrusted until verified:
 
-1. Re-run every done criterion inside `IMPROVE_WORKTREE`.
+1. Map every done criterion to current gate-ledger evidence. Run each invalidated
+   or `always-invalidated` implementation gate inside `IMPROVE_WORKTREE`; do not
+   rerun a full suite solely because the candidate has a revision or recovery.
 2. Compare `git -C <worktree> status --short` and `git -C <worktree> diff --stat` with the plan's scope.
-3. Read the complete diff and verify each hunk traces to a plan step.
+3. For the initial implementation review, read the complete diff and verify each
+   hunk traces to a plan step. After a recovery, revision, or permitted repair,
+   read the exact candidate delta and gate-ledger transition, expanding to the
+   complete diff wherever the mapping or resulting behavior is uncertain.
 4. Inspect new tests for meaningful assertions, not only passing commands.
 5. Reconcile the actual diff, generated artifacts, dependency graph, public
    interfaces, and runtime effects with the Engineering-contract impact matrix.
@@ -459,6 +531,26 @@ Treat the executor report and diff as untrusted until verified:
    skill pass for the same diff.
 9. Decide whether external-practice evidence or an independent review is
    required under the triggers below.
+
+#### Single deterministic gate repair
+
+Audit, planning, and plan review remain read-only. During execution review, the
+main agent may perform at most one direct candidate repair when a deterministic
+implementation gate identifies one exact in-scope fault and the correction is
+mechanical under the already approved semantics and Engineering contract.
+Before editing, record the failing command and assertion, old candidate tree,
+permitted paths, and ledger IDs the edit invalidates. After editing, capture the
+new tree, record the exact delta, run every invalidated or `always-invalidated`
+gate, and review that delta through the ledger rules above.
+
+This permission never applies to reviewer feedback, changed requirements, new
+scope, public behavior, dependencies, schemas, architecture, an uncertain root
+cause, or any Engineering-contract change. Those cases STOP direct repair and
+return to ordinary revision or planning. The repair is not an ordinary revision
+round: it neither consumes nor increases the two-round revision allowance. It
+is single-use across the candidate lifecycle, cannot recurse, and cannot repair
+its own failed or newly exposed gate; that outcome is `REVISE` or `BLOCK` under
+the ordinary policy.
 
 #### External-practice evidence
 
@@ -552,7 +644,10 @@ does not ask the reviewer to rediscover the repository. Include:
   semantic anchors, and Engineering contract;
 - the Engineering-contract impact matrix reconciled against the actual diff,
   including generated artifacts and every out-of-scope impact;
-- the baseline and complete diff boundary plus a changed-path manifest;
+- for an initial review, the baseline and complete diff boundary plus a
+  changed-path manifest; for a later review, the old and new candidate trees,
+  exact delta, and gate-ledger transition, expanded to the complete boundary
+  wherever uncertainty remains;
 - executor and main-agent verification results, including generated-artifact
   evidence when applicable;
 - implementation gates, deferred acceptance checks, and observations as three

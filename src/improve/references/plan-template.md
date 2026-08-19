@@ -4,7 +4,7 @@ Every plan is written for an executor model that has **zero context**: it has no
 
 Three properties make a plan executable by a weaker model:
 
-1. **Self-contained context** — everything needed is in the file: paths, code excerpts, conventions, commands.
+1. **Decision-complete context** — inline every decision-bearing constraint; point to stable background by exact repository path and section.
 2. **Verification gates** — every step ends with a command and its expected result. The executor never has to *judge* whether it succeeded.
 3. **Hard boundaries and escape hatches** — explicit out-of-scope list, and "STOP and report" conditions instead of letting the model improvise when reality doesn't match the plan.
 
@@ -27,11 +27,14 @@ File naming: follow the repository's explicit artifact convention. Otherwise use
 > If any path in Modification scope or evidence/drift paths changed since this plan was written, compare the
 > "Current state" excerpts against the live code before proceeding; on a
 > mismatch, treat it as a STOP condition.
+> The runner owns the exact plan snapshot/hash and candidate identity. Do not
+> calculate, reconstruct, or update either identity, and do not invoke candidate,
+> checkpoint, or resume operations.
 
 ## Status
 
 - **Status**: TODO
-- **Improve contract**: `1.0.0-codex.14`
+- **Improve contract**: `1.0.0-codex.15`
 - **Implementation review**: PENDING
 - **Checkpoint**: NONE
 - **External acceptance**: NOT REQUIRED | PENDING
@@ -79,6 +82,10 @@ Use an empty launcher to inherit the runner environment. Empty probes require
 
 The main agent passes this exact reviewed JSON first through
 `--environment-json`. Do not include secrets or environment-variable values.
+For a `.15` initial or `--next` invocation, the runner snapshots these exact
+plan bytes privately and returns their SHA-256. Record that returned identity
+in later dossier or ledger provenance; do not edit the executed plan to embed
+its own hash.
 
 ## Execution isolation
 
@@ -97,6 +104,14 @@ When mutable external state is required, replace `none` with:
 lands. Written so the executor (and a human reviewer) understands the intent —
 intent is what lets a correct judgment call happen when a detail is off.
 
+## Acceptance surface
+
+Name the one concrete surface that makes this unit independently observable,
+integrable, reversible, and acceptable: a testable API or CLI, runnable
+preview, or real consumer. Keep only its minimum supporting foundation here.
+Split independent outcomes, rollback boundaries, or unresolved decisions; do
+not use line, file, directory, or layer quotas.
+
 ## Current state
 
 The facts the executor needs, inlined — never "as discussed" or "see audit":
@@ -112,7 +127,8 @@ The facts the executor needs, inlined — never "as discussed" or "see audit":
   from the intent/design docs found in recon: the relevant `CONTEXT.md` terms
   the executor should use in names and comments, the `DESIGN.md` tokens/components
   to reuse, or the ADR whose decision this work must stay consistent with. Quote
-  the specific lines — the executor has not read those docs.
+  the specific decision-bearing lines. Stable non-decision background may be
+  referenced by exact repository path and section.
 
 ## Engineering contract
 
@@ -136,6 +152,29 @@ Classify every check exactly once. Implementation gates are deterministic or age
 | Check | Class | Owner | Stage and target | Required evidence |
 |-------|-------|-------|------------------|-------------------|
 | `<exact check>` | `<implementation gate, deferred acceptance, or observation>` | `<executor, main agent, user, or external system>` | `<before review, checkpoint ID, or after integration>` | `<command output or observable result>` |
+
+### Gate ledger
+
+Use stable IDs. Triggers name paths, interfaces, generated outputs, environment
+inputs, or other facts that invalidate evidence. Declare a genuinely holistic
+gate `always-invalidated`; revision or recovery count is never a trigger.
+
+| Gate ID | Command/reviewer | Invalidation triggers | Environment identity | Current candidate evidence |
+|---------|------------------|-----------------------|----------------------|----------------------------|
+| `G1` | `<exact command or reviewer ID>` | `<paths or always-invalidated>` | `<toolchain/probe/checkpoint identity>` | `<candidate tree, result, artifact>` |
+
+After every candidate transition the main agent appends one row. Preserve an ID
+only when its complete trigger mapping and relevant environment identity prove
+the delta irrelevant. Missing or uncertain mapping fails closed by invalidating
+that ID. Run invalidated and `always-invalidated` IDs; revision or recovery
+count alone never requires the full suite.
+
+| Old candidate | New candidate | Changed paths | Preserved gate/reviewer IDs | Invalidated IDs and reasons |
+|---------------|---------------|---------------|-----------------------------|-----------------------------|
+
+Initial implementation review covers the complete candidate diff. Later review
+covers the candidate delta plus this ledger transition and expands to the
+complete diff wherever the mapping or resulting behavior is uncertain.
 
 When the Checkpoint ID changes between worktree/diff, commit, PR, integration, preview, or deployment, append one Checkpoint lineage row with the stage, new identity, superseded identity, preserved evidence, and invalidated evidence. Preserve evidence only after proving the reviewed diff is unchanged; a material diff change invalidates its applicable checks and reviewer conclusions.
 

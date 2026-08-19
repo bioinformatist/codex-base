@@ -35,5 +35,46 @@ for profile in improve-scout improve-executor improve-executor-spark improve-exe
   grep -Fq -- "$profile" "$roles"
   test ! -e "$root/plugins/codex-base/skills/improve/$profile.config.toml"
 done
+
+require_text() {
+  local file="$1"
+  local expected="$2"
+  grep -Fq -- "$expected" "$file" || {
+    printf 'missing Improve contract text in %s: %s\n' "$file" "$expected" >&2
+    exit 1
+  }
+}
+
+forbid_text() {
+  local file="$1"
+  local forbidden="$2"
+  if grep -Fq -- "$forbidden" "$file"; then
+    printf 'obsolete Improve contract text remains in %s: %s\n' \
+      "$file" "$forbidden" >&2
+    exit 1
+  fi
+}
+
+skill="$root/src/improve/SKILL.md"
+planning="$root/src/improve/references/planning-contract.md"
+template="$root/src/improve/references/plan-template.md"
+closeout="$root/src/improve/references/closing-the-loop.md"
+
+require_text "$skill" 'version: "1.0.0-codex.15"'
+require_text "$planning" "Contract version: \`1.0.0-codex.15\`"
+require_text "$template" "**Improve contract**: \`1.0.0-codex.15\`"
+require_text "$skill" 'The runner owns plan and candidate identity'
+require_text "$planning" 'Revision or recovery count alone is never an'
+require_text "$template" 'Initial implementation review covers the complete candidate diff.'
+require_text "$closeout" "\`IMPROVE_EXEC_CLOSEOUT_ELIGIBLE=0\` or \`1\`"
+require_text "$closeout" 'It never converts, masks, or overrides the original'
+require_text "$closeout" 'single-use across the candidate lifecycle, cannot recurse'
+require_text "$closeout" "\`always-invalidated\`"
+
+forbid_text "$skill" "\`.14\` environment dispatch"
+forbid_text "$planning" 'Any candidate change creates a new tree identity and invalidates conclusions'
+forbid_text "$closeout" 'run the full original plan gates'
+forbid_text "$closeout" 'Re-run every done criterion'
+
 cmp "$root/src/improve/config/roles.json" "$root/plugins/codex-base/skills/improve/config/roles.json"
 printf 'Improve compatibility fixture passed\n'
