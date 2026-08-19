@@ -15,6 +15,7 @@ codex-improve-exec --environment-json '<exact-json>' [--allow-protected-path .ag
 codex-improve-exec --environment-json '<exact-json>' [--allow-protected-path .agents] [--allow-protected-path .codex] [--spark|--deep] --revise WORKTREE EXPECTED_TREE DOSSIER
 codex-improve-exec --environment-json '<exact-json>' [--allow-protected-path .agents] [--allow-protected-path .codex] [--spark|--deep] --recover WORKTREE EXPECTED_TREE DOSSIER
 codex-improve-exec --environment-json '<exact-json>' [--allow-protected-path .agents] [--allow-protected-path .codex] [--spark|--deep] --next CHECKPOINT PLAN
+codex-improve-exec --status [WORKTREE_OR_EXECUTION_ID]
 ```
 
 The runner validates the JSON against the artifact before creating or reusing a
@@ -218,9 +219,31 @@ JSONL events, final message, stderr diagnostics, and GNU timeout's verbose
 signal record private under
 `$XDG_STATE_HOME/codex-improve/executions`, falling back to `~/.local/state`.
 Raw Codex output is never streamed to the caller. While Codex runs, the helper
-prints at most one content-free heartbeat per minute with elapsed time, event
-count, and event bytes. It records an observation after three minutes without a
-new event but does not interrupt quiet reasoning solely for that reason.
+prints at most one content-free heartbeat per minute with the current lifecycle
+phase, elapsed time, event count, and event bytes. It records an observation
+after three minutes without a new event but does not interrupt quiet reasoning
+solely for that reason.
+
+For `.15`, each artifact directory also contains a mode-0600 `execution.json`
+record. The runner atomically refreshes this validated versioned record across
+`preparing`, `preflight`, `executing`, `classifying`, and `finished`; it records
+lineage, current candidate availability, environment/preflight state,
+content-free event and token observations, final classification, and the next
+caller action. `codex-improve-exec --status` prints the newest record;
+an exact execution identity selects that run, while a worktree path selects its
+newest run. The query is read-only, ignores legacy artifacts with no record,
+does not invoke Codex, and fails closed on matching-state ambiguity or invalid,
+nonprivate, or symlinked registry entries. A live agent message that happens to
+say `COMPLETE` is not a final result: only transport classification moves the
+record to `finished`.
+
+The same `.15` invocation creates a user-owned mode-0700 physical cache root
+below the caller's `XDG_CACHE_HOME` (or its standard fallback). It exports a
+shared `CARGO_HOME`, a shared `npm_config_cache`, and a per-execution
+`XDG_CACHE_HOME` identically to preflight and Codex, and grants the sandbox
+write access only to that physical cache root. The runner does not copy ambient
+Cargo/npm credentials or configuration into it. Earlier contracts keep their
+existing cache environment and receive no cache-root grant.
 
 Each initial, `--next`, revision, and recovery invocation creates one fresh
 opaque lowercase execution identity from runtime-only values. The helper

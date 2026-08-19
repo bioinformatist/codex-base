@@ -25,6 +25,7 @@ Usage:
   codex-improve-exec --deep --recover WORKTREE EXPECTED_TREE DOSSIER
   codex-improve-exec --environment-json '<json>' [--allow-protected-path .agents] [--allow-protected-path .codex] [--spark|--deep] --recover WORKTREE EXPECTED_TREE DOSSIER
   codex-improve-exec --resume WORKTREE EXPECTED_TREE ARTIFACT_DIR
+  codex-improve-exec --status [WORKTREE_OR_EXECUTION_ID]
 
 Initial mode creates an isolated worktree at the current HEAD, executes PLAN,
 and preserves the worktree for review. Revision mode reuses one registered
@@ -36,6 +37,8 @@ tree. Next mode starts one PLAN from one explicit current Improve checkpoint.
 Environment JSON must be the first option and must match the artifact's fenced
 environment block. Protected-path options follow it and precede the lane or
 operation. Resume is a separate first option and accepts no overrides.
+Status reads the newest matching private execution record without invoking
+Codex or changing repository or Improve state.
 EOF
 }
 
@@ -66,6 +69,24 @@ resume_prompt_body_snapshot=""
 plan_snapshot=""
 plan_hash=""
 plan_input_snapshot=""
+caller_cache_parent="${XDG_CACHE_HOME:-$HOME/.cache}"
+cache_enabled=0
+cache_root=""
+cache_config_key=""
+cargo_home=""
+npm_cache=""
+execution_xdg_cache=""
+execution_record=""
+execution_phase="preparing"
+record_started_at=""
+record_finished_at=""
+record_repository_common=""
+record_candidate_available=0
+record_candidate_head=""
+record_candidate_tree=""
+record_candidate_error="not_observed"
+record_executor_invoked=0
+record_closeout_eligible=0
 
 byte_length() {
   LC_ALL=C printf '%s' "$1" | wc -c
@@ -494,9 +515,507 @@ capture_plan_input() {
   fi
 }
 
+require_private_path() {
+  local path="$1"
+  local expected_mode="$2"
+  local expected_type="$3"
+  [ ! -L "$path" ] || fail_input "private Improve path must not be a symbolic link"
+  case "$expected_type" in
+    directory) [ -d "$path" ] || fail_input "private Improve path must be a directory" ;;
+    file) [ -f "$path" ] || fail_input "private Improve path must be a regular file" ;;
+    *) fail_input "internal private path type is invalid" ;;
+  esac
+  [ "$(stat -c '%u' "$path" 2>/dev/null)" = "$(id -u)" ] ||
+    fail_input "private Improve path is not owned by the current user"
+  [ "$(stat -c '%a' "$path" 2>/dev/null)" = "$expected_mode" ] ||
+    fail_input "private Improve path permissions are not private"
+}
+
+prepare_private_directory() {
+  local path="$1"
+  [ ! -L "$path" ] ||
+    fail_input "private Improve state directory must not be a symbolic link"
+  if [ -e "$path" ] && [ ! -d "$path" ]; then
+    fail_input "private Improve state path must be a directory"
+  fi
+  mkdir -p -- "$path" ||
+    fail_input "cannot create private Improve state directory"
+  [ ! -L "$path" ] ||
+    fail_input "private Improve state directory must not be a symbolic link"
+  [ "$(stat -c '%u' "$path" 2>/dev/null)" = "$(id -u)" ] ||
+    fail_input "private Improve state directory is not owned by the current user"
+  chmod 700 -- "$path" ||
+    fail_input "cannot protect private Improve state directory"
+  require_private_path "$path" 700 directory
+}
+
+prepare_execution_cache() {
+  local requested_root
+  cache_enabled=0
+  cache_root=""
+  cache_config_key=""
+  cargo_home=""
+  npm_cache=""
+  execution_xdg_cache=""
+  [ "$improve_contract" = "1.0.0-codex.15" ] || return 0
+
+  requested_root="$caller_cache_parent/codex-improve"
+  prepare_private_directory "$requested_root"
+  cache_root="$(realpath -- "$requested_root" 2>/dev/null)" ||
+    fail_input "cannot resolve private Improve cache root"
+  cache_config_key="$(jq -nr --arg value "$cache_root" '$value | @json')" ||
+    fail_input "cannot encode private Improve cache root"
+  prepare_private_directory "$cache_root/shared"
+  cargo_home="$cache_root/shared/cargo"
+  npm_cache="$cache_root/shared/npm"
+  execution_xdg_cache="$cache_root/executions/$execution_id/xdg"
+  prepare_private_directory "$cargo_home"
+  prepare_private_directory "$npm_cache"
+  prepare_private_directory "$cache_root/executions"
+  prepare_private_directory "$cache_root/executions/$execution_id"
+  prepare_private_directory "$execution_xdg_cache"
+  export CARGO_HOME="$cargo_home"
+  export npm_config_cache="$npm_cache"
+  export XDG_CACHE_HOME="$execution_xdg_cache"
+  cache_enabled=1
+}
+
+observe_execution_events() {
+  observed_event_count="$(wc -l <"$event_log" 2>/dev/null || printf 0)"
+  observed_event_bytes="$(wc -c <"$event_log" 2>/dev/null || printf 0)"
+  observed_events="$({
+    jq -Rsc '
+      [split("\n")[] | select(length > 0) | try fromjson catch empty] as $events
+      | ([$events[] | select(.type? == "turn.completed")
+          | .usage? | select(type == "object")] | last // {}) as $usage
+      | {
+          latestType: ([$events[] | .type? | select(type == "string")] | last // null),
+          usageObserved: ($usage != {}),
+          inputTokens: (($usage.input_tokens // 0) | if type == "number" then . else 0 end),
+          cachedInputTokens: (($usage.cached_input_tokens // 0) | if type == "number" then . else 0 end),
+          outputTokens: (($usage.output_tokens // 0) | if type == "number" then . else 0 end)
+        }
+    ' "$event_log" 2>/dev/null ||
+      printf '%s\n' '{"latestType":null,"usageObserved":false,"inputTokens":0,"cachedInputTokens":0,"outputTokens":0}'
+  } | tail -n 1)"
+}
+
+write_execution_record() {
+  local updated_at
+  local final_present=0
+  local next_action="wait"
+  local record_tmp
+  [ -n "$execution_record" ] || return 1
+  observe_execution_events
+  updated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  [ -s "$structured_output" ] && final_present=1
+  if [ "$execution_phase" = "finished" ]; then
+    case "${result:-INCONCLUSIVE}:${exit_reason:-}" in
+      COMPLETE:*) next_action="review_candidate" ;;
+      STOPPED:environment_preflight_failed) next_action="resume_preflight" ;;
+      STOPPED:*) next_action="inspect_stop" ;;
+      INCONCLUSIVE:*)
+        if [ "$record_closeout_eligible" -eq 1 ]; then
+          next_action="reconcile_closeout"
+        else
+          next_action="inspect_inconclusive"
+        fi
+        ;;
+    esac
+  fi
+  record_tmp="$execution_record.tmp.$$"
+  jq -nS \
+    --argjson version 1 \
+    --arg executionId "$execution_id" \
+    --arg originalExecutionId "${original_execution_id:-$execution_id}" \
+    --arg planSha256 "$plan_hash" \
+    --argjson userId "$(id -u)" \
+    --arg artifactDirectory "$(realpath -- "$artifact_dir")" \
+    --arg repositoryCommonDirectory "$record_repository_common" \
+    --arg worktree "$(realpath -- "$worktree")" \
+    --arg branch "$branch" \
+    --arg base "${base:-}" \
+    --arg predecessorCheckpoint "${predecessor_checkpoint:-}" \
+    --argjson resumeAttempt "$resume_attempt" \
+    --arg parentManifestSha256 "$parent_manifest_hash" \
+    --arg operation "$operation" \
+    --arg mode "$mode" \
+    --arg profile "$profile" \
+    --arg improveContract "$improve_contract" \
+    --arg inputHead "$input_candidate_head" \
+    --arg inputTree "$input_candidate_tree" \
+    --argjson candidateAvailable "$record_candidate_available" \
+    --arg candidateHead "$record_candidate_head" \
+    --arg candidateTree "$record_candidate_tree" \
+    --arg candidateError "$record_candidate_error" \
+    --arg phase "$execution_phase" \
+    --arg result "${result:-}" \
+    --arg reason "${exit_reason:-}" \
+    --argjson environmentEnabled "$environment_enabled" \
+    --arg environmentSha256 "$environment_hash" \
+    --argjson preflightCount "$preflight_count" \
+    --arg preflightStatus "$preflight_status" \
+    --argjson cacheEnabled "$cache_enabled" \
+    --arg cacheRoot "$cache_root" \
+    --arg cargoHome "$cargo_home" \
+    --arg npmCache "$npm_cache" \
+    --arg xdgCacheHome "$execution_xdg_cache" \
+    --argjson eventCount "$observed_event_count" \
+    --argjson eventBytes "$observed_event_bytes" \
+    --argjson observedEvents "$observed_events" \
+    --argjson activeTokenLimit "$token_limit" \
+    --argjson finalPresent "$final_present" \
+    --argjson executorInvoked "$record_executor_invoked" \
+    --argjson closeoutEligible "$record_closeout_eligible" \
+    --arg startedAt "$record_started_at" \
+    --arg updatedAt "$updated_at" \
+    --arg finishedAt "$record_finished_at" \
+    --arg nextAction "$next_action" '
+      def nullable($value): if $value == "" then null else $value end;
+      {
+        version: $version,
+        executionId: $executionId,
+        originalExecutionId: $originalExecutionId,
+        planSha256: nullable($planSha256),
+        userId: $userId,
+        artifactDirectory: $artifactDirectory,
+        repositoryCommonDirectory: $repositoryCommonDirectory,
+        worktree: $worktree,
+        branch: $branch,
+        base: nullable($base),
+        predecessorCheckpoint: nullable($predecessorCheckpoint),
+        resume: {
+          attempt: $resumeAttempt,
+          parentManifestSha256: nullable($parentManifestSha256)
+        },
+        operation: $operation,
+        mode: $mode,
+        profile: $profile,
+        improveContract: $improveContract,
+        inputCandidate: {head: $inputHead, tree: $inputTree},
+        currentCandidate: {
+          available: ($candidateAvailable == 1),
+          head: nullable($candidateHead),
+          tree: nullable($candidateTree),
+          error: nullable($candidateError)
+        },
+        phase: $phase,
+        result: nullable($result),
+        reason: nullable($reason),
+        environment: {
+          enabled: ($environmentEnabled == 1),
+          sha256: nullable($environmentSha256),
+          preflight: {count: $preflightCount, status: $preflightStatus}
+        },
+        cache: {
+          enabled: ($cacheEnabled == 1),
+          root: nullable($cacheRoot),
+          cargoHome: nullable($cargoHome),
+          npmCache: nullable($npmCache),
+          xdgCacheHome: nullable($xdgCacheHome),
+          cargoScope: (if $cacheEnabled == 1 then "shared" else null end),
+          npmScope: (if $cacheEnabled == 1 then "shared" else null end),
+          xdgScope: (if $cacheEnabled == 1 then "execution" else null end)
+        },
+        events: {
+          count: $eventCount,
+          bytes: $eventBytes,
+          latestType: $observedEvents.latestType
+        },
+        tokenUsage: {
+          observed: $observedEvents.usageObserved,
+          inputTokens: $observedEvents.inputTokens,
+          cachedInputTokens: $observedEvents.cachedInputTokens,
+          outputTokens: $observedEvents.outputTokens,
+          activeLimit: $activeTokenLimit
+        },
+        finalPresent: ($finalPresent == 1),
+        executorInvoked: ($executorInvoked == 1),
+        closeoutEligible: ($closeoutEligible == 1),
+        timestamps: {
+          startedAt: $startedAt,
+          updatedAt: $updatedAt,
+          finishedAt: nullable($finishedAt)
+        },
+        nextAction: $nextAction
+      }
+    ' >"$record_tmp" || return 1
+  chmod 600 -- "$record_tmp" || return 1
+  validate_execution_record "$record_tmp" || return 1
+  mv -- "$record_tmp" "$execution_record" || return 1
+}
+
+validate_execution_record() {
+  jq -e '
+    def exact($expected): (keys | sort) == ($expected | sort);
+    def oid: type == "string" and test("^([0-9a-f]{40}|[0-9a-f]{64})$");
+    def sha: type == "string" and test("^[0-9a-f]{64}$");
+    def text: type == "string" and length > 0;
+    def absolute: text and startswith("/");
+    def integer: type == "number" and . == floor;
+    def execution_id: type == "string" and test("^[a-z0-9-]+$");
+    def timestamp:
+      type == "string"
+        and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
+    def exit_reason:
+      type == "string" and test("^(completed|environment_preflight_failed|environment_preflight_mutated_candidate|event_log_limit|absolute_timeout|rollout_budget_exhausted|invalid_event_log|empty_final_output|invalid_final_output|final_output_limit|wrapper_signal_(INT|TERM)|codex_exit_[0-9]+)$");
+    type == "object"
+      and exact(["artifactDirectory", "base", "branch", "cache",
+      "closeoutEligible", "currentCandidate", "environment", "events",
+      "executionId", "executorInvoked", "finalPresent", "improveContract",
+      "inputCandidate", "mode", "nextAction", "operation",
+      "originalExecutionId", "phase", "planSha256", "predecessorCheckpoint",
+      "profile", "reason", "repositoryCommonDirectory", "result", "resume",
+      "timestamps", "tokenUsage", "userId", "version", "worktree"])
+      and .version == 1
+      and (.executionId | execution_id)
+      and (.originalExecutionId | execution_id)
+      and (.artifactDirectory | absolute)
+      and (.repositoryCommonDirectory | absolute)
+      and (.worktree | absolute)
+      and (.branch | text)
+      and (.base == null or (.base | oid))
+      and (.predecessorCheckpoint == null or (.predecessorCheckpoint | oid))
+      and (.operation == "execute" or .operation == "next")
+      and (.mode == "initial" or .mode == "revision" or .mode == "recovery")
+      and (.profile == "improve-executor"
+        or .profile == "improve-executor-spark"
+        or .profile == "improve-executor-deep")
+      and (.improveContract == "undeclared"
+        or .improveContract == "1.0.0-codex.11"
+        or .improveContract == "1.0.0-codex.13"
+        or .improveContract == "1.0.0-codex.14"
+        or .improveContract == "1.0.0-codex.15")
+      and (.userId | integer and . >= 0)
+      and (.planSha256 == null or (.planSha256 | sha))
+      and (.resume
+        | type == "object"
+          and exact(["attempt", "parentManifestSha256"])
+          and (.attempt | integer and (. == 0 or . == 1))
+          and (if .attempt == 0 then .parentManifestSha256 == null
+            else (.parentManifestSha256 | sha) end))
+      and (if .resume.attempt == 0 then
+          .originalExecutionId == .executionId
+        else .originalExecutionId != .executionId end)
+      and (.inputCandidate
+        | type == "object" and exact(["head", "tree"])
+          and (.head | oid) and (.tree | oid))
+      and (.currentCandidate
+        | type == "object" and exact(["available", "error", "head", "tree"])
+          and (.available | type == "boolean")
+          and if .available then
+            (.head | oid) and (.tree | oid) and .error == null
+          else
+            .head == null and .tree == null
+              and (.error == "not_observed"
+                or .error == "cannot_inspect_index"
+                or .error == "unmerged_index"
+                or .error == "cannot_resolve_head"
+                or .error == "cannot_create_temporary_index"
+                or .error == "cannot_initialize_temporary_index"
+                or .error == "cannot_stage_candidate"
+                or .error == "cannot_write_candidate_tree")
+          end)
+      and (.phase == "preparing" or .phase == "preflight"
+        or .phase == "executing" or .phase == "classifying"
+        or .phase == "finished")
+      and (.result == null or .result == "COMPLETE" or .result == "STOPPED"
+        or .result == "INCONCLUSIVE")
+      and (.reason == null or (.reason | exit_reason))
+      and (.environment
+        | type == "object" and exact(["enabled", "preflight", "sha256"])
+          and (.enabled | type == "boolean")
+          and (.preflight
+            | type == "object" and exact(["count", "status"])
+              and (.count | integer and . >= 0)
+              and (.status == "legacy_unchecked" or .status == "passed"
+                or .status == "failed" or .status == "mutated"))
+          and if .enabled then (.sha256 | sha)
+            else .sha256 == null
+              and .preflight.count == 0
+              and .preflight.status == "legacy_unchecked"
+            end)
+      and (.cache
+        | type == "object"
+          and exact(["cargoHome", "cargoScope", "enabled", "npmCache",
+            "npmScope", "root", "xdgCacheHome", "xdgScope"])
+          and (.enabled | type == "boolean")
+          and if .enabled then
+            (.root | absolute) and (.cargoHome | absolute)
+              and (.npmCache | absolute) and (.xdgCacheHome | absolute)
+              and .cargoHome == (.root + "/shared/cargo")
+              and .npmCache == (.root + "/shared/npm")
+              and .cargoScope == "shared" and .npmScope == "shared"
+              and .xdgScope == "execution"
+          else
+            .root == null and .cargoHome == null and .npmCache == null
+              and .xdgCacheHome == null and .cargoScope == null
+              and .npmScope == null and .xdgScope == null
+          end)
+      and (.cache.enabled == (.improveContract == "1.0.0-codex.15"))
+      and (.events
+        | type == "object" and exact(["bytes", "count", "latestType"])
+          and (.count | integer and . >= 0)
+          and (.bytes | integer and . >= 0)
+          and (.latestType == null
+            or (.latestType | text and length <= 128)))
+      and (.tokenUsage
+        | type == "object"
+          and exact(["activeLimit", "cachedInputTokens", "inputTokens",
+            "observed", "outputTokens"])
+          and (.observed | type == "boolean")
+          and (.inputTokens | integer and . >= 0)
+          and (.cachedInputTokens | integer and . >= 0)
+          and (.outputTokens | integer and . >= 0)
+          and (.activeLimit | integer and . >= 1))
+      and (.finalPresent | type == "boolean")
+      and (.executorInvoked | type == "boolean")
+      and (.closeoutEligible | type == "boolean")
+      and (.timestamps
+        | type == "object" and exact(["finishedAt", "startedAt", "updatedAt"])
+          and (.startedAt | timestamp) and (.updatedAt | timestamp)
+          and .updatedAt >= .startedAt
+          and (.finishedAt == null or (.finishedAt | timestamp))
+          and (.finishedAt == null
+            or (.finishedAt >= .startedAt and .updatedAt >= .finishedAt)))
+      and (if .phase == "finished" then
+          .result != null and (.reason | exit_reason)
+            and .timestamps.finishedAt != null
+            and (if .result == "COMPLETE" then
+                .reason == "completed" and .nextAction == "review_candidate"
+              elif .result == "STOPPED" then
+                (.reason == "completed"
+                  or .reason == "environment_preflight_failed"
+                  or .reason == "environment_preflight_mutated_candidate")
+                  and (if .reason == "environment_preflight_failed" then
+                    .nextAction == "resume_preflight"
+                  else .nextAction == "inspect_stop" end)
+              else
+                .reason != "completed"
+                  and (if .closeoutEligible then
+                    .nextAction == "reconcile_closeout"
+                  else .nextAction == "inspect_inconclusive" end)
+              end)
+        else
+          .result == null and .reason == null and .timestamps.finishedAt == null
+            and .nextAction == "wait" and (.closeoutEligible | not)
+            and (.currentCandidate.available | not)
+            and .currentCandidate.error == "not_observed"
+        end)
+      and (if .closeoutEligible then
+          .phase == "finished" and .result == "INCONCLUSIVE"
+            and .currentCandidate.available
+            and (.reason == "rollout_budget_exhausted"
+              or .reason == "absolute_timeout"
+              or .reason == "empty_final_output"
+              or .reason == "invalid_final_output"
+              or .reason == "final_output_limit")
+        else true end)
+  ' "$@" >/dev/null 2>&1
+}
+
+print_execution_status() {
+  local selector="${1:-}"
+  local state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+  local requested_improve_root="$state_home/codex-improve"
+  local improve_root
+  local requested_execution_root
+  local execution_root
+  local selector_worktree=""
+  local artifact
+  local record
+  local record_json
+  local record_id
+  local record_worktree
+  local record_user_id
+  local record_artifact
+  local record_order
+  local best_order=""
+  local best_record_json=""
+  local exact_record_json=""
+  local exact_match_count=0
+  declare -A seen_execution_ids=()
+
+  if [ ! -e "$requested_improve_root" ] && [ ! -L "$requested_improve_root" ]; then
+    fail_input "Improve execution state is unavailable"
+  fi
+  require_private_path "$requested_improve_root" 700 directory
+  improve_root="$(realpath -- "$requested_improve_root" 2>/dev/null)" ||
+    fail_input "Improve execution state is unavailable"
+  requested_execution_root="$improve_root/executions"
+  if [ ! -e "$requested_execution_root" ] && [ ! -L "$requested_execution_root" ]; then
+    fail_input "Improve execution state is unavailable"
+  fi
+  require_private_path "$requested_execution_root" 700 directory
+  execution_root="$(realpath -- "$requested_execution_root" 2>/dev/null)" ||
+    fail_input "Improve execution state is unavailable"
+  require_private_path "$improve_root" 700 directory
+  require_private_path "$execution_root" 700 directory
+
+  if [ -n "$selector" ]; then
+    selector_worktree="$(realpath -- "$selector" 2>/dev/null || true)"
+    if [[ ! "$selector" =~ ^[a-z0-9-]+$ ]] && [ -z "$selector_worktree" ]; then
+      fail_input "status selector is neither an execution ID nor a worktree"
+    fi
+  fi
+
+  shopt -s nullglob
+  for artifact in "$execution_root"/*; do
+    [ ! -L "$artifact" ] || fail_input "execution registry contains a symbolic link"
+    [ -d "$artifact" ] || fail_input "execution registry contains a non-directory entry"
+    require_private_path "$artifact" 700 directory
+    record="$artifact/execution.json"
+    [ -e "$record" ] || continue
+    require_private_path "$record" 600 file
+    record_json="$(cat -- "$record")" || fail_input "cannot read Improve execution record"
+    validate_execution_record <<<"$record_json" ||
+      fail_input "execution registry contains an invalid record"
+    record_id="$(jq -r '.executionId' <<<"$record_json")"
+    record_worktree="$(jq -r '.worktree' <<<"$record_json")"
+    record_user_id="$(jq -r '.userId' <<<"$record_json")"
+    record_artifact="$(jq -r '.artifactDirectory' <<<"$record_json")"
+    [ "$record_user_id" = "$(id -u)" ] &&
+      [ "$record_artifact" = "$(realpath -- "$artifact")" ] ||
+      fail_input "execution registry contains an invalid record identity"
+    if [[ -v "seen_execution_ids[$record_id]" ]]; then
+      fail_input "execution registry contains a duplicate execution ID"
+    fi
+    seen_execution_ids[$record_id]=1
+    if [ -n "$selector" ] && [ "$record_id" = "$selector" ]; then
+      exact_match_count="$((exact_match_count + 1))"
+      exact_record_json="$record_json"
+    fi
+    if [ -n "$selector" ] &&
+      { [ -z "$selector_worktree" ] || [ "$record_worktree" != "$selector_worktree" ]; }; then
+      continue
+    fi
+    record_order="$(jq -r '[.timestamps.startedAt, .executionId] | @tsv' <<<"$record_json")"
+    if [ -n "$best_record_json" ] && [ "$record_order" = "$best_order" ]; then
+      fail_input "execution registry contains ambiguous matching records"
+    fi
+    if [ -z "$best_record_json" ] || [[ "$record_order" > "$best_order" ]]; then
+      best_order="$record_order"
+      best_record_json="$record_json"
+    fi
+  done
+  shopt -u nullglob
+  if [ "$exact_match_count" -eq 1 ]; then
+    printf '%s\n' "$exact_record_json"
+    return 0
+  fi
+  [ -n "$best_record_json" ] || fail_input "no matching Improve execution record"
+  printf '%s\n' "$best_record_json"
+}
+
 case "${1:-}" in
   -h|--help)
     usage
+    exit 0
+    ;;
+  --status)
+    shift
+    [ "$#" -le 1 ] || fail_input "--status accepts at most one selector"
+    print_execution_status "${1:-}"
     exit 0
     ;;
 esac
@@ -773,8 +1292,10 @@ Do not commit, merge, push, open a pull request, update the plan or its index,
 remove the worktree, or launch subagents. Leave the complete diff uncommitted
 for the main agent to review.
 
-Do not call codex-improve-exec candidate, checkpoint, or resume operations.
-Candidate preservation and lifecycle transitions are owned by the outer runner.
+Do not call codex-improve-exec candidate, checkpoint, or resume operations, and
+do not calculate or reconstruct candidate identity with Git plumbing.
+Candidate identity, preservation, and lifecycle transitions are owned by the
+outer runner.
 
 Return one JSON object matching the provided output schema. Use status COMPLETE
 or STOPPED. Report each step, changed file, and note as one array item.
@@ -793,9 +1314,9 @@ EOF
 prepare_artifacts() {
   umask 077
   state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+  prepare_private_directory "$state_home/codex-improve"
   artifact_parent="$state_home/codex-improve/executions"
-  mkdir -p "$artifact_parent" ||
-    fail_input "cannot create execution artifact directory"
+  prepare_private_directory "$artifact_parent"
   artifact_dir="$(mktemp -d "$artifact_parent/$(date -u +%Y%m%dT%H%M%SZ)-$mode-XXXXXX")" ||
     fail_input "cannot create execution artifact directory"
   execution_id="$(printf '%s-%s-%s' \
@@ -813,7 +1334,17 @@ prepare_artifacts() {
   preflight_log="$artifact_dir/preflight.log"
   preflight_status_file="$artifact_dir/preflight-status"
   invocation_marker="$artifact_dir/executor-invoked"
+  execution_record="$artifact_dir/execution.json"
   metrics_file="$state_home/codex-improve/execution-metrics.jsonl"
+  record_started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  record_finished_at=""
+  record_repository_common="$(
+    git -C "$worktree" rev-parse --path-format=absolute --git-common-dir
+  )" || fail_input "cannot resolve repository common directory"
+  record_repository_common="$(realpath -- "$record_repository_common")" ||
+    fail_input "cannot resolve repository common directory"
+  [ -n "$original_execution_id" ] || original_execution_id="$execution_id"
+  prepare_execution_cache
   if ! {
     : >"$event_log" &&
       : >"$structured_output" &&
@@ -832,6 +1363,8 @@ prepare_artifacts() {
   else
     preflight_log=""
   fi
+  execution_phase="preparing"
+  write_execution_record || fail_input "cannot initialize execution record"
 }
 
 snapshot_plan() {
@@ -842,6 +1375,7 @@ snapshot_plan() {
     fail_input "cannot protect execution plan snapshot"
   plan_hash="$(sha256sum "$plan_snapshot" | sed 's/[[:space:]].*$//')" ||
     fail_input "cannot hash execution plan"
+  write_execution_record || fail_input "cannot update execution plan identity"
 }
 
 emit_runtime_metadata() {
@@ -1224,6 +1758,11 @@ run_execution() {
       -c 'permissions.improve-executor-runtime.filesystem.:slash_tmp="write"'
       -c "permissions.improve-executor-runtime.network.enabled=$network_access"
     )
+    if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+      codex_command+=(
+        -c "permissions.improve-executor-runtime.filesystem.$cache_config_key=\"write\""
+      )
+    fi
   else
     codex_command+=(
       --sandbox "$sandbox"
@@ -1231,6 +1770,15 @@ run_execution() {
       -c "sandbox_workspace_write.writable_roots=$writable_roots"
     )
   fi
+
+  record_executor_invoked=0
+  if [ "$environment_enabled" -eq 1 ]; then
+    execution_phase="preflight"
+  else
+    execution_phase="executing"
+    record_executor_invoked=1
+  fi
+  write_execution_record || fail_input "cannot update execution launch status"
 
   if [ "$environment_enabled" -eq 1 ]; then
     prepare_preflight_wrapper
@@ -1294,6 +1842,15 @@ run_execution() {
       last_event_count="$event_count"
       last_event_epoch="$now_epoch"
     fi
+    if [ "$environment_enabled" -eq 1 ] && [ -e "$invocation_marker" ] &&
+      [ "$execution_phase" != "executing" ]; then
+      execution_phase="executing"
+      record_executor_invoked=1
+      write_execution_record || {
+        printf 'codex-improve-exec: execution status unavailable\n' >&2
+        kill -INT "$supervisor_pid" 2>/dev/null || true
+      }
+    fi
     event_gap_seconds="$((now_epoch - last_event_epoch))"
     if [ "$event_gap_seconds" -gt "$max_event_gap_seconds" ]; then
       max_event_gap_seconds="$event_gap_seconds"
@@ -1303,8 +1860,11 @@ run_execution() {
       quiet_interval_observed=1
     fi
     if [ "$now_epoch" -ge "$next_heartbeat_epoch" ]; then
-      printf 'codex-improve-exec: elapsed=%ss events=%s bytes=%s\n' \
-        "$((now_epoch - started_epoch))" "$event_count" "$event_bytes" >&2
+      write_execution_record ||
+        printf 'codex-improve-exec: execution status unavailable\n' >&2
+      printf 'codex-improve-exec: phase=%s elapsed=%ss events=%s bytes=%s\n' \
+        "$execution_phase" "$((now_epoch - started_epoch))" \
+        "$event_count" "$event_bytes" >&2
       next_heartbeat_epoch="$((now_epoch + heartbeat_seconds))"
     fi
     if [ "$event_bytes" -gt "$event_log_limit_bytes" ]; then
@@ -1344,6 +1904,13 @@ run_execution() {
   if [ "$max_event_gap_seconds" -ge "$quiet_seconds" ]; then
     quiet_interval_observed=1
   fi
+
+  if [ "$environment_enabled" -eq 1 ] && [ -e "$invocation_marker" ]; then
+    record_executor_invoked=1
+  fi
+  execution_phase="classifying"
+  write_execution_record ||
+    printf 'codex-improve-exec: execution status unavailable\n' >&2
 
   result="INCONCLUSIVE"
   exit_reason=""
@@ -1517,6 +2084,16 @@ run_execution() {
   if compute_candidate; then
     candidate_available=1
   fi
+  record_candidate_available="$candidate_available"
+  if [ "$candidate_available" -eq 1 ]; then
+    record_candidate_head="$candidate_head"
+    record_candidate_tree="$candidate_tree"
+    record_candidate_error=""
+  else
+    record_candidate_head=""
+    record_candidate_tree=""
+    record_candidate_error="$candidate_error"
+  fi
   closeout_eligible=0
   if [ "$improve_contract" = "1.0.0-codex.15" ] &&
     [ "$result" = "INCONCLUSIVE" ] &&
@@ -1526,7 +2103,15 @@ run_execution() {
       rollout_budget_exhausted|absolute_timeout|empty_final_output|invalid_final_output|final_output_limit)
         closeout_eligible=1
         ;;
-    esac
+      esac
+  fi
+  record_executor_invoked="$executor_invoked"
+  record_closeout_eligible="$closeout_eligible"
+  execution_phase="finished"
+  record_finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if ! write_execution_record; then
+    printf 'codex-improve-exec: cannot finalize execution record\n' >&2
+    return 1
   fi
   printf 'IMPROVE_MODE=%s\n' "$mode"
   printf 'IMPROVE_WORKTREE=%s\n' "$worktree"
@@ -1578,40 +2163,6 @@ run_execution() {
   fi
 
   [ "$result" != "INCONCLUSIVE" ] && [ "$candidate_available" -eq 1 ]
-}
-
-require_private_path() {
-  local path="$1"
-  local expected_mode="$2"
-  local expected_type="$3"
-  [ ! -L "$path" ] || fail_input "resume path must not be a symbolic link"
-  case "$expected_type" in
-    directory) [ -d "$path" ] || fail_input "resume path must be a directory" ;;
-    file) [ -f "$path" ] || fail_input "resume path must be a regular file" ;;
-    *) fail_input "internal resume path type is invalid" ;;
-  esac
-  [ "$(stat -c '%u' "$path" 2>/dev/null)" = "$(id -u)" ] ||
-    fail_input "resume path is not owned by the current user"
-  [ "$(stat -c '%a' "$path" 2>/dev/null)" = "$expected_mode" ] ||
-    fail_input "resume path permissions are not private"
-}
-
-prepare_private_directory() {
-  local path="$1"
-  [ ! -L "$path" ] ||
-    fail_input "private Improve state directory must not be a symbolic link"
-  if [ -e "$path" ] && [ ! -d "$path" ]; then
-    fail_input "private Improve state path must be a directory"
-  fi
-  mkdir -p -- "$path" ||
-    fail_input "cannot create private Improve state directory"
-  [ ! -L "$path" ] ||
-    fail_input "private Improve state directory must not be a symbolic link"
-  [ "$(stat -c '%u' "$path" 2>/dev/null)" = "$(id -u)" ] ||
-    fail_input "private Improve state directory is not owned by the current user"
-  chmod 700 -- "$path" ||
-    fail_input "cannot protect private Improve state directory"
-  require_private_path "$path" 700 directory
 }
 
 prepare_resumable_worktree_state() {
