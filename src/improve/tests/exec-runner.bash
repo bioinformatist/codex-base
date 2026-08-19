@@ -9,6 +9,7 @@ executor_schema="${CODEX_IMPROVE_EXEC_SCHEMA:-$(dirname -- "$runner_source")/ref
 [ -r "$executor_schema" ] || { echo "executor schema does not exist: $executor_schema" >&2; exit 2; }
 executor_schema="$(realpath -- "$executor_schema")"
 export CODEX_IMPROVE_EXEC_SCHEMA="$executor_schema"
+real_timeout="$(command -v timeout)"
 
 test_root="$(mktemp -d)"
 trap 'rm -rf "$test_root"' EXIT
@@ -2399,8 +2400,23 @@ contract_15_transport_case() {
 
 contract_15_transport_case closeout_budget rollout_budget_exhausted \
   rollout_budget_exhausted 1
-contract_15_transport_case closeout_absolute_with_event \
-  timeout_with_event absolute_timeout 1
+start_case closeout_absolute_with_event timeout_with_event
+quiet_timeout_bin="$case_dir/quiet-timeout-bin"
+mkdir -p "$quiet_timeout_bin"
+printf '#!%s\n' "$(command -v bash)" >"$quiet_timeout_bin/timeout"
+cat >>"$quiet_timeout_bin/timeout" <<'QUIET_TIMEOUT'
+set -euo pipefail
+args=()
+for arg in "$@"; do
+  [ "$arg" = --verbose ] || args+=("$arg")
+done
+exec "$REAL_TIMEOUT" "${args[@]}"
+QUIET_TIMEOUT
+chmod +x "$quiet_timeout_bin/timeout"
+REAL_TIMEOUT="$real_timeout" PATH="$quiet_timeout_bin:$PATH" \
+  run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
+assert_transport_case 1 INCONCLUSIVE absolute_timeout
+assert_closeout_eligible 1
 contract_15_transport_case closeout_invalid_final malformed_final \
   invalid_final_output 1
 contract_15_transport_case closeout_empty_final missing_final \
@@ -2448,7 +2464,7 @@ transport_failure timeout timeout absolute_timeout
 jq -e '.fuse_flags.absolute_timeout == true' "$metric" >/dev/null ||
   fail "deadline omitted timeout fuse"
 timeout_log="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)/timeout.log"
-grep -F 'timeout: sending signal INT to command' "$timeout_log" >/dev/null ||
+grep -Fx 'codex-improve-exec: absolute timeout fired' "$timeout_log" >/dev/null ||
   fail "deadline omitted deterministic private timeout marker"
 transport_failure oversize_event oversize_event event_log_limit
 assert_eq "$(field "$output" IMPROVE_EXEC_EVENT_LOG_LIMIT_HIT)" 1 "event fuse field"

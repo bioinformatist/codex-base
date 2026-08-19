@@ -1498,8 +1498,20 @@ atomic_status passed
 "$mv_path" "$invocation_marker.tmp.$$" "$invocation_marker" || exit 1
 exec "$timeout_path" --verbose --signal=INT --kill-after="${kill_after}s" \
   "${model_timeout}s" "$bash_path" -c \
-  'diagnostic_log="$1"; shift; exec "$@" 2>>"$diagnostic_log"' \
-  bash "$diagnostic_log" "$@" 2>"$timeout_log"
+  'diagnostic_log="$1"
+   timeout_log="$2"
+   shift 2
+   mark_absolute_timeout() {
+     printf "%s\n" "codex-improve-exec: absolute timeout fired" >>"$timeout_log"
+   }
+   trap mark_absolute_timeout INT
+   "$@" <&0 2>>"$diagnostic_log" &
+   child_pid="$!"
+   wait "$child_pid"
+   child_status="$?"
+   trap - INT
+   exit "$child_status"' \
+  bash "$diagnostic_log" "$timeout_log" "$@" 2>>"$timeout_log"
 EOF
   } >"$preflight_wrapper" || fail_input "cannot create environment wrapper"
   chmod 700 "$preflight_wrapper" ||
@@ -1809,20 +1821,29 @@ run_execution() {
       "${codex_command[@]}" \
       <"$prompt_file" >"$event_log" 2>"$timeout_log" &
   else
-    # shellcheck disable=SC2016 # The inner Bash expands these parameters.
+    # shellcheck disable=SC2016,SC2094 # Inner Bash expands parameters; runner-owned timeout writers share this trusted log.
     IMPROVE_EXECUTION_ID="$execution_id" LC_ALL=C timeout \
       --verbose \
       --signal=INT \
       --kill-after="${kill_after_seconds}s" \
       "${absolute_seconds}s" \
-      bash -c 'diagnostic_log="$1"; caller_lc_all_set="$2"; caller_lc_all="$3"; shift 3
+      bash -c 'diagnostic_log="$1"; timeout_log="$2"; caller_lc_all_set="$3"; caller_lc_all="$4"; shift 4
         if [ "$caller_lc_all_set" -eq 1 ]; then
           export LC_ALL="$caller_lc_all"
         else
           unset LC_ALL
         fi
-        exec "$@" 2>"$diagnostic_log"' \
-      bash "$diagnostic_log" "$caller_lc_all_set" "$caller_lc_all" \
+        mark_absolute_timeout() {
+          printf "%s\n" "codex-improve-exec: absolute timeout fired" >>"$timeout_log"
+        }
+        trap mark_absolute_timeout INT
+        "$@" <&0 2>"$diagnostic_log" &
+        child_pid="$!"
+        wait "$child_pid"
+        child_status="$?"
+        trap - INT
+        exit "$child_status"' \
+      bash "$diagnostic_log" "$timeout_log" "$caller_lc_all_set" "$caller_lc_all" \
       "${codex_command[@]}" \
       <"$prompt_file" >"$event_log" 2>"$timeout_log" &
   fi
@@ -1878,7 +1899,7 @@ run_execution() {
   codex_status="$?"
   timeout_fired=0
   timeout_marker="$(
-    sed -n '/^timeout: sending signal INT to command /{p;q;}' \
+    sed -n '/^codex-improve-exec: absolute timeout fired$/{p;q;}' \
       "$timeout_log"
   )"
   timeout_marker_status="$?"
