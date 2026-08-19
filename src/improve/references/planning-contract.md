@@ -1,6 +1,6 @@
 # Improve Planning Contract
 
-Contract version: `1.0.0-codex.14`
+Contract version: `1.0.0-codex.15`
 
 ## Execution environment contract
 
@@ -45,9 +45,9 @@ beneath that configured XDG root. Revision and recovery reject a worktree
 outside it before invoking the launcher. This safely upgrades state created by
 the legacy runner before its private umask took effect.
 
-Artifacts declaring `.14` require this contract and fail closed. `.13`
-artifacts remain executable and resumable with their legacy permissions.
-Only `.14` may use repeatable `--allow-protected-path .agents` and
+Artifacts declaring `.15` require this contract and fail closed. `.13` and
+`.14` artifacts remain executable and resumable with their existing behavior.
+Only `.14` and `.15` may use repeatable `--allow-protected-path .agents` and
 `--allow-protected-path .codex` options, placed after `--environment-json` and
 before the lane or operation. The caller must obtain user approval and restate
 the exact set for every initial, next, revision, or recovery invocation; the
@@ -65,6 +65,14 @@ execution. Artifacts declaring `.11`, or carrying no Improve contract
 declaration, keep their legacy-unchecked behavior unless they opt in with a
 matching environment block and CLI value. Any other declared contract version
 is unsupported. Legacy artifacts are not migrated.
+
+For a `.15` initial or `--next` invocation, the runner copies the exact plan
+bytes once to private execution state as `plan.md`, protects the copy with mode
+0600, hashes that copy with SHA-256, and builds the executor prompt from the
+copy. Stable output returns `IMPROVE_PLAN_SHA256`; the private path remains
+beneath `IMPROVE_EXEC_ARTIFACT_DIR` and never enters the candidate worktree.
+The runner, not an executor or advisor, calculates this plan identity. `.13`
+and `.14` retain their existing output fields and snapshot behavior.
 
 This reference governs `plan`, `review-plan`, and `reconcile`. A plan is the
 durable handoff to an executor with no conversation context. It preserves the
@@ -147,10 +155,19 @@ release, compatibility, generated-artifact, and deployment impacts remain
 mandatory evidence even when their files are outside modification scope. "Out
 of scope" means do not edit without approval; it never means assume no impact.
 
-One plan represents one true integration, rollback, and acceptance boundary.
-Combine work only when it must land, be reverted, and be accepted atomically.
-Sharing a product area or directory is not sufficient evidence for combining
-independently landable changes.
+One plan is the smallest independently observable integration, rollback, and
+acceptance unit. It must deliver one concrete acceptance surface: for example,
+a testable API or CLI, a runnable preview, or a real consumer. Keep that
+consumer with the minimum supporting foundation it needs. Split independent
+outcomes, rollback boundaries, and unresolved design decisions; sharing a
+directory or layer is not a reason to combine them. Do not split or combine by
+arbitrary line, file, or directory limits.
+
+Inline only constraints that decide implementation or acceptance. A plan may
+point to stable repository documentation by exact path and section for
+background that does not carry a decision. Revision and recovery dossiers are
+deltas: include only affected anchors, paths, ledger entries, evidence, and
+STOP conditions, never the complete original plan.
 
 During planning, consider whether independently landable parts would use
 different executor lanes. Split only when every resulting plan has standalone
@@ -314,6 +331,21 @@ implementation gate. For each genuinely deferred acceptance, record its owner,
 environment, exact procedure, expected evidence, rollback or recovery path, and
 what drift invalidates the result.
 
+Give every implementation gate and triggered reviewer a stable ledger ID. Its
+entry declares the complete invalidation triggers, such as paths, interfaces,
+generated outputs, environment inputs, or checkpoint state, together with the
+environment identity and current candidate evidence. A genuinely holistic gate
+uses `always-invalidated`. Revision or recovery count alone is never an
+invalidation trigger.
+
+After a candidate transition, record the old and new trees, changed paths,
+preserved IDs, and invalidated IDs with reasons. Preserve evidence only when a
+complete trigger mapping and unchanged relevant environment prove the delta
+irrelevant. A missing, incomplete, or uncertain mapping fails closed by
+invalidating that ID. Run every invalidated gate, including every
+`always-invalidated` gate, before implementation approval; do not rerun a full
+suite merely because a revision or recovery occurred.
+
 An Improve candidate is identified by its current `HEAD` and the full Git tree
 of the complete worktree state, including staged, unstaged, untracked, deleted,
 and executable-bit changes. Capture that identity with
@@ -328,13 +360,24 @@ the already-established execution result and transport evidence, records
 `IMPROVE_CANDIDATE_ERROR`, omits the head and tree, and returns nonzero. Such an
 execution cannot proceed to review until its candidate is identifiable.
 
+For `.15`, stable output also records
+`IMPROVE_EXEC_CLOSEOUT_ELIGIBLE=0` or `1`. Eligibility is `1` only for an
+`INCONCLUSIVE` execution with a valid JSONL event log, an available candidate,
+and an allowed bounded-transport reason. It is a fail-closed invitation for the
+main agent to reconcile the private plan snapshot, candidate, and gate ledger;
+it never changes or overrides the original `INCONCLUSIVE` result or its exit
+reason. Earlier contracts expose no closeout-eligibility field.
+
 Pass the full `IMPROVE_CANDIDATE_TREE` explicitly to every review, revision, and
 recovery invocation. Each helper recomputes the complete current tree and
 rejects an abbreviated, missing, or stale expected tree before starting a model.
 Record `IMPROVE_REVIEWED_CANDIDATE_TREE` with review evidence. Any candidate
-change creates a new tree identity and invalidates conclusions that applied to
-the prior tree; capture and review the new identity rather than inferring
-continuity from a worktree path, branch, dossier, or conversation.
+change creates a new tree identity. Capture and review it rather than inferring
+continuity from a worktree path, branch, dossier, or conversation. Initial
+implementation review covers the complete candidate diff. A later review
+covers the exact candidate delta and its gate-ledger transition, preserving
+only mapped evidence and expanding to the complete diff wherever the mapping
+or resulting behavior is uncertain.
 
 Track implementation, integration, and external acceptance independently:
 
@@ -458,6 +501,11 @@ Resolve read-only defects internally rather than asking the user to repair the
 advisor's draft. Ask only for a material decision or an unavailable
 prerequisite. A `READY` plan that is unchanged at the same baseline is
 idempotent: report `READY` without rewriting it.
+
+Audit, planning, and plan review remain read-only with respect to source code.
+Only during execution review may the main agent use the one deterministic
+implementation-gate repair defined in `closing-the-loop.md`; that permission is
+single-use, non-recursive, and does not extend to plan defects or design work.
 
 ## Complete but safe semantics
 

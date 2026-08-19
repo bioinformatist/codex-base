@@ -63,6 +63,9 @@ allow_agents=0
 allow_codex=0
 resume_environment_snapshot=""
 resume_prompt_body_snapshot=""
+plan_snapshot=""
+plan_hash=""
+plan_input_snapshot=""
 
 byte_length() {
   LC_ALL=C printf '%s' "$1" | wc -c
@@ -172,11 +175,12 @@ validate_artifact_environment() {
   artifact_contract "$artifact"
   improve_contract="${declared_contract:-undeclared}"
   if [ "$protected_paths_json" != '[]' ] &&
-    [ "$declared_contract" != "1.0.0-codex.14" ]; then
-    fail_input "--allow-protected-path requires Improve contract 1.0.0-codex.14"
+    [ "$declared_contract" != "1.0.0-codex.14" ] &&
+    [ "$declared_contract" != "1.0.0-codex.15" ]; then
+    fail_input "--allow-protected-path requires Improve contract 1.0.0-codex.14 or 1.0.0-codex.15"
   fi
   case "$declared_contract" in
-    1.0.0-codex.13|1.0.0-codex.14)
+    1.0.0-codex.13|1.0.0-codex.14|1.0.0-codex.15)
       if [ "$environment_json_supplied" -ne 1 ]; then
         fail_input "Improve contract $declared_contract requires --environment-json"
       fi
@@ -232,6 +236,13 @@ cleanup_resume_snapshots() {
   fi
 }
 
+cleanup_plan_input_snapshot() {
+  if [ -n "$plan_input_snapshot" ]; then
+    rm -f -- "$plan_input_snapshot"
+    plan_input_snapshot=""
+  fi
+}
+
 checkpoint_original_ref=""
 checkpoint_internal_ref=""
 cleanup_checkpoint_state() {
@@ -255,6 +266,7 @@ cleanup_checkpoint_state() {
 cleanup() {
   cleanup_candidate_index
   cleanup_resume_snapshots
+  cleanup_plan_input_snapshot
   cleanup_checkpoint_state || true
 }
 trap cleanup EXIT
@@ -413,7 +425,10 @@ validate_granted_protected_roots() {
   local protected_path
   local protected_root
 
-  [ "$validation_contract" = "1.0.0-codex.14" ] || return 0
+  case "$validation_contract" in
+    1.0.0-codex.14|1.0.0-codex.15) ;;
+    *) return 0 ;;
+  esac
   case "$validation_paths" in
     '[]') ;;
     '[".agents"]') granted_roots=(.agents) ;;
@@ -459,6 +474,24 @@ validate_plan() {
     "$repo"/*) ;;
     *) fail_input "plan must be inside the current repository: $repo" ;;
   esac
+}
+
+capture_plan_input() {
+  plan_input_snapshot="$(
+    mktemp "${TMPDIR:-/tmp}/codex-improve-plan.XXXXXX"
+  )" || fail_input "cannot create temporary plan snapshot"
+  cp -- "$plan" "$plan_input_snapshot" 2>/dev/null ||
+    fail_input "cannot capture execution plan"
+  chmod 600 -- "$plan_input_snapshot" ||
+    fail_input "cannot protect temporary plan snapshot"
+
+  artifact_contract "$plan_input_snapshot"
+  if [ "$declared_contract" = "1.0.0-codex.15" ]; then
+    validate_artifact_environment "$plan_input_snapshot"
+  else
+    cleanup_plan_input_snapshot
+    validate_artifact_environment "$plan"
+  fi
 }
 
 case "${1:-}" in
@@ -748,6 +781,13 @@ or STOPPED. Report each step, changed file, and note as one array item.
 For COMPLETE, set stoppedBecause to null. For STOPPED, set stoppedBecause to
 one concrete nonempty reason other than `none` in any letter case.
 EOF
+  if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+    cat <<'EOF'
+
+On successive rollout reminders, stop opening new scope, finish the required
+checks, then stop tool use and emit the structured final immediately.
+EOF
+  fi
 }
 
 prepare_artifacts() {
@@ -792,6 +832,16 @@ prepare_artifacts() {
   else
     preflight_log=""
   fi
+}
+
+snapshot_plan() {
+  plan_snapshot="$artifact_dir/plan.md"
+  cp -- "$plan_input_snapshot" "$plan_snapshot" 2>/dev/null ||
+    fail_input "cannot snapshot execution plan"
+  chmod 600 -- "$plan_snapshot" ||
+    fail_input "cannot protect execution plan snapshot"
+  plan_hash="$(sha256sum "$plan_snapshot" | sed 's/[[:space:]].*$//')" ||
+    fail_input "cannot hash execution plan"
 }
 
 emit_runtime_metadata() {
@@ -848,13 +898,14 @@ mv_path="${11}"
 rm_path="${12}"
 sed_path="${13}"
 diagnostic_log="${14}"
-model_timeout="${15}"
-kill_after="${16}"
-caller_lc_all_set="${17}"
-caller_lc_all="${18}"
-improve_contract="${19}"
-protected_paths_json="${20}"
-shift 20
+timeout_log="${15}"
+model_timeout="${16}"
+kill_after="${17}"
+caller_lc_all_set="${18}"
+caller_lc_all="${19}"
+improve_contract="${20}"
+protected_paths_json="${21}"
+shift 21
 
 atomic_status() {
   printf '%s\n' "$1" >"$preflight_status_file.tmp.$$" || exit 1
@@ -912,7 +963,9 @@ atomic_status passed
 : >"$invocation_marker.tmp.$$" || exit 1
 "$mv_path" "$invocation_marker.tmp.$$" "$invocation_marker" || exit 1
 exec "$timeout_path" --verbose --signal=INT --kill-after="${kill_after}s" \
-  "${model_timeout}s" "$@" 2>"$diagnostic_log"
+  "${model_timeout}s" "$bash_path" -c \
+  'diagnostic_log="$1"; shift; exec "$@" 2>>"$diagnostic_log"' \
+  bash "$diagnostic_log" "$@" 2>"$timeout_log"
 EOF
   } >"$preflight_wrapper" || fail_input "cannot create environment wrapper"
   chmod 700 "$preflight_wrapper" ||
@@ -1020,9 +1073,10 @@ write_resume_manifest() {
   resume_manifest="$artifact_dir/resume-manifest.json"
   manifest_hash_file="$artifact_dir/resume-manifest.sha256"
   local manifest_contract="$improve_contract"
-  if [ "$manifest_contract" != "1.0.0-codex.14" ]; then
-    manifest_contract="1.0.0-codex.13"
-  fi
+  case "$manifest_contract" in
+    1.0.0-codex.14|1.0.0-codex.15) ;;
+    *) manifest_contract="1.0.0-codex.13" ;;
+  esac
   prompt_body_hash="$(sha256sum "$prompt_body_file" | sed 's/[[:space:]].*$//')" ||
     fail_input "cannot hash prompt body"
   environment_file_hash="$(sha256sum "$environment_file" | sed 's/[[:space:]].*$//')" ||
@@ -1099,7 +1153,8 @@ write_resume_manifest() {
       resumeAttempt: $resumeAttempt,
       parentManifestSha256:
         (if $parentManifestSha256 == "" then null else $parentManifestSha256 end)
-    } + (if $improveContract == "1.0.0-codex.14" then
+    } + (if $improveContract == "1.0.0-codex.14"
+      or $improveContract == "1.0.0-codex.15" then
       {protectedPaths: $protectedPaths}
     else {} end)' >"$resume_manifest" || fail_input "cannot write resume manifest"
   sha256sum "$resume_manifest" | sed 's/[[:space:]].*$//' >"$manifest_hash_file" ||
@@ -1152,7 +1207,8 @@ run_execution() {
     --output-schema "$executor_schema" \
     --output-last-message "$structured_output" -C "$worktree" -
   )
-  if [ "$improve_contract" = "1.0.0-codex.14" ]; then
+  if [ "$improve_contract" = "1.0.0-codex.14" ] ||
+    [ "$improve_contract" = "1.0.0-codex.15" ]; then
     case "$protected_paths_json" in
       '[]') workspace_permissions='{ "." = "write", ".agents" = "read", ".codex" = "read", ".git" = "read" }' ;;
       '[".agents"]') workspace_permissions='{ "." = "write", ".agents" = "write", ".codex" = "read", ".git" = "read" }' ;;
@@ -1186,16 +1242,19 @@ run_execution() {
     probe_timeout_sum="$(jq '[.probes[].timeoutSeconds] | add // 0' \
       "$environment_file")" || fail_input "cannot calculate preflight fuse"
     launcher_fuse_seconds="$((probe_timeout_sum + absolute_seconds + kill_after_seconds))"
+    # shellcheck disable=SC2016,SC2094 # Inner Bash expands its parameters; runner-owned timeouts share this trusted log.
     IMPROVE_EXECUTION_ID="$execution_id" LC_ALL=C timeout \
       --verbose \
       --signal=INT \
       --kill-after="${kill_after_seconds}s" \
       "${launcher_fuse_seconds}s" \
+      bash -c 'diagnostic_log="$1"; shift; exec "$@" 2>"$diagnostic_log"' \
+      bash "$diagnostic_log" \
       "${launcher_argv[@]}" "$preflight_wrapper" \
       "$environment_file" "$preflight_log" "$preflight_status_file" \
       "$invocation_marker" "$input_candidate_tree" "$worktree" \
       "$runner_path" "$bash_path" "$jq_path" "$timeout_path" "$mv_path" \
-      "$rm_path" "$sed_path" "$diagnostic_log" \
+      "$rm_path" "$sed_path" "$diagnostic_log" "$timeout_log" \
       "$absolute_seconds" "$kill_after_seconds" \
       "$caller_lc_all_set" "$caller_lc_all" \
       "$improve_contract" "$protected_paths_json" \
@@ -1260,7 +1319,7 @@ run_execution() {
   timeout_fired=0
   timeout_marker="$(
     sed -n '/^timeout: sending signal INT to command /{p;q;}' \
-      "$timeout_log" "$diagnostic_log"
+      "$timeout_log"
   )"
   timeout_marker_status="$?"
   if [ "$timeout_marker_status" -eq 0 ] && [ -n "$timeout_marker" ]; then
@@ -1458,6 +1517,17 @@ run_execution() {
   if compute_candidate; then
     candidate_available=1
   fi
+  closeout_eligible=0
+  if [ "$improve_contract" = "1.0.0-codex.15" ] &&
+    [ "$result" = "INCONCLUSIVE" ] &&
+    [ "$event_log_valid" -eq 1 ] &&
+    [ "$candidate_available" -eq 1 ]; then
+    case "$exit_reason" in
+      rollout_budget_exhausted|absolute_timeout|empty_final_output|invalid_final_output|final_output_limit)
+        closeout_eligible=1
+        ;;
+    esac
+  fi
   printf 'IMPROVE_MODE=%s\n' "$mode"
   printf 'IMPROVE_WORKTREE=%s\n' "$worktree"
   printf 'IMPROVE_BRANCH=%s\n' "$branch"
@@ -1482,6 +1552,9 @@ run_execution() {
   printf 'IMPROVE_EXEC_ENVIRONMENT_HASH=%s\n' "$environment_hash"
   printf 'IMPROVE_EXEC_PREFLIGHT_COUNT=%s\n' "$preflight_count"
   printf 'IMPROVE_EXEC_PREFLIGHT_STATUS=%s\n' "$preflight_status"
+  if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+    printf 'IMPROVE_EXEC_CLOSEOUT_ELIGIBLE=%s\n' "$closeout_eligible"
+  fi
   printf 'IMPROVE_EXEC_PREFLIGHT_LOG=%s\n' "$preflight_log"
   printf 'IMPROVE_EXEC_RESUME_MANIFEST=%s\n' "$resume_manifest"
   printf 'IMPROVE_EXEC_ARTIFACT_DIR=%s\n' "$artifact_dir"
@@ -1499,6 +1572,9 @@ run_execution() {
   fi
   if [ -n "${predecessor_checkpoint:-}" ]; then
     printf 'IMPROVE_PREDECESSOR_CHECKPOINT=%s\n' "$predecessor_checkpoint"
+  fi
+  if [ -n "$plan_hash" ]; then
+    printf 'IMPROVE_PLAN_SHA256=%s\n' "$plan_hash"
   fi
 
   [ "$result" != "INCONCLUSIVE" ] && [ "$candidate_available" -eq 1 ]
@@ -1617,13 +1693,17 @@ validate_resume_and_load() {
       type == "number" and . == floor and . >= $minimum;
     def common:
       .version == 1
-      and (.improveContract == "1.0.0-codex.13" or .improveContract == "1.0.0-codex.14")
-      and (if .improveContract == "1.0.0-codex.14" then
+      and (.improveContract == "1.0.0-codex.13"
+        or .improveContract == "1.0.0-codex.14"
+        or .improveContract == "1.0.0-codex.15")
+      and (if .improveContract == "1.0.0-codex.14"
+        or .improveContract == "1.0.0-codex.15" then
         (.protectedPaths == [] or .protectedPaths == [".agents"]
           or .protectedPaths == [".codex"]
           or .protectedPaths == [".agents", ".codex"])
       else has("protectedPaths") | not end);
-    common and keys == (if .improveContract == "1.0.0-codex.14" then [
+    common and keys == (if .improveContract == "1.0.0-codex.14"
+      or .improveContract == "1.0.0-codex.15" then [
       "absoluteSeconds", "artifactDirectory", "base", "branch",
       "candidateHead", "candidateTree", "environmentFile",
       "environmentSha256", "executionId", "executorInvoked",
@@ -1905,7 +1985,7 @@ if [ "$operation" = "next" ]; then
   fi
   checkpoint_input="$1"
   validate_plan "$2"
-  validate_artifact_environment "$plan"
+  capture_plan_input
   resolved_checkpoint="$(git -C "$repo" rev-parse --verify "$checkpoint_input^{commit}" 2>/dev/null)" ||
     fail_input "checkpoint must be the full object ID of a commit in the current repository"
   if [ "$resolved_checkpoint" != "$checkpoint_input" ]; then
@@ -1931,7 +2011,7 @@ else
     exit 2
   fi
   validate_plan "$1"
-  validate_artifact_environment "$plan"
+  capture_plan_input
   base="$(git -C "$repo" rev-parse HEAD)"
 fi
 
@@ -1975,6 +2055,9 @@ input_candidate_tree="$candidate_tree"
 validate_granted_protected_roots \
   "$improve_contract" "$protected_paths_json" "$worktree" || exit 2
 prepare_artifacts
+if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+  snapshot_plan
+fi
 {
   cat <<'EOF'
 You are the executor for the implementation plan below. Work only in the
@@ -1994,7 +2077,11 @@ EOF
   fi
   emit_report_contract
   printf '%s\n' '--- BEGIN PLAN ---'
-  cat "$plan"
+  if [ -n "$plan_snapshot" ]; then
+    cat "$plan_snapshot"
+  else
+    cat "$plan"
+  fi
   printf '%s\n' '--- END PLAN ---'
 } >"$prompt_body_file" || fail_input "cannot snapshot execution plan"
 

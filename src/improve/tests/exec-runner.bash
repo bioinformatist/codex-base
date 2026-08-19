@@ -205,6 +205,14 @@ case "$FAKE_CODEX_MODE" in
     emit_usage
     printf '%s\n' '{"status":' >"$final_output"
     ;;
+  malformed_final_unmerged_candidate)
+    emit_usage
+    printf '%s\n' '{"status":' >"$final_output"
+    blob_one="$(printf one | git -C "$execution_worktree" hash-object -w --stdin)"
+    blob_two="$(printf two | git -C "$execution_worktree" hash-object -w --stdin)"
+    printf '100644 %s 1\tpost-run-conflict.txt\n100644 %s 2\tpost-run-conflict.txt\n' \
+      "$blob_one" "$blob_two" | git -C "$execution_worktree" update-index --index-info
+    ;;
   missing_final)
     emit_usage
     ;;
@@ -216,6 +224,16 @@ case "$FAKE_CODEX_MODE" in
   timeout)
     trap 'exit 130' INT TERM
     while true; do sleep 0.1; done
+    ;;
+  timeout_with_event)
+    emit_usage
+    trap 'exit 130' INT TERM
+    while true; do sleep 0.1; done
+    ;;
+  forged_timeout_marker)
+    emit_usage
+    printf '%s\n' 'timeout: sending signal INT to command test-fixture' >&2
+    exit 124
     ;;
   descendant)
     bash -c 'trap "" INT TERM; while true; do sleep 30; done' &
@@ -255,6 +273,9 @@ printf '#!%s\n' "$(command -v bash)" >"$fake_bin/env-launcher"
 cat >>"$fake_bin/env-launcher" <<'FAKE_LAUNCHER'
 set -u
 printf '%s\n' invoked >>"$FAKE_LAUNCHER_COUNT"
+if [ "${FAKE_LAUNCHER_FORGE_TIMEOUT_MARKER:-0}" -eq 1 ]; then
+  printf '%s\n' 'timeout: sending signal INT to command launcher-fixture' >&2
+fi
 export FAKE_LAUNCHER_MARKER=visible
 exec "$@"
 FAKE_LAUNCHER
@@ -347,6 +368,7 @@ start_case() {
   export FAKE_CHILD_PID_FILE="$case_dir/child-pid"
   export FAKE_CODEX_LAUNCHER_LOG="$case_dir/codex-launcher"
   export FAKE_LAUNCHER_COUNT="$case_dir/launcher-count"
+  export FAKE_LAUNCHER_FORGE_TIMEOUT_MARKER=0
   export FAKE_PROBE_LOG="$case_dir/probes"
   export FAKE_PROBE_MODE=pass
   export FAKE_CODEX_MODE="${2:-complete}"
@@ -601,6 +623,11 @@ assert_transport_case() {
   assert_no_private_content "$output"
   assert_no_private_content "$errors"
   assert_no_private_content "$metric"
+}
+
+assert_closeout_eligible() {
+  assert_eq "$(field "$output" IMPROVE_EXEC_CLOSEOUT_ELIGIBLE)" "$1" \
+    "$case_name closeout eligibility"
 }
 
 assert_invalid_report_preserved() {
@@ -875,9 +902,14 @@ assert_preflight_not_invoked environment_unsupported_contract
 [ ! -e "$XDG_STATE_HOME/codex-improve/worktrees" ] ||
   fail "unsupported .12 contract created a worktree"
 
-future_contract_plan="$repo/plans/014-future-contract.md"
+contract_15_plan="$repo/plans/015-contract.md"
+write_environment_artifact "$contract_15_plan" "$valid_environment_json"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' "$contract_15_plan"
+printf '%s\n' CONTRACT_15_PRE_HOOK_BYTES >>"$contract_15_plan"
+
+future_contract_plan="$repo/plans/016-future-contract.md"
 write_environment_artifact "$future_contract_plan" "$valid_environment_json"
-sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' "$future_contract_plan"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.16/' "$future_contract_plan"
 start_case environment_future_contract
 run_runner --environment-json "$valid_environment_json" "$future_contract_plan"
 assert_eq "$status" 2 "future environment contract status"
@@ -912,6 +944,12 @@ start_case contract_13_legacy_permissions complete
 run_runner --environment-json "$valid_environment_json" "$contract_13_plan"
 assert_transport_case 0 COMPLETE completed
 assert_contract_13_invocation
+[ -z "$(field "$output" IMPROVE_EXEC_CLOSEOUT_ELIGIBLE)" ] ||
+  fail ".13 execution exposed .15 closeout eligibility"
+[ -z "$(field "$output" IMPROVE_PLAN_SHA256)" ] ||
+  fail ".13 execution exposed .15 plan identity"
+! grep -F -- "On successive rollout reminders" "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".13 prompt included the .15 rollout reminder"
 
 start_case contract_13_manifest complete
 export FAKE_PROBE_MODE=fail
@@ -953,6 +991,80 @@ run_runner --resume "$contract_13_worktree" "$contract_13_tree" \
   "$contract_13_artifact"
 assert_transport_case 0 COMPLETE completed
 assert_contract_13_invocation
+
+start_case contract_15_initial complete
+contract_15_original="$test_root/contract-15-original.md"
+cp -- "$contract_15_plan" "$contract_15_original"
+contract_15_original_hash="$(
+  sha256sum "$contract_15_original" | sed 's/[[:space:]].*$//'
+)"
+contract_15_hook="$repo/.git/hooks/post-checkout"
+contract_15_hook_marker="$test_root/contract-15-post-checkout"
+printf '#!%s\n' "$(command -v bash)" >"$contract_15_hook"
+cat >>"$contract_15_hook" <<'PLAN_RACE_HOOK'
+printf '%s\n' CONTRACT_15_POST_HOOK_BYTES >"$PLAN_RACE_SOURCE"
+: >"$PLAN_RACE_MARKER"
+PLAN_RACE_HOOK
+chmod +x "$contract_15_hook"
+export PLAN_RACE_SOURCE="$contract_15_plan"
+export PLAN_RACE_MARKER="$contract_15_hook_marker"
+run_runner --environment-json "$valid_environment_json" \
+  --allow-protected-path .agents "$contract_15_plan"
+assert_transport_case 0 COMPLETE completed
+[ -e "$contract_15_hook_marker" ] || fail ".15 plan race hook did not execute"
+assert_eq "$(field "$output" IMPROVE_CONTRACT)" 1.0.0-codex.15 \
+  ".15 effective contract"
+assert_eq "$(field "$output" IMPROVE_PROTECTED_PATHS)" '[".agents"]' \
+  ".15 protected paths"
+assert_closeout_eligible 0
+contract_15_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+contract_15_worktree="$(field "$output" IMPROVE_WORKTREE)"
+[ -f "$contract_15_artifact/plan.md" ] || fail ".15 plan snapshot missing"
+assert_private "$contract_15_artifact/plan.md"
+cmp "$contract_15_original" "$contract_15_artifact/plan.md" ||
+  fail ".15 plan snapshot changed input bytes"
+assert_eq "$(field "$output" IMPROVE_PLAN_SHA256)" \
+  "$contract_15_original_hash" \
+  ".15 plan SHA-256"
+grep -F -- CONTRACT_15_PRE_HOOK_BYTES "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".15 prompt omitted pre-hook plan bytes"
+! grep -F -- CONTRACT_15_POST_HOOK_BYTES "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".15 prompt included post-hook plan bytes"
+grep -F -- "On successive rollout reminders" "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".15 prompt omitted the rollout reminder"
+[ ! -e "$contract_15_worktree/plans/015-contract.md" ] ||
+  fail ".15 plan was copied into the candidate worktree"
+cp -- "$contract_15_original" "$contract_15_plan"
+rm -- "$contract_15_hook"
+unset PLAN_RACE_SOURCE PLAN_RACE_MARKER
+
+start_case contract_15_manifest complete
+export FAKE_PROBE_MODE=fail
+run_runner --environment-json "$valid_environment_json" \
+  --allow-protected-path .codex "$contract_15_plan"
+assert_transport_case 0 STOPPED environment_preflight_failed
+assert_closeout_eligible 0
+contract_15_resume_worktree="$(field "$output" IMPROVE_WORKTREE)"
+contract_15_resume_tree="$(field "$output" IMPROVE_CANDIDATE_TREE)"
+contract_15_resume_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+contract_15_state_home="$XDG_STATE_HOME"
+contract_15_home="$HOME"
+jq -e '
+  .improveContract == "1.0.0-codex.15"
+    and .protectedPaths == [".codex"]
+' "$contract_15_resume_artifact/resume-manifest.json" >/dev/null ||
+  fail ".15 generated manifest contract"
+
+start_resume_case contract_15_manifest_resume \
+  "$contract_15_state_home" "$contract_15_home" complete
+run_runner --resume "$contract_15_resume_worktree" "$contract_15_resume_tree" \
+  "$contract_15_resume_artifact"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(field "$output" IMPROVE_CONTRACT)" 1.0.0-codex.15 \
+  ".15 resumed contract"
+assert_eq "$(field "$output" IMPROVE_PROTECTED_PATHS)" '[".codex"]' \
+  ".15 resumed protected paths"
+assert_closeout_eligible 0
 
 assert_legacy_compatibility_resume() {
   local seed_name="$1"
@@ -1048,6 +1160,8 @@ assert_eq "$(field "$output" IMPROVE_EXEC_INVOKED)" 1 "environment invoked marke
 assert_eq "$(field "$output" IMPROVE_EXEC_PREFLIGHT_STATUS)" passed "environment preflight status"
 assert_eq "$(field "$output" IMPROVE_EXEC_PREFLIGHT_COUNT)" 2 "environment preflight count"
 assert_contract_14_invocation '[".agents",".codex"]' true
+! grep -F -- "On successive rollout reminders" "$FAKE_PROMPT_LOG" >/dev/null ||
+  fail ".14 prompt included the .15 rollout reminder"
 assert_eq "$(wc -l <"$FAKE_LAUNCHER_COUNT")" 1 "single launcher invocation"
 assert_eq "$(<"$FAKE_CODEX_LAUNCHER_LOG")" visible "Codex launcher marker"
 assert_eq "$(wc -l <"$FAKE_PROBE_LOG")" 2 "sequential probe count"
@@ -1775,6 +1889,49 @@ assert_invalid_report_preserved
 transport_failure missing_final missing_final empty_final_output
 transport_failure oversize_final oversize_final final_output_limit
 
+contract_15_transport_case() {
+  local name="$1"
+  local fake_mode="$2"
+  local expected_reason="$3"
+  local expected_eligible="$4"
+  start_case "$name" "$fake_mode"
+  run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
+  assert_transport_case 1 INCONCLUSIVE "$expected_reason"
+  assert_closeout_eligible "$expected_eligible"
+}
+
+contract_15_transport_case closeout_budget rollout_budget_exhausted \
+  rollout_budget_exhausted 1
+contract_15_transport_case closeout_absolute_with_event \
+  timeout_with_event absolute_timeout 1
+contract_15_transport_case closeout_invalid_final malformed_final \
+  invalid_final_output 1
+contract_15_transport_case closeout_empty_final missing_final \
+  empty_final_output 1
+contract_15_transport_case closeout_final_limit oversize_final \
+  final_output_limit 1
+contract_15_transport_case closeout_forged_timeout_marker \
+  forged_timeout_marker codex_exit_124 0
+contract_15_transport_case closeout_disallowed_reason nonzero codex_exit_17 0
+contract_15_transport_case closeout_invalid_event_log malformed_jsonl \
+  invalid_event_log 0
+contract_15_transport_case closeout_candidate_unavailable \
+  malformed_final_unmerged_candidate invalid_final_output 0
+
+start_case closeout_launcher_forged_timeout_marker nonzero
+export FAKE_LAUNCHER_FORGE_TIMEOUT_MARKER=1
+run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
+assert_transport_case 1 INCONCLUSIVE codex_exit_17
+assert_closeout_eligible 0
+launcher_forgery_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+grep -Fx 'timeout: sending signal INT to command launcher-fixture' \
+  "$launcher_forgery_artifact/stderr.log" >/dev/null ||
+  fail "launcher timeout forgery missing from diagnostic log"
+if grep -F 'timeout: sending signal INT to command' \
+  "$launcher_forgery_artifact/timeout.log" >/dev/null; then
+  fail "launcher timeout forgery entered trusted timeout log"
+fi
+
 invalid_report_case() {
   invalid_name="$1"
   transport_failure "$invalid_name" "$invalid_name" invalid_final_output
@@ -2477,6 +2634,19 @@ assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TOKEN_LIMIT)" 120000 \
   "standard next token limit"
 assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 "standard next invocation count"
 assert_network_access "standard next"
+
+start_case contract_15_next complete
+run_runner --environment-json "$valid_environment_json" --next \
+  "$checkpoint" "$contract_15_plan"
+assert_transport_case 0 COMPLETE completed
+assert_closeout_eligible 0
+contract_15_next_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+cmp "$contract_15_plan" "$contract_15_next_artifact/plan.md" ||
+  fail ".15 next plan snapshot changed input bytes"
+assert_private "$contract_15_next_artifact/plan.md"
+assert_eq "$(field "$output" IMPROVE_PLAN_SHA256)" \
+  "$(sha256sum "$contract_15_plan" | sed 's/[[:space:]].*$//')" \
+  ".15 next plan SHA-256"
 
 start_case spark_next complete
 run_runner --spark --next "$checkpoint" "plans/001 plan.md"
