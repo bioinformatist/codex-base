@@ -9,6 +9,9 @@ repository.
   generated skills directly.
 - Run `nix run .#sync-vendored-skills -- --check` before builds and run
   `nix flake check --allow-import-from-derivation` before handoff.
+- When changing Improve runners or their Codex invocation, also run
+  `tests/plugin-portability.bash`; the Nix checks do not replace this non-Nix
+  plugin installation path.
 - Preserve the pinned upstream revisions and inspect every generated diff.
 - Never add credentials, user names, host names, absolute home paths, or Nix
   store paths to distributable files.
