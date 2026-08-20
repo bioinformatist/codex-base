@@ -10,6 +10,16 @@ executor_schema="${CODEX_IMPROVE_EXEC_SCHEMA:-$(dirname -- "$runner_source")/ref
 executor_schema="$(realpath -- "$executor_schema")"
 export CODEX_IMPROVE_EXEC_SCHEMA="$executor_schema"
 real_timeout="$(command -v timeout)"
+real_codex="${CODEX_IMPROVE_REAL_CODEX:-}"
+[ -n "$real_codex" ] || {
+  echo "CODEX_IMPROVE_REAL_CODEX must name the Codex binary under test" >&2
+  exit 2
+}
+real_codex="$(realpath -- "$real_codex")"
+[ -x "$real_codex" ] || {
+  echo "Codex binary under test is not executable: $real_codex" >&2
+  exit 2
+}
 
 test_root="$(mktemp -d)"
 trap 'rm -rf "$test_root"' EXIT
@@ -663,25 +673,29 @@ assert_network_access() {
     fail "$1 network access pin missing"
 }
 
+workspace_permissions_for_paths() {
+  case "$1" in
+    '[]')
+      printf '%s\n' '{ "." = "write", ".agents" = "read", ".codex" = "read", ".git" = "read" }'
+      ;;
+    '[".agents"]')
+      printf '%s\n' '{ "." = "write", ".agents" = "write", ".codex" = "read", ".git" = "read" }'
+      ;;
+    '[".codex"]')
+      printf '%s\n' '{ "." = "write", ".agents" = "read", ".codex" = "write", ".git" = "read" }'
+      ;;
+    '[".agents",".codex"]')
+      printf '%s\n' '{ "." = "write", ".agents" = "write", ".codex" = "write", ".git" = "read" }'
+      ;;
+    *) fail "unknown expected protected-path set: $1" ;;
+  esac
+}
+
 assert_contract_14_invocation() {
   local expected_paths="$1"
   local expected_network="$2"
   local expected_permissions
-  case "$expected_paths" in
-    '[]')
-      expected_permissions='{ "." = "write", ".agents" = "read", ".codex" = "read", ".git" = "read" }'
-      ;;
-    '[".agents"]')
-      expected_permissions='{ "." = "write", ".agents" = "write", ".codex" = "read", ".git" = "read" }'
-      ;;
-    '[".codex"]')
-      expected_permissions='{ "." = "write", ".agents" = "read", ".codex" = "write", ".git" = "read" }'
-      ;;
-    '[".agents",".codex"]')
-      expected_permissions='{ "." = "write", ".agents" = "write", ".codex" = "write", ".git" = "read" }'
-      ;;
-    *) fail "unknown expected protected-path set: $expected_paths" ;;
-  esac
+  expected_permissions="$(workspace_permissions_for_paths "$expected_paths")"
 
   assert_eq "$(field "$output" IMPROVE_CONTRACT)" 1.0.0-codex.14 \
     "$case_name effective contract"
@@ -734,17 +748,49 @@ assert_contract_13_invocation() {
   ' "$metric" >/dev/null || fail "$case_name compatibility metric"
 }
 
+assert_real_codex_accepts_invocation_config() {
+  local compatibility_home="$case_dir/real-codex-home"
+  local invocation_argument
+  local expect_config_value=0
+  local -a config_args=()
+  mkdir -p "$compatibility_home"
+  while IFS= read -r invocation_argument; do
+    if [ "$expect_config_value" -eq 1 ]; then
+      config_args+=(-c "$invocation_argument")
+      expect_config_value=0
+    elif [ "$invocation_argument" = -c ]; then
+      expect_config_value=1
+    fi
+  done <"$FAKE_INVOCATION_LOG"
+  [ "$expect_config_value" -eq 0 ] ||
+    fail "$case_name has a dangling Codex config flag"
+  [ "${#config_args[@]}" -gt 0 ] ||
+    fail "$case_name recorded no Codex config arguments"
+  if ! CODEX_HOME="$compatibility_home" "$real_codex" \
+    "${config_args[@]}" debug prompt-input \
+    "Improve config compatibility probe" \
+    >"$case_dir/real-codex-output" 2>"$case_dir/real-codex-errors"; then
+    sed -n '1,20p' "$case_dir/real-codex-errors" >&2
+    fail "$case_name emitted config rejected by the pinned Codex"
+  fi
+}
+
 assert_contract_15_cache() {
+  local expected_paths="${1:-[]}"
   local expected_root
   local expected_cargo
   local expected_npm
   local expected_xdg
   local expected_config_key
+  local expected_workspace_permissions
+  local expected_filesystem_permissions
+  expected_workspace_permissions="$(workspace_permissions_for_paths "$expected_paths")"
   expected_root="$(realpath -- "$XDG_CACHE_HOME/codex-improve")"
   expected_cargo="$expected_root/shared/cargo"
   expected_npm="$expected_root/shared/npm"
   expected_xdg="$expected_root/executions/$(field "$output" IMPROVE_EXECUTION_ID)/xdg"
   expected_config_key="$(jq -nr --arg value "$expected_root" '$value | @json')"
+  expected_filesystem_permissions="{ \":root\" = \"read\", \":workspace_roots\" = $expected_workspace_permissions, \":tmpdir\" = \"write\", \":slash_tmp\" = \"write\", $expected_config_key = \"write\" }"
   assert_eq "$(stat -c '%a' "$expected_root")" 700 "$case_name cache root mode"
   assert_eq "$(stat -c '%a' "$expected_cargo")" 700 "$case_name Cargo cache mode"
   assert_eq "$(stat -c '%a' "$expected_npm")" 700 "$case_name npm cache mode"
@@ -767,8 +813,11 @@ assert_contract_15_cache() {
     fail "$case_name copied Cargo credentials"
   [ ! -e "$expected_root/.npmrc" ] || fail "$case_name copied npm config"
   grep -Fx -- \
-    "permissions.improve-executor-runtime.filesystem.$expected_config_key=\"write\"" \
+    "permissions.improve-executor-runtime.filesystem=$expected_filesystem_permissions" \
     "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name cache write grant"
+  ! grep -F -- \
+    "permissions.improve-executor-runtime.filesystem.$expected_config_key" \
+    "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name used a dynamic dotted cache key"
   artifact_dir="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
   jq -e --arg root "$expected_root" --arg cargo "$expected_cargo" \
     --arg npm "$expected_npm" --arg xdg "$expected_xdg" '
@@ -1384,7 +1433,7 @@ assert_eq "$(field "$output" IMPROVE_CONTRACT)" 1.0.0-codex.15 \
 assert_eq "$(field "$output" IMPROVE_PROTECTED_PATHS)" '[".agents"]' \
   ".15 protected paths"
 assert_closeout_eligible 0
-assert_contract_15_cache
+assert_contract_15_cache '[".agents"]'
 contract_15_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
 contract_15_worktree="$(field "$output" IMPROVE_WORKTREE)"
 [ -f "$contract_15_artifact/plan.md" ] || fail ".15 plan snapshot missing"
@@ -1493,6 +1542,7 @@ export XDG_CACHE_HOME="$case_dir/cache \"quoted\" \\ backslash"
 run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
 assert_transport_case 0 COMPLETE completed
 assert_contract_15_cache
+assert_real_codex_accepts_invocation_config
 
 start_case contract_15_manifest complete
 export FAKE_PROBE_MODE=fail
@@ -1521,7 +1571,7 @@ assert_eq "$(field "$output" IMPROVE_CONTRACT)" 1.0.0-codex.15 \
 assert_eq "$(field "$output" IMPROVE_PROTECTED_PATHS)" '[".codex"]' \
   ".15 resumed protected paths"
 assert_closeout_eligible 0
-assert_contract_15_cache
+assert_contract_15_cache '[".codex"]'
 
 start_case status_live intermediate_complete_message
 copy_runner

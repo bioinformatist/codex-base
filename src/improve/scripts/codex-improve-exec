@@ -1764,17 +1764,23 @@ run_execution() {
     esac
     codex_command+=(
       -c 'default_permissions="improve-executor-runtime"'
-      -c 'permissions.improve-executor-runtime.filesystem.:root="read"'
-      -c "permissions.improve-executor-runtime.filesystem.:workspace_roots=$workspace_permissions"
-      -c 'permissions.improve-executor-runtime.filesystem.:tmpdir="write"'
-      -c 'permissions.improve-executor-runtime.filesystem.:slash_tmp="write"'
-      -c "permissions.improve-executor-runtime.network.enabled=$network_access"
     )
     if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+      filesystem_permissions="{ \":root\" = \"read\", \":workspace_roots\" = $workspace_permissions, \":tmpdir\" = \"write\", \":slash_tmp\" = \"write\", $cache_config_key = \"write\" }"
       codex_command+=(
-        -c "permissions.improve-executor-runtime.filesystem.$cache_config_key=\"write\""
+        -c "permissions.improve-executor-runtime.filesystem=$filesystem_permissions"
+      )
+    else
+      codex_command+=(
+        -c 'permissions.improve-executor-runtime.filesystem.:root="read"'
+        -c "permissions.improve-executor-runtime.filesystem.:workspace_roots=$workspace_permissions"
+        -c 'permissions.improve-executor-runtime.filesystem.:tmpdir="write"'
+        -c 'permissions.improve-executor-runtime.filesystem.:slash_tmp="write"'
       )
     fi
+    codex_command+=(
+      -c "permissions.improve-executor-runtime.network.enabled=$network_access"
+    )
   else
     codex_command+=(
       --sandbox "$sandbox"

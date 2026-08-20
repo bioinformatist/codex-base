@@ -73,7 +73,8 @@ for profile in \
 done
 
 bash "$repo/tests/improve/compatibility.bash"
-CODEX_IMPROVE_EXEC_SCHEMA="$improve/references/executor-report.schema.json" \
+CODEX_IMPROVE_REAL_CODEX="$root/bin/codex" \
+  CODEX_IMPROVE_EXEC_SCHEMA="$improve/references/executor-report.schema.json" \
   bash "$repo/tests/improve/exec-runner.bash" "$improve/scripts/codex-improve-exec"
 CODEX_IMPROVE_REVIEW_SCHEMA="$improve/references/review-verdict.schema.json" \
   bash "$repo/tests/improve/review-runner.bash" "$improve/scripts/codex-improve-review"
