@@ -76,6 +76,7 @@ cache_config_key=""
 cargo_home=""
 npm_cache=""
 execution_xdg_cache=""
+execution_xdg_config_key=""
 execution_record=""
 execution_phase="preparing"
 record_started_at=""
@@ -569,6 +570,8 @@ prepare_execution_cache() {
   cargo_home="$cache_root/shared/cargo"
   npm_cache="$cache_root/shared/npm"
   execution_xdg_cache="$cache_root/executions/$execution_id/xdg"
+  execution_xdg_config_key="$(jq -nr --arg value "$execution_xdg_cache" '$value | @json')" ||
+    fail_input "cannot encode execution-private XDG cache"
   prepare_private_directory "$cargo_home"
   prepare_private_directory "$npm_cache"
   prepare_private_directory "$cache_root/executions"
@@ -1769,6 +1772,7 @@ run_execution() {
       filesystem_permissions="{ \":root\" = \"read\", \":workspace_roots\" = $workspace_permissions, \":tmpdir\" = \"write\", \":slash_tmp\" = \"write\", $cache_config_key = \"write\" }"
       codex_command+=(
         -c "permissions.improve-executor-runtime.filesystem=$filesystem_permissions"
+        -c "shell_environment_policy.set.XDG_CACHE_HOME=$execution_xdg_config_key"
       )
     else
       codex_command+=(

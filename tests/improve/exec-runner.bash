@@ -719,6 +719,8 @@ assert_contract_14_invocation() {
     fail "$case_name retained legacy workspace-write configuration"
   ! grep -F -- '.git" = "write"' "$FAKE_INVOCATION_LOG" >/dev/null ||
     fail "$case_name granted .git write access"
+  ! grep -F -- 'shell_environment_policy.set.XDG_CACHE_HOME=' "$FAKE_INVOCATION_LOG" >/dev/null ||
+    fail "$case_name preserved contract shell policy"
   jq -e -s --argjson paths "$expected_paths" '
     last
     | .improve_contract == "1.0.0-codex.14"
@@ -741,6 +743,8 @@ assert_contract_13_invocation() {
     "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name legacy writable roots"
   ! grep -F -- 'permissions.improve-executor-runtime' \
     "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name used split permissions"
+  ! grep -F -- 'shell_environment_policy.set.XDG_CACHE_HOME=' "$FAKE_INVOCATION_LOG" >/dev/null ||
+    fail "$case_name preserved contract shell policy"
   jq -e -s '
     last
     | .improve_contract == "1.0.0-codex.13"
@@ -754,6 +758,11 @@ assert_real_codex_accepts_invocation_config() {
   local expect_config_value=0
   local -a config_args=()
   mkdir -p "$compatibility_home"
+  cat <<'EOF' >"$compatibility_home/config.toml"
+[shell_environment_policy.set]
+XDG_CACHE_HOME = "execution-private-cache-home"
+compatibility_sentinel_key = "compatibility-sentinel-value"
+EOF
   while IFS= read -r invocation_argument; do
     if [ "$expect_config_value" -eq 1 ]; then
       config_args+=(-c "$invocation_argument")
@@ -782,6 +791,7 @@ assert_contract_15_cache() {
   local expected_npm
   local expected_xdg
   local expected_config_key
+  local expected_xdg_config_key
   local expected_workspace_permissions
   local expected_filesystem_permissions
   expected_workspace_permissions="$(workspace_permissions_for_paths "$expected_paths")"
@@ -790,6 +800,7 @@ assert_contract_15_cache() {
   expected_npm="$expected_root/shared/npm"
   expected_xdg="$expected_root/executions/$(field "$output" IMPROVE_EXECUTION_ID)/xdg"
   expected_config_key="$(jq -nr --arg value "$expected_root" '$value | @json')"
+  expected_xdg_config_key="$(jq -nr --arg value "$expected_xdg" '$value | @json')"
   expected_filesystem_permissions="{ \":root\" = \"read\", \":workspace_roots\" = $expected_workspace_permissions, \":tmpdir\" = \"write\", \":slash_tmp\" = \"write\", $expected_config_key = \"write\" }"
   assert_eq "$(stat -c '%a' "$expected_root")" 700 "$case_name cache root mode"
   assert_eq "$(stat -c '%a' "$expected_cargo")" 700 "$case_name Cargo cache mode"
@@ -815,6 +826,9 @@ assert_contract_15_cache() {
   grep -Fx -- \
     "permissions.improve-executor-runtime.filesystem=$expected_filesystem_permissions" \
     "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name cache write grant"
+  if [ "$(grep -Fxc -- "shell_environment_policy.set.XDG_CACHE_HOME=$expected_xdg_config_key" "$FAKE_INVOCATION_LOG")" -ne 1 ]; then
+    fail "$case_name shell-environment-policy override"
+  fi
   ! grep -F -- \
     "permissions.improve-executor-runtime.filesystem.$expected_config_key" \
     "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name used a dynamic dotted cache key"
