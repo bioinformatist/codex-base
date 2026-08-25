@@ -22,6 +22,9 @@ File naming: follow the repository's explicit artifact convention. Otherwise use
 > next step. If anything in the "STOP conditions" section occurs, stop and
 > report — do not improvise. Leave the plan and index unchanged; the advisor
 > updates lifecycle state after review.
+> After every code/test-changing step, run its named verification, inspect only
+> that step's delta for `delete`, `stdlib`, `native`, `yagni`, and `shrink`
+> opportunities, and rerun invalidated checks after each accepted simplification.
 >
 > **Drift check (run first)**: `git diff --stat <planned-at SHA>..HEAD -- <Modification scope and evidence/drift paths>`
 > If any path in Modification scope or evidence/drift paths changed since this plan was written, compare the
@@ -312,7 +315,9 @@ Status values: TODO | IN PROGRESS | IMPLEMENTED | ACCEPTANCE PENDING | DONE | BL
 ## Quality bar — check before finishing each plan
 
 - Could a model that has never seen this repo execute this with only the plan file and the repo? If any step requires knowledge from the advisor session, inline that knowledge.
+- For every new limit, cap, dependency, abstraction, compatibility layer, or defensive mechanism, is provenance explicit from a user decision, observed repository fact/failure, repository rule, or authoritative external constraint?
 - Is every verification a command with an expected result, not a judgment ("make sure it works")?
+- Could each new mechanism be replaced by existing repository rules, standard shell, or built-in tooling without weakening requirements?
 - Does every step name exact files and symbols, not "the relevant module"?
 - Are the STOP conditions specific to this plan's actual risks, not boilerplate?
 - Would a reviewer reading only "Why this matters" + "Done criteria" understand what they're approving?

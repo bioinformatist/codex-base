@@ -499,6 +499,31 @@ state and records its evidence. After integration, even an in-scope defect
 starts from the current integrated baseline through initial mode and a new
 worktree; never revise the obsolete pre-integration worktree.
 
+### Stepwise checkpoint sequencing
+
+This is a compact stepwise checkpoint contract. Every executor mode (initial,
+revision, and recovery) must apply the same embedded checkpoint rubric after
+each code/test-changing step before moving to the next step:
+
+1. run the step's named verification immediately;
+2. inspect only that step's new candidate delta for `delete`, `stdlib`,
+   `native`, `yagni`, and `shrink` opportunities;
+3. apply only semantics-preserving simplifications that keep required checks and
+   repository rules;
+4. rerun the step check and any explicitly invalidated earlier check after
+   each simplification; and
+5. record `ponytail=lean` or `ponytail=simplified` on the step item and keep
+   finding dispositions in notes.
+
+If a finding contradicts a settled plan or dossier requirement, the executor must
+return `STOPPED` with a concrete reason. This is an in-process check; it does
+not invoke another model, another prompt, or a Ponytail skill.
+
+Documentation-only steps, pure reads, and pure verification are exempt. Missing
+step-checkpoint evidence prevents `APPROVE` through ordinary `REVISE` or `BLOCK`;
+it does not make the transport report structurally invalid or change report-schema
+validation.
+
 ### Review
 
 Treat the executor report and diff as untrusted until verified:
