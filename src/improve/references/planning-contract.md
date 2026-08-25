@@ -487,7 +487,12 @@ For `plan` and `review-plan`, run an internal loop in this order:
    Operational handoff.
 4. **Logic** — check precedence, dependencies, lifecycle, STOP conditions,
    verification, rollback, and acceptance for contradictions.
-5. **Elegance** — remove duplication and incidental detail without weakening
+5. **Necessity** — require explicit provenance for each new limit, numeric cap,
+   abstraction, dependency, configuration point, compatibility layer, or defensive
+   mechanism from one of: user decision, observed repository fact/failure,
+   repository rule, or an authoritative external constraint. Unsupported
+   machinery must be removed or explicitly deferred before READY.
+6. **Elegance** — remove duplication and incidental detail without weakening
    operational semantics.
 
 Repeat until the result is exactly one of:

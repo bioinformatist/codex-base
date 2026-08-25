@@ -63,11 +63,15 @@ closeout="$root/src/improve/references/closing-the-loop.md"
 require_text "$skill" 'version: "1.0.0-codex.15"'
 require_text "$planning" "Contract version: \`1.0.0-codex.15\`"
 require_text "$template" "**Improve contract**: \`1.0.0-codex.15\`"
+require_text "$planning" "**Necessity**"
 require_text "$skill" 'The runner owns plan and candidate identity'
 require_text "$planning" 'Revision or recovery count alone is never an'
 require_text "$template" 'Initial implementation review covers the complete candidate diff.'
+require_text "$template" 'After every code/test-changing step, run its named verification'
 require_text "$closeout" "\`IMPROVE_EXEC_CLOSEOUT_ELIGIBLE=0\` or \`1\`"
 require_text "$closeout" 'It never converts, masks, or overrides the original'
+require_text "$closeout" 'This is a compact stepwise checkpoint contract'
+require_text "$closeout" "Apply the installed \`\$ponytail-review\` skill once to the current diff."
 require_text "$closeout" 'single-use across the candidate lifecycle, cannot recurse'
 require_text "$closeout" "\`always-invalidated\`"
 
