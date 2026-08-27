@@ -1,8 +1,8 @@
 { pkgs, skills }:
 let
-  codexVersion = "0.150.0";
-  codexHash = "sha256-XpxACnQO5CoAl0NpnQp4qaRWdytTro/5O2OB1Vlnb7I=";
-  codexCodeModeHostHash = "sha256-cfutnzG8BwwulSOd7nQUg+NdpG9TTeWTOEjo1DEEuSA=";
+  codexVersion = "0.150.1";
+  codexHash = "sha256-qzCIcLx/wEjCPcSdA/a4r5zn/Jm52ogtZoi+epAVXHo=";
+  codexCodeModeHostHash = "sha256-tHZnhGElzfbbxGDG/cQYr7LvOSbFT02Zm7++sI3uT8U=";
   codexAsset = pkgs.fetchurl {
     url = "https://github.com/openai/codex/releases/download/rust-v${codexVersion}/codex-x86_64-unknown-linux-musl.tar.gz";
     hash = codexHash;
