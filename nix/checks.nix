@@ -160,12 +160,31 @@ in {
         '/run/secrets/context7' \
         'writable_roots = ["/home/tester/.cache/codex-shell","/tmp/writable"]' \
         '[mcp_servers.github]' \
+        '[mcp_servers.mintlify_index]
+url = "https://index.mintlify.com"
+required = false
+startup_timeout_sec = 30
+tool_timeout_sec = 120' \
         '[mcp_servers.context7_auth]'; do
         found=1
         while IFS= read -r closure_path; do
           if grep -R -F -- "$expected" "$closure_path" >/dev/null 2>&1; then found=0; break; fi
         done <${hmClosure}/store-paths
         test "$found" -eq 0
+      done
+      for expected in \
+        'Mintlify Index is a public documentation-search MCP server.' \
+        '`mintlify_index` first with focused product and version terms.' \
+        'output only when it is nonempty, relevant, covers the requested version, and' \
+        'includes traceable source URLs. If the output is empty, irrelevant,' \
+        'version-insufficient, or source-insufficient, immediately fall back to' \
+        'anonymous `context7`; do not repeat an equivalent Mintlify query.' \
+        'Use anonymous `context7` to resolve the exact library and version.' \
+        '`context7_auth` only if anonymous Context7 is rate-limited, unavailable, or' \
+        'still lacks the result; then use official primary documentation or source.' \
+        'Never send secrets, credentials, or non-public internal content to Mintlify' \
+        'Index or Context7.'; do
+        grep -F -- "$expected" ${srcRoot}/config/AGENTS.md >/dev/null
       done
       while IFS= read -r closure_path; do
         ! grep -R -E 'improve-(scout|executor|executor-spark|executor-deep|reviewer|elegance-reviewer)\.config\.toml' "$closure_path" >/dev/null 2>&1
