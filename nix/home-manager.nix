@@ -147,6 +147,7 @@ in {
         ".agents/skills/diagnosing-bugs" ".agents/skills/tdd" ".agents/skills/codebase-design"
         ".agents/skills/grilling" ".agents/skills/handoff" ".agents/skills/domain-modeling"
         ".agents/skills/resolving-merge-conflicts"
+        ".agents/skills/writing-for-agents" ".agents/skills/to-questionnaire"
       ] (path: linkSkill (baseNameOf path))))
     ];
     home.activation.codex-base-config = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
