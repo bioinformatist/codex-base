@@ -376,6 +376,21 @@ assert_no_private_content() {
     fail "private execution content leaked into $file"
   fi
 }
+assert_stepwise_checkpoint_prompt() {
+  assert_eq "$(grep -F -o 'This is a compact stepwise checkpoint contract' "$FAKE_PROMPT_LOG" | wc -l)" 1 \
+    "$1 stepwise checkpoint contract occurrence"
+  for text in \
+    "After each step that changes code or tests, run the named verification first." \
+    "Then inspect that step's new candidate delta, focused on new hunks, for" \
+    "Record \`ponytail=lean\` or \`ponytail=simplified\` in the step item and keep" \
+    "Pure read-only, pure verification, and documentation-only steps are exempt." \
+    "If a finding challenges a settled requirement, return STOPPED with a concrete" \
+    "do not load a Ponytail skill" \
+    "launch another model"; do
+    grep -F -- "$text" "$FAKE_PROMPT_LOG" >/dev/null ||
+      fail "$1 stepwise checkpoint clause missing: $text"
+  done
+}
 
 repo="$test_root/repo with spaces"
 git -c init.defaultBranch=main init -q "$repo"
@@ -1441,6 +1456,7 @@ export PLAN_RACE_MARKER="$contract_15_hook_marker"
 run_runner --environment-json "$valid_environment_json" \
   --allow-protected-path .agents "$contract_15_plan"
 assert_transport_case 0 COMPLETE completed
+assert_stepwise_checkpoint_prompt initial
 [ -e "$contract_15_hook_marker" ] || fail ".15 plan race hook did not execute"
 assert_eq "$(field "$output" IMPROVE_CONTRACT)" 1.0.0-codex.15 \
   ".15 effective contract"
@@ -2650,6 +2666,9 @@ dossier="$test_root/revision dossier.md"
   printf '%s\n' "Selected revision lane: supplied explicitly by the caller"
   printf '%s\n' "Routing evidence: the bounded revision was classified independently"
 } >"$dossier"
+checkpoint_dossier="$test_root/checkpoint dossier.md"
+write_environment_artifact "$checkpoint_dossier" "$valid_environment_json"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' "$checkpoint_dossier"
 revision_status_before="$(git -C "$revision_worktree" status --short)"
 revision_tree="$(candidate_tree "$revision_worktree")"
 worktrees_before="$(git -C "$repo" worktree list --porcelain)"
@@ -2836,6 +2855,16 @@ grep -Fx 'codex-improve-exec: granted protected path must be absent or a physica
 rm -- "$contract_worktree/.agents"
 cp -- "$contract_exclude_backup" "$contract_exclude"
 
+start_contract_case contract_15_revision complete
+run_runner --environment-json "$valid_environment_json" --revise \
+  "$contract_worktree" "$contract_tree" "$checkpoint_dossier"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(field "$output" IMPROVE_MODE)" revision "revision mode"
+assert_eq "$(field "$output" IMPROVE_BRANCH)" codex/improve-contract-revision-test \
+  "revision branch"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor "revision profile"
+assert_stepwise_checkpoint_prompt revision
+
 start_case environment_revision_outside_xdg complete
 run_runner --environment-json "$valid_environment_json" --revise \
   "$revision_worktree" "$revision_tree" "$environment_dossier"
@@ -2962,6 +2991,18 @@ assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TIMEOUT_SECONDS)" 6 "deep recov
 assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TOKEN_LIMIT)" 160000 "deep recovery token limit"
 assert_eq "$(git -C "$revision_worktree" status --short)" "$revision_status_before" "deep recovery diff preservation"
 assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 "deep recovery invocation count"
+
+start_contract_case contract_15_recovery complete
+run_runner --environment-json "$valid_environment_json" --recover \
+  "$contract_worktree" "$contract_tree" "$checkpoint_dossier"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(field "$output" IMPROVE_MODE)" recovery "recovery mode"
+assert_eq "$(field "$output" IMPROVE_BRANCH)" codex/improve-contract-revision-test \
+  "recovery branch"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor "recovery profile"
+assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TIMEOUT_SECONDS)" 4 "normal recovery timeout"
+assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TOKEN_LIMIT)" 120000 "Standard recovery token limit"
+assert_stepwise_checkpoint_prompt recovery
 
 chmod 755 "$contract_worktree_root" "$contract_worktree"
 start_contract_case environment_recovery_upgrade_failure complete

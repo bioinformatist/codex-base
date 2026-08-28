@@ -67,6 +67,12 @@ let
     [mcp_servers.github]
     command = "${githubMcp}/bin/github-mcp-server"
 
+    [mcp_servers.mintlify_index]
+    url = "https://index.mintlify.com"
+    required = false
+    startup_timeout_sec = 30
+    tool_timeout_sec = 120
+
     [mcp_servers.context7]
     command = "${toolPkgs.context7-mcp}/bin/context7-mcp"
     required = false
@@ -147,6 +153,7 @@ in {
         ".agents/skills/diagnosing-bugs" ".agents/skills/tdd" ".agents/skills/codebase-design"
         ".agents/skills/grilling" ".agents/skills/handoff" ".agents/skills/domain-modeling"
         ".agents/skills/resolving-merge-conflicts"
+        ".agents/skills/writing-for-agents" ".agents/skills/to-questionnaire"
       ] (path: linkSkill (baseNameOf path))))
     ];
     home.activation.codex-base-config = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Writing for Agents"
+  short_description: "Write substantial guidance agents consume"
+  default_prompt: "Use $writing-for-agents to improve this agent-consumed guidance."
+policy:
+  allow_implicit_invocation: true

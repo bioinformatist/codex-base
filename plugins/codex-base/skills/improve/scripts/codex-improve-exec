@@ -1307,6 +1307,24 @@ one concrete nonempty reason other than `none` in any letter case.
 EOF
   if [ "$improve_contract" = "1.0.0-codex.15" ]; then
     cat <<'EOF'
+This is a compact stepwise checkpoint contract that applies to initial, revision,
+and recovery:
+
+After each step that changes code or tests, run the named verification first.
+Then inspect that step's new candidate delta, focused on new hunks, for
+`delete`, `stdlib`, `native`, `yagni`, and `shrink` opportunities.
+Apply only simplifications that preserve settled semantics, correctness,
+repository rules, and required tests.
+Rerun the step check and any explicitly invalidated earlier check after each
+simplification.
+Record `ponytail=lean` or `ponytail=simplified` in the step item and keep
+finding dispositions in notes.
+If a finding challenges a settled requirement, return STOPPED with a concrete
+reason rather than weakening that requirement.
+
+Pure read-only, pure verification, and documentation-only steps are exempt.
+This checkpoint stays in this executor only: do not load a Ponytail skill, do not
+launch another model, and do not add another prompt function.
 
 On successive rollout reminders, stop opening new scope, finish the required
 checks, then stop tool use and emit the structured final immediately.

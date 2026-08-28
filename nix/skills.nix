@@ -124,10 +124,10 @@ let
     displayName = "Diagnosing Bugs";
     shortDescription = "Debug hard bugs with a tight feedback loop";
     defaultPrompt = "Use $diagnosing-bugs to build a tight repro loop and diagnose this bug.";
-    postPatch = ''
-      substituteInPlace "$out/SKILL.md" \
-        --replace-fail 'hand off to the `/improve-codebase-architecture` skill with the specifics' \
-        'recommend a follow-up architecture review with the specifics'
+    semanticGuard = ''
+      grep -Fq 'Redact every secret first' "$out/SKILL.md"
+      grep -Fq 'show the invocation and its output, redacted' "$out/SKILL.md"
+      grep -Fq 'credential stays in the environment' "$out/SKILL.md"
     '';
   };
   tddSkill = mkMattPocockSkill {
@@ -141,7 +141,7 @@ let
       substituteInPlace "$out/SKILL.md" \
         ${exactReplacement
           ''
-            **Test only at pre-agreed seams.** Before writing any test, write down the seams under test and confirm them with the user. No test is written at an unconfirmed seam. You can't test everything — agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
+            **Test only at pre-agreed seams.** Before writing any test, write down the seams under test and confirm them with the user. No test is written at an unconfirmed seam. You can't test everything, so agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
 
             Ask: "What's the public interface, and which seams should we test?"
           ''
@@ -173,9 +173,16 @@ let
     shortDescription = "Design deeper modules and cleaner seams";
     defaultPrompt = "Use $codebase-design to evaluate this module interface and seam placement.";
     postPatch = ''
+      substituteInPlace "$out/SKILL.md" \
+        --replace-fail 'spin up parallel sub-agents to design the interface several radically different ways' \
+        'use parallel sub-agents when multi-agent tools are available, or design the interface several radically different ways yourself'
       substituteInPlace "$out/DESIGN-IT-TWICE.md" \
-        --replace-fail 'Spawn 3+ sub-agents in parallel using the Agent tool. Each must produce a **radically different** interface for the deepened module.' \
+        --replace-fail 'Spawn 3+ sub-agents in parallel. Each must produce a **radically different** interface for the deepened module.' \
         'When multi-agent tools are available, spawn 3+ sub-agents in parallel; otherwise produce 3 distinct designs yourself. Each must produce a **radically different** interface for the deepened module.'
+    '';
+    semanticGuard = ''
+      grep -Fq 'or design the interface several radically different ways yourself' "$out/SKILL.md"
+      grep -Fq 'otherwise produce 3 distinct designs yourself' "$out/DESIGN-IT-TWICE.md"
     '';
   };
   grillingSkill = mkMattPocockSkill {
@@ -183,9 +190,24 @@ let
     path = "skills/productivity/grilling";
     description = "Explicit-only interview loop for stress-testing a plan, decision, or idea. Use only when the user asks to grill, interrogate, interview, or stress-test their thinking before action.";
     displayName = "Grilling";
-    shortDescription = "Stress-test a plan by asking one question at a time";
+    shortDescription = "Stress-test thinking in frontier rounds";
     defaultPrompt = "Use $grilling to stress-test this plan before implementation.";
     allowImplicit = false;
+    postPatch = ''
+      substituteInPlace "$out/SKILL.md" \
+        --replace-fail "Finding _facts_ is your job, never the user's. When a frontier question needs a fact from the environment (filesystem, tools, etc.), dispatch a sub-agent to find it; don't ask the user for anything you could look up yourself. Don't block on it: a running exploration is an unsettled prerequisite, so only the questions downstream of it wait for the sub-agent to report; ask the rest of the frontier now. The _decisions_ are the user's: put each to them and wait." \
+        "Finding _facts_ is your job, never the user's. Discover repository and environment facts before asking questions, using available tools directly. The _decisions_ are the user's: put each to them and wait."
+      substituteInPlace "$out/SKILL.md" \
+        --replace-fail 'Ask the whole frontier in one round: number each question and give your recommended answer.' \
+        'Ask at most three independent, high-value frontier questions in one round: number each question and give your recommended answer.' \
+        --replace-fail 'Do not act on it until the user confirms you have reached a shared understanding.' \
+        'End by reporting the shared understanding and open decisions. Do not implement automatically; implementation requires a separate user request.'
+    '';
+    semanticGuard = ''
+      grep -Fq 'at most three independent, high-value frontier questions' "$out/SKILL.md"
+      grep -Fq 'Discover repository and environment facts before asking questions' "$out/SKILL.md"
+      grep -Fq 'Do not implement automatically' "$out/SKILL.md"
+    '';
   };
   handoffSkill = mkMattPocockSkill {
     name = "handoff";
@@ -201,7 +223,7 @@ let
           ''
             Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save to the temporary directory of the user's OS - not the current workspace.
 
-            Include a "suggested skills" section in the document, which suggests skills that the agent should invoke.
+            Include a "suggested skills" section in the document, naming which skills the next agent should call the Skill tool for.
 
             Do not duplicate content already captured in other artifacts (specs, plans, ADRs, issues, commits, diffs). Reference them by path or URL instead.
 
@@ -254,7 +276,7 @@ let
 
             3. **Resolve each hunk.** Preserve both intents where possible. Where incompatible, pick the one matching the merge's stated goal and note the trade-off. Do **not** invent new behaviour. Always resolve; never `--abort`.
 
-            4. Discover the project's **automated checks** and run them — typically typecheck, then tests, then format. Fix anything the merge broke.
+            4. Discover the project's **automated checks** and run them, typically typecheck, then tests, then format. Fix anything the merge broke.
 
             5. **Finish the merge/rebase.** Stage everything and commit. If rebasing, continue the rebase process until all commits are rebased.
           ''
@@ -278,6 +300,99 @@ let
         echo "resolving-merge-conflicts retains automatic Git lifecycle actions" >&2
         exit 1
       fi
+    '';
+  };
+  writingForAgentsSkill = mkMattPocockSkill {
+    name = "writing-for-agents";
+    path = "skills/productivity/writing-for-agents";
+    description = "Write substantial agent-consumed guidance such as skills, AGENTS.md instructions, and documents reached by agent context pointers. Do not use for ordinary README or user-facing prose.";
+    displayName = "Writing for Agents";
+    shortDescription = "Write substantial guidance agents consume";
+    defaultPrompt = "Use $writing-for-agents to improve this agent-consumed guidance.";
+    postPatch = ''
+      substituteInPlace "$out/SKILL.md" \
+        --replace-fail 'an `AGENTS.md` / `CLAUDE.md`, a doc reached by a pointer' \
+        'an `AGENTS.md`, a doc reached by a pointer'
+      substituteInPlace "$out/SKILL-MECHANICS.md" \
+        ${exactReplacement
+          ''
+            - A **model-invoked** skill keeps a `description`, so the agent can fire it autonomously, and other skills can reach it. You can still type its name: model-invocation always _includes_ user reach; a description only ever adds agent discovery, never removes the human's. The description is the skill's top-level context pointer, forced to stay loaded at all times: permanent context load in exchange for discoverability. A model-invoked skill whose content is all reference is also one home for shared reference: another skill can invoke it, so reference needed by several skills lives in one place. Mechanics: omit `disable-model-invocation`, and write a model-facing description carrying the trigger branches (the pointer-writing rules in `SKILL.md` apply in full).
+          ''
+          ''
+            - A **model-invoked** skill permits autonomous invocation. When the harness exposes its `description` for discovery, that description helps the agent decide when to invoke it. You can still type the skill's name: autonomous invocation adds agent discovery without removing human reach. Metadata exposure may consume context, so use the description as the skill's top-level context pointer. A model-invoked skill whose content is all reference can also be one home for shared reference: other guidance can point to it, so reference needed by several skills lives in one place. Mechanics: set `policy.allow_implicit_invocation: true` in `agents/openai.yaml`; this permits autonomous invocation and uses the description for discovery when the harness exposes it. Write a model-facing description carrying the trigger branches (the pointer-writing rules in `SKILL.md` apply in full).
+          ''} \
+        ${exactReplacement
+          ''
+            - A **user-invoked** skill strips the description from the agent's reach: only the human typing its name can invoke it, and no other skill can. Zero context load, but it spends cognitive load: you are the index that must remember it exists. Mechanics: set `disable-model-invocation: true`; the `description` becomes human-facing: a one-line summary, trigger lists stripped.
+          ''
+          ''
+            - A **user-invoked** skill is explicit-only. Mechanics: set `policy.allow_implicit_invocation: false` in `agents/openai.yaml`; this prevents autonomous invocation, but the skill may still appear in catalogs or UI and its metadata may still have context cost. The human explicitly invokes it. Keep the `description` human-facing: a one-line summary with trigger lists stripped. The human also carries the cognitive load of remembering the skill exists.
+          ''} \
+        ${exactReplacement
+          ''
+            Pick model-invocation only when the agent must reach the skill on its own, or another skill must. If it only ever fires by hand, make it user-invoked and pay no context load.
+
+            Shared reference that two user-invoked skills both need can live in neither: with no descriptions, neither can fire the other. Push it to a plain file outside the skill system: external reference any skill can point at.
+          ''
+          ''
+            Pick model-invocation only when the agent must reach the skill on its own. If it only ever fires by hand, make it user-invoked and let the human decide when to invoke it. Catalog visibility and metadata context cost depend on the harness.
+
+            Shared reference that two user-invoked skills both need should live in a plain file outside the skill system: external reference any skill can point at without altering its invocation policy.
+          ''} \
+        ${exactReplacement
+          ''
+            The invocation cut of splitting (the sequence cut lives in `SKILL.md`): split off a model-invoked skill when you have a distinct leading word that should trigger it on its own (a trigger word you actually use in your prompts), or another skill must reach it. You pay context load for the new always-loaded description, so that independent reach has to be worth it.
+          ''
+          ''
+            The invocation cut of splitting (the sequence cut lives in `SKILL.md`): split off a model-invoked skill when you have a distinct leading word that should trigger it on its own (a trigger word you actually use in your prompts). When the harness exposes the new description, its metadata may add context cost, so that independent reach has to be worth it.
+          ''} \
+        ${exactReplacement
+          ''
+            When user-invoked skills multiply past what you can remember, that piled-up cognitive load is cured by a **router skill**: one user-invoked skill that names the others and when to reach for each, so the human has one skill to remember instead of many. It can only hint, never fire them: user-invoked skills have no description, so nothing but the human can reach them.
+          ''
+          ''
+            When user-invoked skills multiply past what you can remember, that piled-up cognitive load is reduced by a **router skill**: one user-invoked skill that names the others and when to reach for each, so the human has one skill to remember instead of many. Router skills help humans discover explicit-only skills but do not change those invocation policies; the human still explicitly invokes each routed skill.
+          ''}
+    '';
+    semanticGuard = ''
+      ! grep -Eiq 'claude|disable-model-invocation' "$out/SKILL.md" "$out/SKILL-MECHANICS.md"
+      grep -Fq 'agents/openai.yaml' "$out/SKILL-MECHANICS.md"
+      grep -Fq 'permits autonomous invocation and uses the description for discovery when the harness exposes it' "$out/SKILL-MECHANICS.md"
+      grep -Fq 'prevents autonomous invocation, but the skill may still appear in catalogs or UI' "$out/SKILL-MECHANICS.md"
+      grep -Fq 'Router skills help humans discover explicit-only skills but do not change those invocation policies' "$out/SKILL-MECHANICS.md"
+      ! grep -Fq \
+        -e 'forced to stay loaded at all times' \
+        -e 'permanent context load' \
+        -e 'strips the description from the agent' \
+        -e 'No implicit catalog exposure' \
+        -e 'Zero context load' \
+        -e 'pay no context load' \
+        -e 'with no descriptions' \
+        -e 'always-loaded description' \
+        -e 'user-invoked skills have no description' \
+        -e 'nothing but the human can reach them' \
+        "$out/SKILL-MECHANICS.md"
+      grep -Fq 'Do not use for ordinary README or user-facing prose.' "$out/SKILL.md"
+    '';
+  };
+  toQuestionnaireSkill = mkMattPocockSkill {
+    name = "to-questionnaire";
+    path = "skills/productivity/to-questionnaire";
+    description = "Explicit-only workflow that writes a safe Markdown questionnaire for another person. Use only when the user explicitly asks for a questionnaire.";
+    displayName = "To Questionnaire";
+    shortDescription = "Write a safe questionnaire for another person";
+    defaultPrompt = "Use $to-questionnaire to draft this questionnaire safely.";
+    allowImplicit = false;
+    postPatch = ''
+      substituteInPlace "$out/SKILL.md" \
+        --replace-fail 'Write it to `to-questionnaire-<slug>.md` in the current directory (slug from the topic) and report the path.' 'Write exactly one collision-resistant Markdown file under `$TMPDIR` when set, otherwise `/tmp`, and report its absolute path. Never overwrite an existing file, send or publish the questionnaire, or write it in the repository.' \
+        --replace-fail '**From:** <the user>, **To:** <the recipient>, **How your answers will be used:** <where they go>' '**From role:** <role>, **To role:** <role>, **How your answers will be used:** <where they go>'
+      sed -i '/Turn something the user/a Never request credentials, authentication tokens, API keys, passwords, or other secret values. Prefer roles and only include personal information necessary for the questionnaire.' "$out/SKILL.md"
+    '';
+    semanticGuard = ''
+      grep -Fq 'otherwise `/tmp`' "$out/SKILL.md"
+      grep -Fq 'Never overwrite an existing file, send or publish' "$out/SKILL.md"
+      grep -Fq 'Never request credentials' "$out/SKILL.md"
     '';
   };
   playwrightCliSkillHeader = pkgs.writeText "playwright-cli-SKILL-header.md" ''
@@ -367,6 +482,8 @@ let
     handoff = handoffSkill;
     domain-modeling = domainModelingSkill;
     resolving-merge-conflicts = resolvingMergeConflictsSkill;
+    writing-for-agents = writingForAgentsSkill;
+    to-questionnaire = toQuestionnaireSkill;
     stop-slop = stopSlopSkill;
     playwright-cli = playwrightCliSkill;
   };

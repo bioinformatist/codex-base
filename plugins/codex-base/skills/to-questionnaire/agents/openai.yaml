@@ -1,0 +1,6 @@
+interface:
+  display_name: "To Questionnaire"
+  short_description: "Write a safe questionnaire for another person"
+  default_prompt: "Use $to-questionnaire to draft this questionnaire safely."
+policy:
+  allow_implicit_invocation: false

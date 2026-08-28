@@ -51,6 +51,7 @@ Look for the algorithmic and architectural wins, not micro-optimizations.
 
 The goal is not a percentage — it's *which untested code is dangerous*.
 
+- Start with evidence-backed hotspots: combine churn from version history with file size, fan-in, and dependency edges, then inspect the few intersections instead of treating any single metric as a finding.
 - Map the critical paths (money, auth, data mutation, the feature the repo exists for) and check which have zero or trivial coverage.
 - Modules with high churn (git log) + no tests = top refactor risk; flag as "characterization tests first" candidates.
 - Existing test quality: tests that assert nothing meaningful, heavy mocking that tests the mocks, snapshot tests nobody reads, flaky patterns (real timers, real network, order dependence).
@@ -59,12 +60,14 @@ The goal is not a percentage — it's *which untested code is dangerous*.
 
 ## 5. Tech Debt & Architecture
 
+- Prefer deletion and the current requirement: remove dead code, unused dependencies, and single-use abstractions before proposing new layers; reject flexibility without an evidenced second use case (YAGNI).
 - Duplication: the same logic re-implemented in 3+ places (search for near-identical functions/components); divergent copies that have drifted.
 - Layering violations: UI importing from data layer internals, circular dependencies, "utils" modules that became a junk drawer with high fan-in.
 - Dead code: unexported-and-unused modules, feature flags fully rolled out but still branching, commented-out blocks with no explanation, deps in the manifest no longer imported.
 - God objects/modules: files an order of magnitude larger than the repo median that everything touches; functions with double-digit parameters or deep conditional nesting.
 - Inconsistent patterns: three ways of doing data fetching / error handling / styling in the same repo — pick the winner (the one the team converged on most recently) and plan the consolidation.
 - Abstraction mismatches: premature abstractions with a single implementation, or missing abstractions where the same change always requires touching N files in lockstep.
+- Deepen a module only where repeated caller complexity or lockstep changes show that moving policy behind a smaller interface will increase leverage. Name the public test seam and isolate I/O behind a narrow adapter so the proposed boundary has a concrete verification path.
 
 ## 6. Dependencies & Migrations
 
@@ -80,7 +83,7 @@ The goal is not a percentage — it's *which untested code is dangerous*.
 - Missing or broken: typecheck script, lint config, formatter, pre-commit hooks, editorconfig.
 - Slow feedback loops: dev-server or test startup measured in minutes, no watch mode, CI without caching.
 - Onboarding friction: README setup steps that are wrong/incomplete, undocumented required env vars, no `.env.example`.
-- Missing `CLAUDE.md`/`AGENTS.md` — for repos where agents will execute the plans, this is high-leverage: recommend one and include its outline as a plan.
+- Missing `AGENTS.md` — for repos where agents will execute the plans, this is high-leverage: recommend one and include its outline as a plan.
 - Error messages/logging: unstructured logs on services, missing request IDs/correlation, debugging requiring code changes.
 
 ## 8. Docs
