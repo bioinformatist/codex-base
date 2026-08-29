@@ -11,7 +11,7 @@ install Codex, global `AGENTS.md`, MCP servers or secrets, PATH commands, Node,
 or Playwright CLI.
 
 The Nix flake is the full-fidelity Linux surface. Its Home Manager module
-installs Codex 0.150.1 and Code Mode Host, Node 24, Playwright CLI 0.1.17,
+installs Codex 0.151.0 and Code Mode Host, Node 24, Playwright CLI 0.1.17,
 global guidance and rules, MCP routing, unnamespaced skills such as `$improve`,
 and the `codex-improve-*` PATH commands.
 
