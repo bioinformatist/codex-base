@@ -20,11 +20,24 @@ creation or model invocation.
 ```
 
 Keys are exactly `version`, `launcher`, and `probes`, plus
-`probeOmissionReason` only when probes are empty. Version is integer 1.
+`probeOmissionReason` only when probes are empty and the optional exact object
+`"cache":{"xdgScope":"execution"}` or
+`"cache":{"xdgScope":"worktree"}`. Version is integer 1.
 Launcher contains 0–16 nonempty control-character-free strings. There are 0–16
 probes; each has exactly `argv` (1–32 such strings) and an integer timeout from
 1 through 900. Empty probes require a nonempty omission reason, forbidden
 otherwise. The CLI JSON and fenced payload are each at most 16 KiB.
+
+Omitting `cache` is exactly execution scope: `.15` uses a fresh private XDG
+cache for each invocation. Select worktree scope only with reviewed evidence
+that expensive cache state must survive revision, recovery, or preflight
+resume in the same registered Improve worktree. It derives an opaque identity
+from the physical repository-common directory and worktree path, so it cannot
+cross repositories, worktrees, initial attempts, or dependent `--next`
+worktrees. The longer-lived cache may affect gate runtime, so plans remain
+responsible for clean-state checks; cache contents and hits are never candidate,
+checkpoint, gate, or acceptance evidence. Neither scope copies ambient cache,
+credentials, or configuration.
 
 The launcher is an argv prefix, never shell source; an empty launcher inherits
 the runner environment. Probes are literal argv arrays, not shell strings. Do
