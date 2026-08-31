@@ -304,6 +304,11 @@ if [ "${FAKE_LAUNCHER_FORGE_TIMEOUT_MARKER:-0}" -eq 1 ]; then
   printf '%s\n' 'timeout: sending signal INT to command launcher-fixture' >&2
 fi
 export FAKE_LAUNCHER_MARKER=visible
+if [ "${FAKE_LAUNCHER_CLOBBER_CACHE:-0}" -eq 1 ]; then
+  export CARGO_HOME="$FAKE_LAUNCHER_CLOBBER_ROOT/cargo"
+  export npm_config_cache="$FAKE_LAUNCHER_CLOBBER_ROOT/npm"
+  export XDG_CACHE_HOME="$FAKE_LAUNCHER_CLOBBER_ROOT/xdg"
+fi
 exec "$@"
 FAKE_LAUNCHER
 chmod +x "$fake_bin/env-launcher"
@@ -427,6 +432,8 @@ start_case() {
   export FAKE_CODEX_LAUNCHER_LOG="$case_dir/codex-launcher"
   export FAKE_LAUNCHER_COUNT="$case_dir/launcher-count"
   export FAKE_LAUNCHER_FORGE_TIMEOUT_MARKER=0
+  export FAKE_LAUNCHER_CLOBBER_CACHE=0
+  export FAKE_LAUNCHER_CLOBBER_ROOT="$case_dir/launcher-clobber"
   export FAKE_PROBE_LOG="$case_dir/probes"
   export FAKE_PROBE_MODE=pass
   export FAKE_CODEX_MODE="${2:-complete}"
@@ -769,6 +776,13 @@ assert_real_codex_accepts_invocation_config() {
   local expect_config_value=0
   local -a config_args=()
   mkdir -p "$compatibility_home"
+  cat >"$compatibility_home/config.toml" <<'EOF'
+[shell_environment_policy.set]
+CARGO_HOME = "/ambient/cargo"
+npm_config_cache = "/ambient/npm"
+XDG_CACHE_HOME = "/ambient/xdg"
+IMPROVE_UNRELATED = "preserved"
+EOF
   while IFS= read -r invocation_argument; do
     if [ "$expect_config_value" -eq 1 ]; then
       config_args+=(-c "$invocation_argument")
@@ -792,25 +806,58 @@ assert_real_codex_accepts_invocation_config() {
 
 assert_contract_15_cache() {
   local expected_paths="${1:-[]}"
+  local expected_scope="${2:-execution}"
+  local executor_expected="${3:-1}"
   local expected_root
   local expected_cargo
   local expected_npm
   local expected_xdg
   local expected_config_key
+  local expected_repository_common
+  local expected_worktree_key
   local expected_workspace_permissions
   local expected_filesystem_permissions
   expected_workspace_permissions="$(workspace_permissions_for_paths "$expected_paths")"
   expected_root="$(realpath -- "$XDG_CACHE_HOME/codex-improve")"
   expected_cargo="$expected_root/shared/cargo"
   expected_npm="$expected_root/shared/npm"
-  expected_xdg="$expected_root/executions/$(field "$output" IMPROVE_EXECUTION_ID)/xdg"
+  case "$expected_scope" in
+    execution)
+      expected_xdg="$expected_root/executions/$(field "$output" IMPROVE_EXECUTION_ID)/xdg"
+      ;;
+    worktree)
+      expected_repository_common="$(
+        git -C "$(field "$output" IMPROVE_WORKTREE)" \
+          rev-parse --path-format=absolute --git-common-dir
+      )"
+      expected_repository_common="$(realpath -- "$expected_repository_common")"
+      expected_worktree_key="$(
+        printf '%s\0%s' \
+          "$expected_repository_common" \
+          "$(realpath -- "$(field "$output" IMPROVE_WORKTREE)")" |
+          sha256sum | sed 's/[[:space:]].*$//'
+      )"
+      expected_xdg="$expected_root/worktrees/$expected_worktree_key/xdg"
+      ;;
+    *) fail "unknown expected XDG scope: $expected_scope" ;;
+  esac
   expected_config_key="$(jq -nr --arg value "$expected_root" '$value | @json')"
   expected_filesystem_permissions="{ \":root\" = \"read\", \":workspace_roots\" = $expected_workspace_permissions, \":tmpdir\" = \"write\", \":slash_tmp\" = \"write\", $expected_config_key = \"write\" }"
   assert_eq "$(stat -c '%a' "$expected_root")" 700 "$case_name cache root mode"
   assert_eq "$(stat -c '%a' "$expected_cargo")" 700 "$case_name Cargo cache mode"
   assert_eq "$(stat -c '%a' "$expected_npm")" 700 "$case_name npm cache mode"
   assert_eq "$(stat -c '%a' "$expected_xdg")" 700 "$case_name XDG cache mode"
-  for cache_log in "$FAKE_CACHE_PREFLIGHT_LOG" "$FAKE_CACHE_EXECUTOR_LOG"; do
+  if [ "$expected_scope" = worktree ]; then
+    assert_eq "$(stat -c '%a' "$expected_root/worktrees")" 700 \
+      "$case_name worktree cache parent mode"
+    assert_eq "$(stat -c '%a' "$expected_root/worktrees/$expected_worktree_key")" 700 \
+      "$case_name worktree cache key mode"
+  fi
+  cache_logs=("$FAKE_CACHE_PREFLIGHT_LOG")
+  if [ "$executor_expected" -eq 1 ]; then
+    cache_logs+=("$FAKE_CACHE_EXECUTOR_LOG")
+  fi
+  for cache_log in "${cache_logs[@]}"; do
     grep -Fx "CARGO_HOME=$expected_cargo" "$cache_log" >/dev/null ||
       fail "$case_name Cargo cache environment"
     grep -Fx "npm_config_cache=$expected_npm" "$cache_log" >/dev/null ||
@@ -818,31 +865,54 @@ assert_contract_15_cache() {
     grep -Fx "XDG_CACHE_HOME=$expected_xdg" "$cache_log" >/dev/null ||
       fail "$case_name XDG cache environment"
   done
-  [ -e "$expected_cargo/preflight-write" ] &&
-    [ -e "$expected_cargo/executor-write" ] || fail "$case_name Cargo cache writes"
-  [ -e "$expected_npm/preflight-write" ] &&
-    [ -e "$expected_npm/executor-write" ] || fail "$case_name npm cache writes"
-  [ -e "$expected_xdg/preflight-write" ] &&
-    [ -e "$expected_xdg/executor-write" ] || fail "$case_name XDG cache writes"
+  [ -e "$expected_cargo/preflight-write" ] || fail "$case_name Cargo preflight cache write"
+  [ -e "$expected_npm/preflight-write" ] || fail "$case_name npm preflight cache write"
+  [ -e "$expected_xdg/preflight-write" ] || fail "$case_name XDG preflight cache write"
+  if [ "$executor_expected" -eq 1 ]; then
+    [ -e "$expected_cargo/executor-write" ] || fail "$case_name Cargo executor cache write"
+    [ -e "$expected_npm/executor-write" ] || fail "$case_name npm executor cache write"
+    [ -e "$expected_xdg/executor-write" ] || fail "$case_name XDG executor cache write"
+  fi
   [ ! -e "$expected_cargo/credentials.toml" ] ||
     fail "$case_name copied Cargo credentials"
   [ ! -e "$expected_root/.npmrc" ] || fail "$case_name copied npm config"
-  grep -Fx -- \
-    "permissions.improve-executor-runtime.filesystem=$expected_filesystem_permissions" \
-    "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name cache write grant"
-  ! grep -F -- \
-    "permissions.improve-executor-runtime.filesystem.$expected_config_key" \
-    "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name used a dynamic dotted cache key"
+  if [ "$executor_expected" -eq 1 ]; then
+    grep -Fx -- \
+      "permissions.improve-executor-runtime.filesystem=$expected_filesystem_permissions" \
+      "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name cache write grant"
+    ! grep -F -- \
+      "permissions.improve-executor-runtime.filesystem.$expected_config_key" \
+      "$FAKE_INVOCATION_LOG" >/dev/null || fail "$case_name used a dynamic dotted cache key"
+    for policy_entry in \
+      "CARGO_HOME:$expected_cargo" \
+      "npm_config_cache:$expected_npm" \
+      "XDG_CACHE_HOME:$expected_xdg"; do
+      policy_key="${policy_entry%%:*}"
+      policy_value="${policy_entry#*:}"
+      policy_toml="$(jq -nr --arg value "$policy_value" '$value | @json')"
+      grep -Fx -- "shell_environment_policy.set.$policy_key=$policy_toml" \
+        "$FAKE_INVOCATION_LOG" >/dev/null ||
+        fail "$case_name cache shell-policy override: $policy_key"
+    done
+    ! grep -Fx -- 'shell_environment_policy.set=' "$FAKE_INVOCATION_LOG" >/dev/null ||
+      fail "$case_name replaced the whole shell environment policy"
+  fi
   artifact_dir="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
   jq -e --arg root "$expected_root" --arg cargo "$expected_cargo" \
-    --arg npm "$expected_npm" --arg xdg "$expected_xdg" '
+    --arg npm "$expected_npm" --arg xdg "$expected_xdg" \
+    --arg xdgScope "$expected_scope" '
       .cache == {
         enabled: true, root: $root, cargoHome: $cargo, npmCache: $npm,
         xdgCacheHome: $xdg, cargoScope: "shared", npmScope: "shared",
-        xdgScope: "execution"
+        xdgScope: $xdgScope
       }
     ' "$artifact_dir/execution.json" >/dev/null ||
     fail "$case_name execution cache record"
+}
+
+recorded_xdg_cache() {
+  jq -r '.cache.xdgCacheHome' \
+    "$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)/execution.json"
 }
 
 assert_legacy_cache_disabled() {
@@ -1087,11 +1157,31 @@ assert_invalid_status_mutation candidate '.currentCandidate.error = "private"'
 assert_invalid_status_mutation environment \
   '.environment.preflight.status = "unknown"'
 assert_invalid_status_mutation cache '.cache.cargoScope = "execution"'
+assert_invalid_status_mutation cache_scope '.cache.xdgScope = "repository"'
 assert_invalid_status_mutation events '.events.count = 0.5'
 assert_invalid_status_mutation tokens '.tokenUsage.activeLimit = 0'
 assert_invalid_status_mutation timestamps '.timestamps.finishedAt = null'
 assert_invalid_status_mutation phase_result '.phase = "executing"'
 assert_invalid_status_mutation next_action '.nextAction = "retry"'
+
+start_case status_worktree_cache
+status_oid="$(git -C "$repo" rev-parse HEAD)"
+status_artifact="$XDG_STATE_HOME/codex-improve/executions/worktree-cache"
+mkdir -p "$XDG_STATE_HOME/codex-improve/executions"
+chmod 700 "$XDG_STATE_HOME/codex-improve" \
+  "$XDG_STATE_HOME/codex-improve/executions"
+write_status_fixture "$status_artifact" status-worktree-cache "$repo" \
+  2099-01-01T00:00:00Z "$status_oid"
+jq '
+  .cache.xdgScope = "worktree"
+  | .cache.xdgCacheHome = (.cache.root + "/worktrees/" + ("a" * 64) + "/xdg")
+' "$status_artifact/execution.json" >"$status_artifact/execution.json.next"
+chmod 600 "$status_artifact/execution.json.next"
+mv "$status_artifact/execution.json.next" "$status_artifact/execution.json"
+run_status status-worktree-cache
+assert_eq "$status" 0 "status accepts worktree cache scope"
+jq -e '.cache.xdgScope == "worktree"' "$output" >/dev/null ||
+  fail "status worktree cache record"
 
 start_case status_artifact_identity
 status_oid="$(git -C "$repo" rev-parse HEAD)"
@@ -1283,6 +1373,14 @@ invalid_environment_case omission_empty \
   '{"version":1,"launcher":[],"probes":[],"probeOmissionReason":""}'
 invalid_environment_case omission_forbidden \
   '{"version":1,"launcher":[],"probes":[{"argv":["true"],"timeoutSeconds":1}],"probeOmissionReason":"not empty"}'
+invalid_environment_case cache_type \
+  '{"version":1,"launcher":[],"probes":[{"argv":["true"],"timeoutSeconds":1}],"cache":"worktree"}'
+invalid_environment_case cache_extra_key \
+  '{"version":1,"launcher":[],"probes":[{"argv":["true"],"timeoutSeconds":1}],"cache":{"xdgScope":"worktree","extra":true}}'
+invalid_environment_case cache_scope_type \
+  '{"version":1,"launcher":[],"probes":[{"argv":["true"],"timeoutSeconds":1}],"cache":{"xdgScope":1}}'
+invalid_environment_case cache_scope_unknown \
+  '{"version":1,"launcher":[],"probes":[{"argv":["true"],"timeoutSeconds":1}],"cache":{"xdgScope":"repository"}}'
 
 oversized_value="$(printf '%016500d' 0)"
 invalid_environment_case oversized "$(
@@ -1554,11 +1652,101 @@ rm -- "$contract_15_hook"
 unset PLAN_RACE_SOURCE PLAN_RACE_MARKER
 
 start_case contract_15_cache_metacharacters complete
-export XDG_CACHE_HOME="$case_dir/cache \"quoted\" \\ backslash"
+export XDG_CACHE_HOME="$case_dir/cache \"quoted\" \\ backslash # hash ' single"
+export FAKE_LAUNCHER_CLOBBER_CACHE=1
 run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
 assert_transport_case 0 COMPLETE completed
 assert_contract_15_cache
 assert_real_codex_accepts_invocation_config
+
+execution_scope_environment_json="$(
+  jq -c '.cache = {xdgScope: "execution"}' <<<"$valid_environment_json"
+)"
+execution_scope_plan="$repo/plans/015-execution-cache.md"
+write_environment_artifact "$execution_scope_plan" "$execution_scope_environment_json"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' "$execution_scope_plan"
+start_case contract_15_explicit_execution_cache complete
+run_runner --environment-json "$execution_scope_environment_json" \
+  "$execution_scope_plan"
+assert_transport_case 0 COMPLETE completed
+assert_contract_15_cache '[]' execution
+
+worktree_scope_environment_json="$(
+  jq -c '.cache = {xdgScope: "worktree"}' <<<"$valid_environment_json"
+)"
+worktree_scope_plan="$repo/plans/015-worktree-cache.md"
+worktree_scope_dossier="$repo/plans/015-worktree-cache-dossier.md"
+write_environment_artifact "$worktree_scope_plan" "$worktree_scope_environment_json"
+write_environment_artifact "$worktree_scope_dossier" "$worktree_scope_environment_json"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' \
+  "$worktree_scope_plan" "$worktree_scope_dossier"
+
+start_case contract_15_worktree_cache_initial complete
+export XDG_STATE_HOME="$case_dir/state \"quoted\" # hash"
+export XDG_CACHE_HOME="$case_dir/cache \"quoted\" \\ backslash # hash"
+export FAKE_LAUNCHER_CLOBBER_CACHE=1
+run_runner --environment-json "$worktree_scope_environment_json" \
+  "$worktree_scope_plan"
+assert_transport_case 0 COMPLETE completed
+assert_contract_15_cache '[]' worktree
+worktree_scope_worktree="$(field "$output" IMPROVE_WORKTREE)"
+worktree_scope_tree="$(field "$output" IMPROVE_CANDIDATE_TREE)"
+worktree_scope_xdg="$(recorded_xdg_cache)"
+worktree_scope_state_home="$XDG_STATE_HOME"
+worktree_scope_home="$HOME"
+worktree_scope_cache_parent="$XDG_CACHE_HOME"
+
+start_resume_case contract_15_worktree_cache_separate_initial \
+  "$worktree_scope_state_home" "$worktree_scope_home" complete
+export XDG_CACHE_HOME="$worktree_scope_cache_parent"
+run_runner --environment-json "$worktree_scope_environment_json" \
+  "$worktree_scope_plan"
+assert_transport_case 0 COMPLETE completed
+assert_contract_15_cache '[]' worktree
+separate_worktree_scope_xdg="$(recorded_xdg_cache)"
+[ "$separate_worktree_scope_xdg" != "$worktree_scope_xdg" ] ||
+  fail "worktree XDG cache crossed distinct Improve worktrees"
+assert_eq "$(field "$output" IMPROVE_CANDIDATE_TREE)" "$worktree_scope_tree" \
+  "cache scope does not affect initial candidate identity"
+
+start_resume_case contract_15_worktree_cache_revision \
+  "$worktree_scope_state_home" "$worktree_scope_home" complete
+export XDG_CACHE_HOME="$worktree_scope_cache_parent"
+export FAKE_LAUNCHER_CLOBBER_CACHE=1
+run_runner --environment-json "$worktree_scope_environment_json" --revise \
+  "$worktree_scope_worktree" "$worktree_scope_tree" "$worktree_scope_dossier"
+assert_transport_case 0 COMPLETE completed
+assert_contract_15_cache '[]' worktree
+assert_eq "$(recorded_xdg_cache)" "$worktree_scope_xdg" \
+  "worktree cache reused for revision"
+assert_eq "$(field "$output" IMPROVE_CANDIDATE_TREE)" "$worktree_scope_tree" \
+  "cache scope does not affect revision candidate identity"
+
+start_resume_case contract_15_worktree_cache_recovery \
+  "$worktree_scope_state_home" "$worktree_scope_home" complete
+export XDG_CACHE_HOME="$worktree_scope_cache_parent"
+export FAKE_PROBE_MODE=fail
+run_runner --environment-json "$worktree_scope_environment_json" --recover \
+  "$worktree_scope_worktree" "$worktree_scope_tree" "$worktree_scope_dossier"
+assert_transport_case 0 STOPPED environment_preflight_failed
+assert_contract_15_cache '[]' worktree 0
+assert_eq "$(recorded_xdg_cache)" "$worktree_scope_xdg" \
+  "worktree cache reused for recovery"
+assert_eq "$(field "$output" IMPROVE_CANDIDATE_TREE)" "$worktree_scope_tree" \
+  "cache scope does not affect recovery candidate identity"
+worktree_scope_resume_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+
+start_resume_case contract_15_worktree_cache_resume \
+  "$worktree_scope_state_home" "$worktree_scope_home" complete
+export XDG_CACHE_HOME="$worktree_scope_cache_parent"
+run_runner --resume "$worktree_scope_worktree" "$worktree_scope_tree" \
+  "$worktree_scope_resume_artifact"
+assert_transport_case 0 COMPLETE completed
+assert_contract_15_cache '[]' worktree
+assert_eq "$(recorded_xdg_cache)" "$worktree_scope_xdg" \
+  "worktree cache reused for preflight resume"
+assert_eq "$(field "$output" IMPROVE_CANDIDATE_TREE)" "$worktree_scope_tree" \
+  "cache scope does not affect resumed candidate identity"
 
 start_case contract_15_manifest complete
 export FAKE_PROBE_MODE=fail
@@ -3243,7 +3431,9 @@ start_case contract_15_next complete
 run_runner --environment-json "$valid_environment_json" --next \
   "$checkpoint" "$contract_15_plan"
 assert_transport_case 0 COMPLETE completed
+assert_contract_15_cache
 assert_closeout_eligible 0
+contract_15_next_tree="$(field "$output" IMPROVE_CANDIDATE_TREE)"
 contract_15_next_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
 cmp "$contract_15_plan" "$contract_15_next_artifact/plan.md" ||
   fail ".15 next plan snapshot changed input bytes"
@@ -3251,6 +3441,18 @@ assert_private "$contract_15_next_artifact/plan.md"
 assert_eq "$(field "$output" IMPROVE_PLAN_SHA256)" \
   "$(sha256sum "$contract_15_plan" | sed 's/[[:space:]].*$//')" \
   ".15 next plan SHA-256"
+
+start_case contract_15_worktree_cache_next complete
+export XDG_CACHE_HOME="$worktree_scope_cache_parent"
+run_runner --environment-json "$worktree_scope_environment_json" --next \
+  "$checkpoint" "$worktree_scope_plan"
+assert_transport_case 0 COMPLETE completed
+assert_contract_15_cache '[]' worktree
+[ "$(recorded_xdg_cache)" != "$worktree_scope_xdg" ] ||
+  fail "worktree XDG cache crossed into a dependent --next worktree"
+assert_eq "$(field "$output" IMPROVE_CANDIDATE_TREE)" \
+  "$contract_15_next_tree" \
+  "cache scope does not affect dependent --next candidate identity"
 
 start_case spark_next complete
 run_runner --spark --next "$checkpoint" "plans/001 plan.md"

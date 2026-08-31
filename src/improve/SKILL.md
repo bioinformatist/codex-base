@@ -89,7 +89,11 @@ round; correct the environment and use `--resume` once. Initial and `--next`
 executions also preserve the exact plan privately and return its SHA-256; the
 runner, not the executor, owns that identity. For `.15`, the runner also gives
 preflight and Codex the same private writable cache environment: shared Cargo
-and npm caches plus a per-execution XDG cache. It never copies ambient package
-credentials or configuration into those caches. A repeated failure is
+and npm caches plus an XDG cache that is fresh per execution by default. A
+reviewed environment may explicitly set `"cache":{"xdgScope":"worktree"}`
+when expensive state must survive recovery or revision in the same registered
+worktree; that cache never crosses worktrees. Cache state is not acceptance
+evidence. The runner never copies ambient package credentials or configuration
+into those caches. A repeated failure is
 `BLOCKED`. Never infer or bundle a project toolchain, auto-resume, migrate a
 legacy artifact, or ask an executor to call candidate, checkpoint, or resume.

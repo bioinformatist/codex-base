@@ -83,6 +83,12 @@ Use an empty launcher to inherit the runner environment. Empty probes require
 }
 ```
 
+Ordinary plans omit `cache`, which means a fresh per-execution XDG cache. Add
+`"cache":{"xdgScope":"worktree"}` only when evidence shows expensive cache
+state must survive recovery or revision in this registered worktree. Record
+that tradeoff in Semantic anchors and include any required clean-state gate;
+cache hits are never acceptance evidence.
+
 The main agent passes this exact reviewed JSON first through
 `--environment-json`. Do not include secrets or environment-variable values.
 For a `.15` initial or `--next` invocation, the runner snapshots these exact

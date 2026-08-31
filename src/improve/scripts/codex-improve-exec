@@ -76,6 +76,7 @@ cache_config_key=""
 cargo_home=""
 npm_cache=""
 execution_xdg_cache=""
+xdg_scope="execution"
 execution_record=""
 execution_phase="preparing"
 record_started_at=""
@@ -157,6 +158,10 @@ validate_environment_schema() {
       type == "string"
         and length > 0
         and (test("[\u0000-\u001f\u007f]") | not);
+    def cache_config:
+      type == "object"
+        and keys == ["xdgScope"]
+        and (.xdgScope == "execution" or .xdgScope == "worktree");
     type == "object"
       and (.version | type == "number" and . == 1)
       and (.launcher
@@ -179,11 +184,13 @@ validate_environment_schema() {
                   and . == floor
                   and . >= 1
                   and . <= 900)))
+      and (if has("cache") then (.cache | cache_config) else true end)
       and if (.probes | length) == 0 then
-        keys == ["launcher", "probeOmissionReason", "probes", "version"]
+        (keys - ["cache"])
+          == ["launcher", "probeOmissionReason", "probes", "version"]
           and (.probeOmissionReason | no_controls)
       else
-        keys == ["launcher", "probes", "version"]
+        (keys - ["cache"]) == ["launcher", "probes", "version"]
           and (has("probeOmissionReason") | not)
       end
   ' <<<"$json" >/dev/null 2>&1; then
@@ -551,12 +558,14 @@ prepare_private_directory() {
 
 prepare_execution_cache() {
   local requested_root
+  local worktree_cache_key
   cache_enabled=0
   cache_root=""
   cache_config_key=""
   cargo_home=""
   npm_cache=""
   execution_xdg_cache=""
+  xdg_scope="execution"
   [ "$improve_contract" = "1.0.0-codex.15" ] || return 0
 
   requested_root="$caller_cache_parent/codex-improve"
@@ -568,11 +577,32 @@ prepare_execution_cache() {
   prepare_private_directory "$cache_root/shared"
   cargo_home="$cache_root/shared/cargo"
   npm_cache="$cache_root/shared/npm"
-  execution_xdg_cache="$cache_root/executions/$execution_id/xdg"
   prepare_private_directory "$cargo_home"
   prepare_private_directory "$npm_cache"
-  prepare_private_directory "$cache_root/executions"
-  prepare_private_directory "$cache_root/executions/$execution_id"
+  xdg_scope="$(jq -r '.cache.xdgScope // "execution"' \
+    <<<"$environment_normalized")" ||
+    fail_input "cannot select XDG cache scope"
+  case "$xdg_scope" in
+    execution)
+      execution_xdg_cache="$cache_root/executions/$execution_id/xdg"
+      prepare_private_directory "$cache_root/executions"
+      prepare_private_directory "$cache_root/executions/$execution_id"
+      ;;
+    worktree)
+      worktree_cache_key="$(
+        printf '%s\0%s' "$record_repository_common" "$worktree" |
+          sha256sum | sed 's/[[:space:]].*$//'
+      )" || fail_input "cannot derive private worktree cache identity"
+      if [ "${#worktree_cache_key}" -ne 64 ] ||
+        [[ "$worktree_cache_key" == *[!0-9a-f]* ]]; then
+        fail_input "private worktree cache identity is invalid"
+      fi
+      execution_xdg_cache="$cache_root/worktrees/$worktree_cache_key/xdg"
+      prepare_private_directory "$cache_root/worktrees"
+      prepare_private_directory "$cache_root/worktrees/$worktree_cache_key"
+      ;;
+    *) fail_input "internal XDG cache scope is invalid" ;;
+  esac
   prepare_private_directory "$execution_xdg_cache"
   export CARGO_HOME="$cargo_home"
   export npm_config_cache="$npm_cache"
@@ -660,6 +690,7 @@ write_execution_record() {
     --arg cargoHome "$cargo_home" \
     --arg npmCache "$npm_cache" \
     --arg xdgCacheHome "$execution_xdg_cache" \
+    --arg xdgScope "$xdg_scope" \
     --argjson eventCount "$observed_event_count" \
     --argjson eventBytes "$observed_event_bytes" \
     --argjson observedEvents "$observed_events" \
@@ -715,7 +746,7 @@ write_execution_record() {
           xdgCacheHome: nullable($xdgCacheHome),
           cargoScope: (if $cacheEnabled == 1 then "shared" else null end),
           npmScope: (if $cacheEnabled == 1 then "shared" else null end),
-          xdgScope: (if $cacheEnabled == 1 then "execution" else null end)
+          xdgScope: (if $cacheEnabled == 1 then $xdgScope else null end)
         },
         events: {
           count: $eventCount,
@@ -835,7 +866,7 @@ validate_execution_record() {
               and .preflight.count == 0
               and .preflight.status == "legacy_unchecked"
             end)
-      and (.cache
+      and (.executionId as $recordExecutionId | .cache
         | type == "object"
           and exact(["cargoHome", "cargoScope", "enabled", "npmCache",
             "npmScope", "root", "xdgCacheHome", "xdgScope"])
@@ -846,7 +877,13 @@ validate_execution_record() {
               and .cargoHome == (.root + "/shared/cargo")
               and .npmCache == (.root + "/shared/npm")
               and .cargoScope == "shared" and .npmScope == "shared"
-              and .xdgScope == "execution"
+              and if .xdgScope == "execution" then
+                .xdgCacheHome == (.root + "/executions/" + $recordExecutionId + "/xdg")
+              elif .xdgScope == "worktree" then
+                .root as $root
+                | (.xdgCacheHome | startswith($root + "/worktrees/"))
+                  and (.xdgCacheHome | test("/worktrees/[0-9a-f]{64}/xdg$"))
+              else false end
           else
             .root == null and .cargoHome == null and .npmCache == null
               and .xdgCacheHome == null and .cargoScope == null
@@ -1457,7 +1494,16 @@ caller_lc_all_set="${18}"
 caller_lc_all="${19}"
 improve_contract="${20}"
 protected_paths_json="${21}"
-shift 21
+cargo_home="${22}"
+npm_cache="${23}"
+xdg_cache_home="${24}"
+shift 24
+
+if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+  export CARGO_HOME="$cargo_home"
+  export npm_config_cache="$npm_cache"
+  export XDG_CACHE_HOME="$xdg_cache_home"
+fi
 
 atomic_status() {
   printf '%s\n' "$1" >"$preflight_status_file.tmp.$$" || exit 1
@@ -1785,8 +1831,17 @@ run_execution() {
     )
     if [ "$improve_contract" = "1.0.0-codex.15" ]; then
       filesystem_permissions="{ \":root\" = \"read\", \":workspace_roots\" = $workspace_permissions, \":tmpdir\" = \"write\", \":slash_tmp\" = \"write\", $cache_config_key = \"write\" }"
+      cargo_home_config="$(jq -nr --arg value "$cargo_home" '$value | @json')" ||
+        fail_input "cannot encode Cargo cache path"
+      npm_cache_config="$(jq -nr --arg value "$npm_cache" '$value | @json')" ||
+        fail_input "cannot encode npm cache path"
+      xdg_cache_config="$(jq -nr --arg value "$execution_xdg_cache" '$value | @json')" ||
+        fail_input "cannot encode XDG cache path"
       codex_command+=(
         -c "permissions.improve-executor-runtime.filesystem=$filesystem_permissions"
+        -c "shell_environment_policy.set.CARGO_HOME=$cargo_home_config"
+        -c "shell_environment_policy.set.npm_config_cache=$npm_cache_config"
+        -c "shell_environment_policy.set.XDG_CACHE_HOME=$xdg_cache_config"
       )
     else
       codex_command+=(
@@ -1842,6 +1897,7 @@ run_execution() {
       "$absolute_seconds" "$kill_after_seconds" \
       "$caller_lc_all_set" "$caller_lc_all" \
       "$improve_contract" "$protected_paths_json" \
+      "$cargo_home" "$npm_cache" "$execution_xdg_cache" \
       "${codex_command[@]}" \
       <"$prompt_file" >"$event_log" 2>"$timeout_log" &
   else

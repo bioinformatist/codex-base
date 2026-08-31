@@ -239,11 +239,15 @@ record to `finished`.
 
 The same `.15` invocation creates a user-owned mode-0700 physical cache root
 below the caller's `XDG_CACHE_HOME` (or its standard fallback). It exports a
-shared `CARGO_HOME`, a shared `npm_config_cache`, and a per-execution
-`XDG_CACHE_HOME` identically to preflight and Codex, and grants the sandbox
-write access only to that physical cache root. The runner does not copy ambient
-Cargo/npm credentials or configuration into it. Earlier contracts keep their
-existing cache environment and receive no cache-root grant.
+shared `CARGO_HOME`, a shared `npm_config_cache`, and the selected
+`XDG_CACHE_HOME` identically after the launcher and through Codex's explicit
+shell-environment policy. XDG is per execution when `cache` is omitted or its
+scope is `execution`; an explicitly reviewed `worktree` scope reuses one opaque
+private path only for later invocations on that registered worktree. The
+sandbox receives write access only to the physical cache root. The runner does
+not copy ambient Cargo/npm credentials, configuration, or cache contents into
+it, and cache hits are never gate or acceptance evidence. Earlier contracts
+keep their existing cache environment and receive no cache-root grant.
 
 Each initial, `--next`, revision, and recovery invocation creates one fresh
 opaque lowercase execution identity from runtime-only values. The helper
