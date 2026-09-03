@@ -68,7 +68,7 @@ let
     command = "${githubMcp}/bin/github-mcp-server"
 
     [mcp_servers.mintlify_index]
-    url = "https://index.mintlify.com"
+    url = "https://index.mintlify.com/mcp"
     required = false
     startup_timeout_sec = 30
     tool_timeout_sec = 120
@@ -140,6 +140,7 @@ in {
       ++ lib.optionals cfg.improve.enable [ packages.codex-improve-exec packages.codex-improve-review packages.codex-improve-scout ];
     home.file = lib.mkMerge [
       {
+        ".agents/skills/docs-routing" = linkSkill "docs-routing";
         ".agents/skills/playwright-cli" = linkSkill "playwright-cli";
         ".agents/skills/stop-slop" = lib.mkIf cfg.stopSlop.enable (linkSkill "stop-slop");
         ".agents/skills/ponytail-review" = lib.mkIf (cfg.ponytail.enable || cfg.improve.enable) (linkSkill "ponytail-review");

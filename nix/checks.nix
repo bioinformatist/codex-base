@@ -40,6 +40,28 @@ in {
   plugin-schema = mkTest "plugin-schema" [ python ] ''
     python ${pluginValidator} ${srcRoot}/plugins/codex-base
     for skill in ${srcRoot}/plugins/codex-base/skills/*; do python ${skillValidator} "$skill"; done
+    python - <<'PY'
+    import json
+    from pathlib import Path
+
+    plugin = Path('${srcRoot}/plugins/codex-base')
+    manifest = json.loads((plugin / '.codex-plugin/plugin.json').read_text())
+    servers = json.loads((plugin / '.mcp.json').read_text())
+    expected = {
+        'mcpServers': {
+            'mintlify_index': {
+                'type': 'http',
+                'url': 'https://index.mintlify.com/mcp',
+            },
+            'context7': {
+                'type': 'http',
+                'url': 'https://mcp.context7.com/mcp',
+            },
+        },
+    }
+    assert manifest['mcpServers'] == './.mcp.json'
+    assert servers == expected
+    PY
     touch $out
   '';
   stale-wording = mkTest "stale-wording" shellTools ''
@@ -133,10 +155,20 @@ in {
     done
     grep -Fq 'docs/architecture.md' ${srcRoot}/CONTRIBUTING.md
     grep -Fq 'docs/updating.md' ${srcRoot}/CONTRIBUTING.md
+    grep -Fq 'anonymous Mintlify Index and Context7 HTTP endpoints' ${srcRoot}/README.md
+    grep -Fq '匿名的 Mintlify Index 与 Context7 HTTP 端点' ${srcRoot}/README.zh-CN.md
+    grep -Fq '`src/docs-routing` is the canonical first-party documentation-routing skill.' ${srcRoot}/docs/architecture.md
+    grep -Fq 'Keep anonymous plugin MCP defaults' ${srcRoot}/CONTRIBUTING.md
     test -f ${srcRoot}/docs/assets/prompts/codex-base-logo.md
     test -f ${srcRoot}/docs/assets/prompts/codex-base-workflow.md
     jq -e '.interface.composerIcon == "./assets/codex-base.svg" and .interface.logo == "./assets/codex-base.svg"' \
       ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json >/dev/null
+    jq -e '
+      . as $manifest
+      | [$manifest.description, $manifest.interface.longDescription]
+      | all(.[]; test("skills?|workflows?"; "i") and test("documentation|mcp"; "i"))
+      and ($manifest.keywords | index("documentation") != null and index("mcp") != null)
+    ' ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json >/dev/null
     python - <<'PY'
     import json
     from pathlib import Path
@@ -188,12 +220,14 @@ in {
   codex-layout = packages.codex;
   home-manager =
     assert builtins.hasAttr ".agents/skills/improve" files;
+    assert builtins.hasAttr ".agents/skills/docs-routing" files;
     assert builtins.hasAttr ".agents/skills/writing-for-agents" files;
     assert builtins.hasAttr ".agents/skills/to-questionnaire" files;
     assert builtins.hasAttr ".codex/AGENTS.md" files;
     assert builtins.hasAttr ".codex/rules/baseline.rules" files;
     assert builtins.all (path: !(builtins.hasAttr path files)) legacy;
     assert !(builtins.hasAttr ".agents/skills/improve" filesOff);
+    assert builtins.hasAttr ".agents/skills/docs-routing" filesOff;
     assert !(builtins.hasAttr ".agents/skills/stop-slop" filesOff);
     assert !(builtins.hasAttr ".agents/skills/diagnosing-bugs" filesOff);
     assert !(builtins.hasAttr ".agents/skills/writing-for-agents" filesOff);
@@ -218,7 +252,7 @@ in {
         'writable_roots = ["/home/tester/.cache/codex-shell","/tmp/writable"]' \
         '[mcp_servers.github]' \
         '[mcp_servers.mintlify_index]
-url = "https://index.mintlify.com"
+url = "https://index.mintlify.com/mcp"
 required = false
 startup_timeout_sec = 30
 tool_timeout_sec = 120' \
@@ -229,20 +263,20 @@ tool_timeout_sec = 120' \
         done <${hmClosure}/store-paths
         test "$found" -eq 0
       done
-      for expected in \
-        'Mintlify Index is a public documentation-search MCP server.' \
-        '`mintlify_index` first with focused product and version terms.' \
-        'output only when it is nonempty, relevant, covers the requested version, and' \
-        'includes traceable source URLs. If the output is empty, irrelevant,' \
-        'version-insufficient, or source-insufficient, immediately fall back to' \
-        'anonymous `context7`; do not repeat an equivalent Mintlify query.' \
-        'Use anonymous `context7` to resolve the exact library and version.' \
-        '`context7_auth` only if anonymous Context7 is rate-limited, unavailable, or' \
-        'still lacks the result; then use official primary documentation or source.' \
-        'Never send secrets, credentials, or non-public internal content to Mintlify' \
-        'Index or Context7.'; do
-        grep -F -- "$expected" ${srcRoot}/config/AGENTS.md >/dev/null
+      cmp ${generatedSkills}/docs-routing/SKILL.md ${files.".agents/skills/docs-routing".source}/SKILL.md
+      for clause in \
+        'unless a higher-authority product-specific documentation workflow applies.' \
+        'Query `mintlify_index` once with focused product and requested-version terms.' \
+        'Accept the result only when it is nonempty, relevant, covers the requested version, and includes traceable source URLs.' \
+        'Otherwise use anonymous `context7` to resolve the exact library and version. Do not repeat an equivalent Mintlify query.' \
+        'Use `context7_auth` only when it is available and anonymous Context7 is rate-limited, unavailable, or still insufficient.' \
+        'Then fall back to official primary documentation or source.' \
+        'Never send secrets, credentials, private code, full prompts, or non-public internal content to either provider.' \
+        'If a named tool is absent, advance to the next stage without automatically installing, authenticating, or retrying it.'; do
+        grep -Fq "$clause" ${generatedSkills}/docs-routing/SKILL.md
       done
+      grep -Fq 'Treat GitHub and Context7 tokens as per-user secrets.' ${srcRoot}/config/AGENTS.md
+      ! grep -Fq 'Mintlify Index is a public documentation-search MCP server.' ${srcRoot}/config/AGENTS.md
       while IFS= read -r closure_path; do
         ! grep -R -E 'improve-(scout|executor|executor-spark|executor-deep|reviewer|elegance-reviewer)\.config\.toml' "$closure_path" >/dev/null 2>&1
       done <${hmClosure}/store-paths

@@ -37,12 +37,12 @@ The columns below show what Codex Base provides or configures with each installa
 | Bundled engineering skills | Namespaced, such as `$codex-base:improve` | Unnamespaced, such as `$improve` |
 | Improve runners | Bundled; Linux tools required | Packaged `codex-improve-*` commands |
 | Global guidance and GitHub MCP | No | Yes |
-| Mintlify / Context7 MCP servers and routing | Not configured | Configured |
+| Mintlify / Context7 MCP servers and routing | Anonymous HTTP defaults and shared routing skill | Local anonymous Context7, optional authenticated Context7, and shared routing skill |
 | Codex, Code Mode Host, Node, Playwright CLI | No | Pinned packages |
 
 The [capability catalog](docs/capabilities.md) lists every trigger, responsibility, verification surface, and provenance. The plugin does not install Nix-only capabilities, commands, secrets, or global configuration.
 
-The portable plugin does not configure Mintlify or Context7. The full Nix/Home Manager environment configures both MCP servers and the Mintlify-first, Context7-fallback routing policy. Outside Nix, users can configure either server independently or get it from another plugin.
+The portable plugin configures anonymous Mintlify Index and Context7 HTTP endpoints plus one Mintlify-first routing skill. The Nix/Home Manager environment links the same skill while retaining local anonymous Context7 and optional per-user authenticated Context7. Both providers are public third parties: send only focused public lookup terms, never secrets, private code, full prompts, or non-public internal content. Native Codex configuration takes precedence over same-name plugin defaults.
 
 The full Nix / Home Manager environment currently pins Codex 0.153.0 and Code Mode Host.
 
@@ -63,9 +63,10 @@ codex plugin add codex-base@bioinformatist-codex
 
 ```console
 codex plugin list --marketplace bioinformatist-codex
+codex mcp list --json
 ```
 
-The output should show `codex-base@bioinformatist-codex` installed and enabled. Then start a **new Codex session** and make a harmless functional check on disposable prose:
+The output should show `codex-base@bioinformatist-codex` installed and enabled, with anonymous `mintlify_index` and `context7` MCP servers and no `context7_auth`. Then start a **new Codex session** and make a harmless functional check on disposable prose:
 
 ```text
 Use $codex-base:stop-slop to tighten this disposable sentence without changing its facts.

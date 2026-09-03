@@ -47,9 +47,36 @@ jq -e '
 ' "$root/plugin-add.json" >/dev/null
 installed_path="$(jq -r '.installedPath' "$root/plugin-add.json")"
 test -f "$installed_path/assets/codex-base.svg"
+test -f "$installed_path/.mcp.json"
+test -f "$installed_path/skills/docs-routing/SKILL.md"
+test -f "$installed_path/skills/docs-routing/agents/openai.yaml"
 jq -e '.interface.composerIcon == "./assets/codex-base.svg"
   and .interface.logo == "./assets/codex-base.svg"' \
   "$installed_path/.codex-plugin/plugin.json" >/dev/null
+codex mcp list --json >"$root/mcp-defaults.json"
+jq -e '
+  length == 2
+  and all(.[];
+    .enabled == true
+    and .transport.type == "streamable_http"
+    and .transport.bearer_token_env_var == null
+  )
+  and any(.[];
+    .name == "context7"
+    and .transport.url == "https://mcp.context7.com/mcp"
+  )
+  and any(.[];
+    .name == "mintlify_index"
+    and .transport.url == "https://index.mintlify.com/mcp"
+  )
+  and all(.[]; .name != "context7_auth")
+' "$root/mcp-defaults.json" >/dev/null
+codex mcp add mintlify_index --url https://mintlify.example.invalid/mcp >/dev/null
+codex mcp list --json >"$root/mcp-overridden.json"
+jq -e '
+  map(select(.name == "mintlify_index") | .transport.url)
+  == ["https://mintlify.example.invalid/mcp"]
+' "$root/mcp-overridden.json" >/dev/null
 codex plugin list --json >"$root/installed.json"
 jq -e '
   .available == []

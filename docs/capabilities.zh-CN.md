@@ -8,8 +8,8 @@
 
 | ID | 能力 | 插件 | Nix / Home Manager | 触发条件 | 职责 | 验证方式 | 来源 |
 |---|---|---|---|---|---|---|---|
-| global-agents | 全局 AGENTS 指引 | 否 | 是 | Codex 加载受管的全局指引 | 设置跨仓库的安全、文档检索、Git/Nix 与工作方式默认值 | 检查 Home Manager 生成的 `.codex/AGENTS.md` 并运行 Home Manager 检查 | Codex Base |
-| docs-routing | Mintlify / Context7 MCP 配置及路由 | 不配置 | 配置 | 任务需要当前版本的库、SDK、API、CLI 或云服务文档 | 配置两个 MCP 服务，先查 Mintlify Index，再查匿名 Context7，必要时才查认证 Context7，最后回退至官方一手资料；只接受相关、版本匹配且来源可追溯的结果 | 检查 `config/AGENTS.md` 及 Home Manager 构建中的 MCP 配置 | Codex Base |
+| global-agents | 全局 AGENTS 指引 | 否 | 是 | Codex 加载受管的全局指引 | 设置跨仓库的安全、Git/Nix 与工作方式默认值，不重复技能工作流 | 检查 Home Manager 生成的 `.codex/AGENTS.md` 并运行 Home Manager 检查 | Codex Base |
+| docs-routing | Mintlify / Context7 MCP 配置及路由 | 匿名 HTTP 默认配置及带命名空间的技能 | 本地匿名 Context7、可选的用户级认证 Context7 及无命名空间技能 | 任务需要当前版本的库、SDK、API、CLI 或云服务文档 | 先查 Mintlify Index，再查匿名 Context7，仅在可用且必要时查认证 Context7，最后回退至官方一手资料；只接受相关、版本匹配且来源可追溯的结果，绝不发送私有内容 | 运行插件 schema、smoke、portability 及 Home Manager 检查；Codex 原生同名配置优先于插件默认值 | Codex Base |
 | github-mcp | GitHub MCP | 否 | 是 | 需要 GitHub 仓库数据或已获授权的 GitHub 操作 | 提供已配置的 GitHub MCP 连接；其本身不会授予凭据 | 设置 GitHub 令牌文件选项后检查 Home Manager 生成的 Codex 配置 | Codex Base |
 | improve | Improve 顾问、执行器与审查器 | 是 | 是 | 插件中显式调用 `$codex-base:improve ...`，或在 Nix 环境调用 `$improve ...`；只有行为或结构风险需要时才触发正确性与优雅性审查 | 审计、编写持久计划、选择执行通道、委派隔离实现、逐步做简化检查并运行一次 Ponytail 审查，以及管理审查与检查点边界 | 以只读方式运行 `$codex-base:improve quick`；Nix 另提供 `codex-improve-*` 命令和 `$improve` | 改编自 [shadcn-improve](https://github.com/shadcn/improve)，由 Codex Base 维护 |
 | executor-routing | 按明确规则选择执行通道 | 是 | 是 | 已审查的计划已经确定产品、架构、兼容性与实现决定，并列出准确路径和检查 | 由计划选择预先指定的 Spark、standard 或 deep 通道；Spark 只用于符合条件且已获访问权限的明确任务，不是自动分类器或备用通道 | 检查 `src/improve/config/roles.json` 和计划中的通道依据；另见官方 [Codex-Spark 用量限制](https://learn.chatgpt.com/docs/agent-configuration/speed) | Codex Base |

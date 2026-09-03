@@ -37,12 +37,12 @@
 | 内置工程技能 | 带命名空间，例如 `$codex-base:improve` | 无命名空间，例如 `$improve` |
 | Improve 执行器 | 随技能打包；需要 Linux 工具 | 打包为 `codex-improve-*` 命令 |
 | 全局指引与 GitHub MCP | 无 | 有 |
-| Mintlify / Context7 MCP 服务及路由策略 | 不配置 | 配置 |
+| Mintlify / Context7 MCP 服务及路由策略 | 匿名 HTTP 默认配置及共享路由技能 | 本地匿名 Context7、可选的认证 Context7 及共享路由技能 |
 | Codex、Code Mode Host、Node、Playwright CLI | 不安装 | 固定版本的软件包 |
 
 [详细能力目录](docs/capabilities.zh-CN.md)列出了每项能力的触发条件、职责、验证方式与来源。Codex 插件不会安装仅属于 Nix / Home Manager 完整环境的能力、命令、密钥或全局配置。
 
-可移植插件不会配置 Mintlify 或 Context7。Nix / Home Manager 完整环境会配置这两个 MCP 服务，以及先查 Mintlify、无合适结果时再查 Context7 的路由策略。不使用 Nix 的用户也可以自行配置任一服务，或通过其他插件获得相应配置。
+可移植插件会配置匿名的 Mintlify Index 与 Context7 HTTP 端点，并提供一份先查 Mintlify 的共享路由技能。Nix / Home Manager 环境会链接同一技能，同时保留本地匿名 Context7 及可选的用户级认证 Context7。两家服务都是公开的第三方服务：只发送聚焦的公开检索词，绝不能发送密钥、私有代码、完整提示词或非公开内部内容。Codex 原生配置中的同名项优先于插件默认值。
 
 Nix / Home Manager 完整环境当前固定 Codex 0.153.0 和 Code Mode Host。
 
@@ -63,9 +63,10 @@ codex plugin add codex-base@bioinformatist-codex
 
 ```console
 codex plugin list --marketplace bioinformatist-codex
+codex mcp list --json
 ```
 
-输出应显示 `codex-base@bioinformatist-codex` 已安装且已启用。然后新建一个 **Codex 会话**，对可丢弃文字做一次无副作用的功能验证：
+输出应显示 `codex-base@bioinformatist-codex` 已安装且已启用，并列出匿名的 `mintlify_index` 和 `context7` MCP 服务，但不应有 `context7_auth`。然后新建一个 **Codex 会话**，对可丢弃文字做一次无副作用的功能验证：
 
 ```text
 使用 $codex-base:stop-slop 精简下面这句临时文本，不要改变其中的事实。

@@ -1,7 +1,7 @@
 {
   "name": "codex-base",
   "version": "0.1.0",
-  "description": "Portable Codex workflows for clearer intent, durable planning, isolated execution, and focused review.",
+  "description": "Portable Codex engineering workflows and skills with anonymous documentation routing through MCP defaults.",
   "author": {
     "name": "bioinformatist",
     "url": "https://github.com/bioinformatist"
@@ -9,12 +9,13 @@
   "homepage": "https://github.com/bioinformatist/codex-base",
   "repository": "https://github.com/bioinformatist/codex-base",
   "license": "MIT",
-  "keywords": ["codex", "skills", "improve"],
+  "keywords": ["codex", "skills", "improve", "documentation", "mcp"],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Codex Base",
     "shortDescription": "Clarify, plan, execute, and review with Codex",
-    "longDescription": "A Codex-only collection of portable engineering skills that connects intent clarification, durable Improve plans, isolated execution, simplification, and risk-triggered review.",
+    "longDescription": "Portable engineering workflows and skills for Codex, combined with anonymous documentation routing and MCP defaults.",
     "developerName": "bioinformatist",
     "category": "Developer Tools",
     "capabilities": ["Read", "Write"],

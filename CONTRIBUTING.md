@@ -17,7 +17,8 @@ Git, shellcheck, actionlint, typos, PyYAML, and the SVG renderer.
 
 ## Editable and generated files
 
-`src/improve` is the editable Improve source. The skills under
+`src/improve` is the editable Improve source, and `src/docs-routing` is the
+editable documentation-routing source. The skills under
 `plugins/codex-base/skills` are generated from that source and pinned upstream
 inputs; do not edit them directly. Regenerate them with:
 
@@ -29,6 +30,11 @@ Inspect every generated diff and preserve the pinned upstream revisions. Never
 add credentials, private host names, user names, absolute home paths, or Nix
 store paths to distributable files.
 
+Keep anonymous plugin MCP defaults in `plugins/codex-base/.mcp.json`. Keep
+Home Manager's local and optional authenticated adapters in
+`nix/home-manager.nix`; never copy credentials or authenticated configuration
+into the portable plugin.
+
 ## Checks
 
 Run the complete repository gate before opening a pull request:
@@ -38,12 +44,15 @@ nix run .#sync-vendored-skills -- --check
 nix flake check --allow-import-from-derivation
 ```
 
-If a change affects Improve runners or their Codex invocation, also run the
-non-Nix installation path:
+If a change affects the plugin manifest, `.mcp.json` or MCP behavior, the
+installed plugin layout, or Improve runners or their Codex invocation, also run
+the standalone non-Nix installation path:
 
 ```console
 tests/plugin-portability.bash
 ```
+
+The Nix checks do not replace this standalone path.
 
 The checks do not replace review of public prose, translation accuracy, SVG
 rendering, or generated diffs.
