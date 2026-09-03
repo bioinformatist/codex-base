@@ -6,6 +6,7 @@ packages_file="$repo_root/nix/packages.nix"
 flake_file="$repo_root/flake.nix"
 lock_file="$repo_root/flake.lock"
 readme_file="$repo_root/README.md"
+readme_zh_file="$repo_root/README.zh-CN.md"
 
 fail() {
   echo "codex release consistency: $*" >&2
@@ -40,11 +41,22 @@ lock_ref="$(jq -er '.nodes["codex-src"].original.ref | strings | select(length >
 [[ "$lock_ref" == "$expected_ref" ]] \
   || fail "flake.lock codex-src original ref is ${lock_ref}, expected ${expected_ref}"
 
-readme_versions="$(sed -n -E 's/^installs Codex ([^[:space:]]+) and Code Mode Host.*$/\1/p' "$readme_file")"
-[[ "$(printf '%s\n' "$readme_versions" | sed '/^$/d' | wc -l)" -eq 1 ]] \
-  || fail "expected exactly one installed Codex version in README.md"
-[[ "$readme_versions" == "$codex_version" ]] \
-  || fail "README.md installs Codex ${readme_versions}, expected ${codex_version}"
+readme_version() {
+  local file="$1"
+  local pattern="$2"
+  local versions
+
+  versions="$(sed -n -E "$pattern" "$file")"
+  [[ "$(printf '%s\n' "$versions" | sed '/^$/d' | wc -l)" -eq 1 ]] \
+    || fail "expected exactly one stable Codex version sentence in ${file##*/}"
+  [[ "$versions" == "$codex_version" ]] \
+    || fail "${file##*/} pins Codex ${versions}, expected ${codex_version}"
+}
+
+readme_version "$readme_file" \
+  's/^The full Nix \/ Home Manager environment currently pins Codex ([^[:space:]]+) and Code Mode Host\.$/\1/p'
+readme_version "$readme_zh_file" \
+  's/^Nix \/ Home Manager 完整环境当前固定 Codex ([^[:space:]]+) 和 Code Mode Host。$/\1/p'
 
 sri_sha256='^sha256-[A-Za-z0-9+/]{43}=$'
 [[ "$codex_hash" =~ $sri_sha256 ]] || fail "codexHash is not an SRI SHA-256 value"

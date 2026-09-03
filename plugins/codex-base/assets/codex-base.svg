@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img">
+  <title>Codex Base branch and checkpoint mark</title>
+  <desc>Three connected nodes form a restrained branching path that ends at a checked checkpoint.</desc>
+  <g fill="none" stroke="#172033" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 14v22c0 8 6 14 14 14h21"/>
+    <path d="M14 24h16c8 0 14-6 14-14"/>
+    <circle cx="14" cy="12" r="7" fill="#fff"/>
+    <circle cx="45" cy="10" r="7" fill="#fff"/>
+    <circle cx="50" cy="50" r="9" fill="#2563eb" stroke="#2563eb"/>
+    <path d="m45.5 50 3 3 6-7" stroke="#fff" stroke-width="3.5"/>
+  </g>
+</svg>

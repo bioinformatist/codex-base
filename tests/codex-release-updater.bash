@@ -43,7 +43,8 @@ make_repo() {
   local repo="$test_root/$name/repo"
 
   mkdir -p "$repo/nix" "$repo/scripts"
-  cp "$source_root/README.md" "$source_root/flake.nix" "$source_root/flake.lock" "$repo/"
+  cp "$source_root/README.md" "$source_root/README.zh-CN.md" \
+    "$source_root/flake.nix" "$source_root/flake.lock" "$repo/"
   cp "$source_root/nix/packages.nix" "$repo/nix/"
   cp "$source_root/scripts/check-codex-release" "$source_root/scripts/update-codex-release" "$repo/scripts/"
   chmod -R u+rw "$repo"
@@ -173,9 +174,10 @@ test_new_release_updates_all_surfaces() {
   grep -Fqx "  codexCodeModeHostHash = \"$new_host_hash\";" "$repo/nix/packages.nix"
   grep -Fq "github:openai/codex/rust-v${simulated_version}" "$repo/flake.nix"
   [[ "$(jq -r '.nodes["codex-src"].original.ref' "$repo/flake.lock")" == "rust-v${simulated_version}" ]]
-  grep -Fq "installs Codex ${simulated_version} and Code Mode Host" "$repo/README.md"
+  grep -Fqx "The full Nix / Home Manager environment currently pins Codex ${simulated_version} and Code Mode Host." "$repo/README.md"
+  grep -Fqx "Nix / Home Manager 完整环境当前固定 Codex ${simulated_version} 和 Code Mode Host。" "$repo/README.zh-CN.md"
   changed="$(git -C "$repo" diff --name-only | sort)"
-  [[ "$changed" == $'README.md\nflake.lock\nflake.nix\nnix/packages.nix' ]] \
+  [[ "$changed" == $'README.md\nREADME.zh-CN.md\nflake.lock\nflake.nix\nnix/packages.nix' ]] \
     || fail "new release changed unexpected paths: $changed"
 }
 
@@ -235,10 +237,53 @@ test_extra_path_is_rejected() {
   [[ -f "$repo/unexpected.txt" ]] || fail "fake nix did not exercise the extra-path case"
 }
 
+test_stable_sentence_is_required() {
+  local language="$1"
+  local case_name="$2"
+  local repo fixture bin_dir readme sentence
+  repo="$(make_repo "sentence-${language}-${case_name}")"
+  fixture="$test_root/sentence-${language}-${case_name}/release.json"
+  bin_dir="$test_root/sentence-${language}-${case_name}/bin"
+  make_fixture "$fixture" "rust-v${simulated_version}" "sha256:$new_codex_hex" "sha256:$new_host_hex"
+  make_fake_nix "$bin_dir"
+
+  if [[ "$language" == en ]]; then
+    readme="$repo/README.md"
+    sentence="The full Nix / Home Manager environment currently pins Codex ${current_version} and Code Mode Host."
+  else
+    readme="$repo/README.zh-CN.md"
+    sentence="Nix / Home Manager 完整环境当前固定 Codex ${current_version} 和 Code Mode Host。"
+  fi
+
+  case "$case_name" in
+    missing)
+      sed -i "\\|^${sentence}$|d" "$readme"
+      ;;
+    duplicate)
+      printf '%s\n' "$sentence" >> "$readme"
+      ;;
+    malformed)
+      sed -i "s|^${sentence}$|${sentence%?}!|" "$readme"
+      ;;
+  esac
+  git -C "$repo" add "$readme"
+  git -C "$repo" commit --amend --no-edit -qm baseline
+
+  if run_update "$repo" "$fixture" "$bin_dir" >/dev/null 2>&1; then
+    fail "$language $case_name stable sentence unexpectedly succeeded"
+  fi
+  assert_clean "$repo"
+}
+
 test_current_is_noop
 test_new_release_updates_all_surfaces
 test_malformed_metadata_fails_closed
 test_dirty_checkout_is_rejected
 test_extra_path_is_rejected
+for language in en zh; do
+  for case_name in missing duplicate malformed; do
+    test_stable_sentence_is_required "$language" "$case_name"
+  done
+done
 
 echo "Codex release updater tests passed."

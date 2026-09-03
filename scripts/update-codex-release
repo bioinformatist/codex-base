@@ -90,7 +90,8 @@ require_count 1 '^[[:space:]]*codexVersion = "[^"]+";[[:space:]]*$' nix/packages
 require_count 1 '^[[:space:]]*codexHash = "[^"]+";[[:space:]]*$' nix/packages.nix 'codexHash assignment'
 require_count 1 '^[[:space:]]*codexCodeModeHostHash = "[^"]+";[[:space:]]*$' nix/packages.nix 'codexCodeModeHostHash assignment'
 require_count 1 '^[[:space:]]*codex-src = \{ url = "github:openai/codex/rust-v[^"]+"; flake = false; \};[[:space:]]*$' flake.nix 'codex-src ref'
-require_count 1 '^installs Codex [^[:space:]]+ and Code Mode Host' README.md 'installed Codex version'
+require_count 1 '^The full Nix / Home Manager environment currently pins Codex [^[:space:]]+ and Code Mode Host\.$' README.md 'stable Codex version sentence'
+require_count 1 '^Nix / Home Manager 完整环境当前固定 Codex [^[:space:]]+ 和 Code Mode Host。$' README.zh-CN.md 'stable Codex version sentence'
 
 sed -i -E \
   -e "s|^([[:space:]]*codexVersion = )\"[^\"]+\";[[:space:]]*$|\\1\"${version}\";|" \
@@ -101,10 +102,13 @@ sed -i -E \
   "s|^([[:space:]]*codex-src = \\{ url = \"github:openai/codex/)rust-v[^\"]+(\"; flake = false; \\};)[[:space:]]*$|\\1${tag}\\2|" \
   flake.nix
 sed -i -E \
-  "s|^(installs Codex )[^[:space:]]+( and Code Mode Host)|\\1${version}\\2|" \
+  "s|^(The full Nix / Home Manager environment currently pins Codex )[^[:space:]]+( and Code Mode Host\\.)$|\\1${version}\\2|" \
   README.md
+sed -i -E \
+  "s|^(Nix / Home Manager 完整环境当前固定 Codex )[^[:space:]]+( 和 Code Mode Host。)$|\\1${version}\\2|" \
+  README.zh-CN.md
 
-if ! git diff --quiet -- README.md flake.nix nix/packages.nix; then
+if ! git diff --quiet -- README.md README.zh-CN.md flake.nix nix/packages.nix; then
   nix flake update codex-src
 fi
 
@@ -117,7 +121,7 @@ changed_paths="$tmp_dir/changed-paths"
   git ls-files --others --exclude-standard
 } | sed '/^$/d' | sort -u > "$changed_paths"
 
-unexpected="$(grep -Ev '^(README\.md|flake\.nix|flake\.lock|nix/packages\.nix)$' "$changed_paths" || true)"
+unexpected="$(grep -Ev '^(README\.md|README\.zh-CN\.md|flake\.nix|flake\.lock|nix/packages\.nix)$' "$changed_paths" || true)"
 [[ -z "$unexpected" ]] || {
   echo "update-codex-release: update touched paths outside the allowlist:" >&2
   printf '%s\n' "$unexpected" >&2

@@ -1,7 +1,7 @@
 {
   "name": "codex-base",
   "version": "0.1.0",
-  "description": "Portable Codex skills led by the self-contained Improve workflow.",
+  "description": "Portable Codex workflows for clearer intent, durable planning, isolated execution, and focused review.",
   "author": {
     "name": "bioinformatist",
     "url": "https://github.com/bioinformatist"
@@ -13,12 +13,14 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Base",
-    "shortDescription": "Portable Codex workflows led by Improve",
-    "longDescription": "A Codex-only collection of portable skills with a self-contained Improve planning, execution, and review workflow.",
+    "shortDescription": "Clarify, plan, execute, and review with Codex",
+    "longDescription": "A Codex-only collection of portable engineering skills that connects intent clarification, durable Improve plans, isolated execution, simplification, and risk-triggered review.",
     "developerName": "bioinformatist",
     "category": "Developer Tools",
     "capabilities": ["Read", "Write"],
     "websiteURL": "https://github.com/bioinformatist/codex-base",
+    "composerIcon": "./assets/codex-base.svg",
+    "logo": "./assets/codex-base.svg",
     "defaultPrompt": [
       "Use $codex-base:improve to audit this repository.",
       "Use $codex-base:diagnosing-bugs to investigate this failure."

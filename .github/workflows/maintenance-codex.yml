@@ -96,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          git add README.md flake.nix flake.lock nix/packages.nix
+          git add README.md README.zh-CN.md flake.nix flake.lock nix/packages.nix
           git commit -m "chore(maint): update codex"
 
           remote_ref="refs/heads/$MAINTENANCE_BRANCH"

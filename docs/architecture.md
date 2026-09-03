@@ -2,8 +2,9 @@
 
 The checked-in `plugins/codex-base` tree is the distributable plugin. Portable
 third-party skills are generated from pinned inputs. `src/improve` is the
-first-party Codex adaptation of Improve 1.0.0-codex.14; its scripts, config,
-schemas, and references are copied into the generated Improve skill.
+first-party Codex adaptation of Improve; its scripts, config, schemas, and
+references are copied into the generated Improve skill. The current execution
+contract version is declared in `src/improve/SKILL.md`.
 
 `nix/skills.nix` owns deterministic skill construction. The sync command
 materializes that Nix output into the checked-in plugin and check mode compares

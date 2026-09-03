@@ -45,6 +45,11 @@ jq -e '
   and .version == "0.1.0"
   and (.installedPath | type == "string" and length > 0)
 ' "$root/plugin-add.json" >/dev/null
+installed_path="$(jq -r '.installedPath' "$root/plugin-add.json")"
+test -f "$installed_path/assets/codex-base.svg"
+jq -e '.interface.composerIcon == "./assets/codex-base.svg"
+  and .interface.logo == "./assets/codex-base.svg"' \
+  "$installed_path/.codex-plugin/plugin.json" >/dev/null
 codex plugin list --json >"$root/installed.json"
 jq -e '
   .available == []

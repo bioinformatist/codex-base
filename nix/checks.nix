@@ -44,7 +44,11 @@ in {
   '';
   stale-wording = mkTest "stale-wording" shellTools ''
     ! grep -R -n -E '(/codebase-design|/grilling|/domain-modeling|/improve-codebase-architecture|Agent tool|subagent_type|Claude|claude|CLAUDE|SendMessage|spin up parallel sub-agents|show --annotate +# ask the user)' ${generatedSkills}
-    ! grep -R -n -E '(/home/[[:alnum:]_.-]+|/nix/store/|BEGIN (RSA |OPENSSH )?PRIVATE KEY|api[_-]?key[[:space:]]*=|token[[:space:]]*=)' ${srcRoot}/README.md ${srcRoot}/docs ${srcRoot}/plugins ${srcRoot}/vendor
+    ! grep -R -n -E '(/home/[[:alnum:]_.-]+|/nix/store/|BEGIN (RSA |OPENSSH )?PRIVATE KEY|api[_-]?key[[:space:]]*=|token[[:space:]]*=)' \
+      ${srcRoot}/README.md ${srcRoot}/README.zh-CN.md ${srcRoot}/CONTRIBUTING.md \
+      ${srcRoot}/.github/PULL_REQUEST_TEMPLATE.md ${srcRoot}/docs \
+      ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json \
+      ${srcRoot}/plugins/codex-base/assets ${srcRoot}/vendor
     test "$(find ${srcRoot}/plugins/codex-base/licenses -type f | wc -l)" -eq 5
     touch $out
   '';
@@ -101,6 +105,59 @@ in {
     test "$(grep -Fxc '      - uses: actions/checkout@v4' "$workflow")" -eq 1
     grep -F -A 5 '      - uses: actions/checkout@v4' "$workflow" \
       | grep -Fqx '          ref: main'
+    test "$(grep -Fxc '          git add README.md README.zh-CN.md flake.nix flake.lock nix/packages.nix' "$workflow")" -eq 1
+    touch $out
+  '';
+  typos = mkTest "public-docs-typos" [ pkgs.typos ] ''
+    typos --config ${srcRoot}/typos.toml \
+      ${srcRoot}/README.md ${srcRoot}/README.zh-CN.md \
+      ${srcRoot}/CONTRIBUTING.md ${srcRoot}/.github/PULL_REQUEST_TEMPLATE.md \
+      ${srcRoot}/docs ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json
+    touch $out
+  '';
+  docs-contract = mkTest "public-docs-contract" [ python pkgs.jq pkgs.gnugrep ] ''
+    grep -Fq 'README.zh-CN.md' ${srcRoot}/README.md
+    grep -Fq 'README.md' ${srcRoot}/README.zh-CN.md
+    test "$(grep -Foc '](docs/assets/codex-base-workflow.svg)' ${srcRoot}/README.md)" -eq 1
+    test "$(grep -Foc '](docs/assets/codex-base-workflow.zh-CN.svg)' ${srcRoot}/README.zh-CN.md)" -eq 1
+    ! grep -Fq '](docs/assets/codex-base-workflow.zh-CN.svg)' ${srcRoot}/README.md
+    ! grep -Fq '](docs/assets/codex-base-workflow.svg)' ${srcRoot}/README.zh-CN.md
+    for readme in ${srcRoot}/README.md ${srcRoot}/README.zh-CN.md; do
+      grep -Fq 'plugins/codex-base/assets/codex-base.svg' "$readme"
+      grep -Fq '> [!NOTE]' "$readme"
+      grep -Fq 'actions/workflows/ci.yml/badge.svg' "$readme"
+      grep -Fq 'img.shields.io/badge/license-MIT-blue.svg' "$readme"
+      grep -Fq 'codex plugin marketplace add https://github.com/bioinformatist/codex-base' "$readme"
+      grep -Fq 'codex plugin add codex-base@bioinformatist-codex' "$readme"
+      grep -Fq 'codex plugin list --marketplace bioinformatist-codex' "$readme"
+    done
+    grep -Fq 'docs/architecture.md' ${srcRoot}/CONTRIBUTING.md
+    grep -Fq 'docs/updating.md' ${srcRoot}/CONTRIBUTING.md
+    test -f ${srcRoot}/docs/assets/prompts/codex-base-logo.md
+    test -f ${srcRoot}/docs/assets/prompts/codex-base-workflow.md
+    jq -e '.interface.composerIcon == "./assets/codex-base.svg" and .interface.logo == "./assets/codex-base.svg"' \
+      ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json >/dev/null
+    python - <<'PY'
+    import json
+    from pathlib import Path
+    from xml.etree import ElementTree as ET
+
+    root = Path('${srcRoot}')
+    def ids(path):
+        return [line.split('|')[1].strip() for line in path.read_text().splitlines()
+                if line.startswith('| ') and not line.startswith('| ID ') and not line.startswith('|---')]
+    assert ids(root / 'docs/capabilities.md') == ids(root / 'docs/capabilities.zh-CN.md')
+    credits = (root / 'docs/credits.md').read_text()
+    sources = json.loads((root / 'vendor/sources.json').read_text())['sources']
+    assert all(source['name'] in credits for source in sources)
+    for path in [root / 'docs/assets/codex-base-workflow.svg',
+                 root / 'docs/assets/codex-base-workflow.zh-CN.svg',
+                 root / 'plugins/codex-base/assets/codex-base.svg']:
+        svg = ET.parse(path).getroot()
+        assert svg.get('viewBox') and svg.get('role') == 'img'
+        assert any(node.tag.endswith('title') for node in svg)
+        assert any(node.tag.endswith('desc') for node in svg)
+    PY
     touch $out
   '';
   improve-exec = mkTest "improve-exec-tests" shellTools ''

@@ -23,7 +23,7 @@ fixtures are one compatibility boundary and must change together.
 This repository owns the Codex and Code Mode Host release pins. The dedicated
 `maintenance-codex.yml` workflow reads GitHub's published SHA-256 digests and
 updates both Linux musl binaries, the matching `codex-src` tag and lock entry,
-and the README version atomically. It always uses the fixed `maint/codex`
+and the English and Chinese README versions atomically. It always uses the fixed `maint/codex`
 branch and a pull request to `main`; it does not weaken Renovate's manual-review
 policy for vendored or root inputs.
 
@@ -41,7 +41,10 @@ nix flake check --allow-import-from-derivation
 ```
 
 The updater accepts `--release-json PATH` for deterministic local fixtures. It
-may change only `README.md`, `flake.nix`, `flake.lock`, and `nix/packages.nix`.
+may change only `README.md`, `README.zh-CN.md`, `flake.nix`, `flake.lock`, and
+`nix/packages.nix`. Each README must contain exactly one stable release sentence;
+the updater replaces only its Codex version token and fails before editing if
+either localized sentence is missing, duplicated, or malformed.
 
 Configuring `MAINTENANCE_PAT`, activating the repository ruleset, and manually
 dispatching the real workflow are post-integration acceptance tasks. They are
