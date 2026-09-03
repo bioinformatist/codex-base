@@ -475,6 +475,7 @@ let
     fi
   '';
   skills = {
+    docs-routing = srcRoot + "/src/docs-routing";
     diagnosing-bugs = diagnosingBugsSkill;
     tdd = tddSkill;
     codebase-design = codebaseDesignSkill;

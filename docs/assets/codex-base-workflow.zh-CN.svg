@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img">
+  <title>让长任务少浪费用量</title>
+  <desc>小而明确的任务适合直接修改；对话变长后，关键决定可能只留在上下文里，反复读取、做偏和返工会继续消耗用量。Codex Base 先写下决定、查证文档，在计划中选择 Spark 或 Standard 和 Deep 通道，每一步都验证并简化，只在有风险时追加审查，最后留下可以继续的检查点。</desc>
+  <defs>
+    <style>.bg{fill:#f8fafc}.card{fill:#fff;stroke:#64748b;stroke-width:2}.base{fill:#eff6ff;stroke:#2563eb;stroke-width:2.5}.conditional{fill:#fffbeb;stroke:#d97706;stroke-width:2;stroke-dasharray:7 5}.outcome{fill:#ecfdf5;stroke:#059669;stroke-width:2.5}.line{fill:none;stroke:#475569;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.blue-line{fill:none;stroke:#2563eb;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.title{font:700 25px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.label{font:600 17px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.small{font:14px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#334155}.tag{font:700 13px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#1d4ed8;letter-spacing:.04em}.muted{fill:#475569}.green{fill:#047857}</style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#475569"/></marker>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#2563eb"/></marker>
+  </defs>
+  <rect class="bg" width="1200" height="620" rx="24"/>
+  <text class="title" x="40" y="42">让长任务少浪费用量</text>
+  <text class="small muted" x="1160" y="40" text-anchor="end">规划和审查也会消耗用量；小而明确的任务通常直接修改更合适。</text>
+
+  <text class="tag muted" x="40" y="82">普通 / 直接修改</text>
+  <rect class="card" x="40" y="96" width="175" height="72" rx="12"/><text class="label" x="127" y="138" text-anchor="middle">小而明确的任务</text>
+  <path class="line" d="M215 132H242" marker-end="url(#arrow)"/>
+  <rect class="card" x="245" y="96" width="175" height="72" rx="12"/><text class="label" x="332" y="128" text-anchor="middle">直接修改最快</text><text class="small" x="332" y="151" text-anchor="middle">适合这个任务</text>
+  <path class="line" d="M420 132H447" marker-end="url(#arrow)"/>
+  <rect class="card" x="450" y="90" width="290" height="84" rx="12"/><text class="label" x="595" y="121" text-anchor="middle">任务变长后，关键决定</text><text class="label" x="595" y="144" text-anchor="middle">仍只留在上下文里</text>
+  <path class="line" d="M740 132H767" marker-end="url(#arrow)"/>
+  <rect class="card" x="770" y="90" width="390" height="84" rx="12"/><text class="label" x="965" y="120" text-anchor="middle">反复读取、做偏和返工</text><text class="label" x="965" y="143" text-anchor="middle">会继续消耗用量</text><text class="small" x="965" y="163" text-anchor="middle">直接修改的结果</text>
+
+  <text class="tag" x="40" y="220">CODEX BASE</text>
+  <rect class="base" x="40" y="235" width="205" height="95" rx="12"/><text class="label" x="142" y="269" text-anchor="middle">问清楚，并把关键</text><text class="label" x="142" y="292" text-anchor="middle">决定写下来</text><text class="small" x="142" y="316" text-anchor="middle">Grilling · Improve</text>
+  <path class="blue-line" d="M245 282H272" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="275" y="235" width="205" height="95" rx="12"/><text class="label" x="377" y="273" text-anchor="middle">查证当前版本的文档</text><text class="small" x="377" y="304" text-anchor="middle">完整 Nix 环境可用时查询</text>
+  <path class="blue-line" d="M480 282H507" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="510" y="235" width="205" height="95" rx="12"/><text class="label" x="612" y="269" text-anchor="middle">在计划中选择</text><text class="label" x="612" y="292" text-anchor="middle">执行通道</text><text class="small" x="612" y="316" text-anchor="middle">预先确定规则</text>
+
+  <path class="blue-line" d="M715 268H748V245H775" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="778" y="207" width="190" height="76" rx="12"/><text class="label" x="873" y="237" text-anchor="middle">边界和检查都明确</text><text class="small" x="873" y="261" text-anchor="middle">Spark · 使用独立的用量限制</text>
+  <path class="blue-line" d="M715 296H748V340H775" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="778" y="302" width="190" height="76" rx="12"/><text class="label" x="873" y="332" text-anchor="middle">复杂或高风险</text><text class="small" x="873" y="356" text-anchor="middle">Standard / Deep</text>
+  <path class="blue-line" d="M968 245H990V282H1010M968 340H990V282" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="1012" y="235" width="148" height="95" rx="12"/><text class="label" x="1086" y="268" text-anchor="middle">每一步先验证</text><text class="label" x="1086" y="291" text-anchor="middle">再删繁就简</text><text class="small" x="1086" y="315" text-anchor="middle">进程内检查</text>
+
+  <path class="blue-line" d="M1070 330V360H950V430H928" marker-end="url(#blue-arrow)"/>
+  <path class="blue-line" d="M1100 330V480H860V498" marker-end="url(#blue-arrow)"/>
+  <text class="small" x="650" y="382">有相应风险时</text>
+  <rect class="conditional" x="650" y="390" width="275" height="80" rx="12"/><text class="label" x="787" y="421" text-anchor="middle">追加专项审查</text><text class="small" x="787" y="447" text-anchor="middle">正确性 / 优雅性 · 可选</text>
+  <path class="blue-line" d="M760 470V498" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="650" y="500" width="275" height="76" rx="12"/><text class="label" x="787" y="530" text-anchor="middle">留下可以继续的检查点</text><text class="small" x="787" y="554" text-anchor="middle">续接 · 验收 · 集成</text>
+  <path class="blue-line" d="M925 538H958" marker-end="url(#blue-arrow)"/>
+  <rect class="outcome" x="960" y="492" width="200" height="92" rx="12"/><text class="label green" x="1060" y="526" text-anchor="middle">少重复读取长上下文，</text><text class="label green" x="1060" y="554" text-anchor="middle">少在错误方向上继续消耗。</text>
+
+  <rect class="conditional" x="40" y="405" width="500" height="122" rx="12"/><text class="label" x="60" y="437">两种机制</text><text class="small" x="60" y="466">1. 获得访问权限且符合通道条件时，Spark 使用独立的用量限制。</text><text class="small" x="60" y="493">2. 尽早写下决定并检查，减少重新梳理上下文和返工。</text><text class="small" x="60" y="514">文档查询是条件步骤，不会打断或逆转主流程。</text>
+</svg>

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img">
+  <title>Reduce avoidable usage on long tasks</title>
+  <desc>A small clear task moves through direct editing; as context grows, decisions can remain only in conversation and rereading, drift, and rework consume avoidable usage. Codex Base writes decisions down, verifies current documentation, selects Spark or Standard and Deep execution in the plan, verifies and simplifies each step, optionally adds risk-triggered review, and leaves a resumable checkpoint before the outcome.</desc>
+  <defs>
+    <style>.bg{fill:#f8fafc}.card{fill:#fff;stroke:#64748b;stroke-width:2}.base{fill:#eff6ff;stroke:#2563eb;stroke-width:2.5}.conditional{fill:#fffbeb;stroke:#d97706;stroke-width:2;stroke-dasharray:7 5}.outcome{fill:#ecfdf5;stroke:#059669;stroke-width:2.5}.line{fill:none;stroke:#475569;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.blue-line{fill:none;stroke:#2563eb;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.title{font:700 25px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.label{font:600 17px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.small{font:14px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#334155}.tag{font:700 13px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#1d4ed8;letter-spacing:.04em}.muted{fill:#475569}.green{fill:#047857}</style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#475569"/></marker>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#2563eb"/></marker>
+  </defs>
+  <rect class="bg" width="1200" height="620" rx="24"/>
+  <text class="title" x="40" y="42">Reduce avoidable usage on long tasks</text>
+  <text class="small muted" x="1160" y="40" text-anchor="end">Planning and review add overhead; direct editing usually wins for a small, clear task.</text>
+
+  <text class="tag muted" x="40" y="82">ORDINARY / DIRECT</text>
+  <rect class="card" x="40" y="96" width="175" height="72" rx="12"/><text class="label" x="127" y="138" text-anchor="middle">Small, clear task</text>
+  <path class="line" d="M215 132H242" marker-end="url(#arrow)"/>
+  <rect class="card" x="245" y="96" width="175" height="72" rx="12"/><text class="label" x="332" y="128" text-anchor="middle">Edit directly</text><text class="small" x="332" y="151" text-anchor="middle">Fastest for this case</text>
+  <path class="line" d="M420 132H447" marker-end="url(#arrow)"/>
+  <rect class="card" x="450" y="90" width="290" height="84" rx="12"/><text class="label" x="595" y="121" text-anchor="middle">As the conversation grows,</text><text class="label" x="595" y="144" text-anchor="middle">decisions stay only in context</text>
+  <path class="line" d="M740 132H767" marker-end="url(#arrow)"/>
+  <rect class="card" x="770" y="90" width="390" height="84" rx="12"/><text class="label" x="965" y="120" text-anchor="middle">Rereading, drift, and rework</text><text class="label" x="965" y="143" text-anchor="middle">can consume avoidable usage</text><text class="small" x="965" y="163" text-anchor="middle">Ordinary-lane outcome</text>
+
+  <text class="tag" x="40" y="220">CODEX BASE</text>
+  <rect class="base" x="40" y="235" width="205" height="95" rx="12"/><text class="label" x="142" y="269" text-anchor="middle">Clarify intent and</text><text class="label" x="142" y="292" text-anchor="middle">write decisions down</text><text class="small" x="142" y="316" text-anchor="middle">Grilling · Improve</text>
+  <path class="blue-line" d="M245 282H272" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="275" y="235" width="205" height="95" rx="12"/><text class="label" x="377" y="273" text-anchor="middle">Verify current</text><text class="label" x="377" y="296" text-anchor="middle">documentation</text><text class="small" x="377" y="316" text-anchor="middle">Full Nix lookup when available</text>
+  <path class="blue-line" d="M480 282H507" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="510" y="235" width="205" height="95" rx="12"/><text class="label" x="612" y="269" text-anchor="middle">Choose the execution</text><text class="label" x="612" y="292" text-anchor="middle">lane in the plan</text><text class="small" x="612" y="316" text-anchor="middle">Predefined routing</text>
+
+  <path class="blue-line" d="M715 268H748V245H775" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="778" y="207" width="190" height="76" rx="12"/><text class="label" x="873" y="237" text-anchor="middle">Settled + deterministic</text><text class="small" x="873" y="261" text-anchor="middle">Spark · separate usage limits</text>
+  <path class="blue-line" d="M715 296H748V340H775" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="778" y="302" width="190" height="76" rx="12"/><text class="label" x="873" y="332" text-anchor="middle">Complex or high-risk</text><text class="small" x="873" y="356" text-anchor="middle">Standard / Deep</text>
+  <path class="blue-line" d="M968 245H990V282H1010M968 340H990V282" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="1012" y="235" width="148" height="95" rx="12"/><text class="label" x="1086" y="268" text-anchor="middle">Verify and</text><text class="label" x="1086" y="291" text-anchor="middle">simplify each step</text><text class="small" x="1086" y="315" text-anchor="middle">In-process check</text>
+
+  <path class="blue-line" d="M1070 330V360H950V430H928" marker-end="url(#blue-arrow)"/>
+  <path class="blue-line" d="M1100 330V480H860V498" marker-end="url(#blue-arrow)"/>
+  <text class="small" x="650" y="382">only when risk warrants</text>
+  <rect class="conditional" x="650" y="390" width="275" height="80" rx="12"/><text class="label" x="787" y="421" text-anchor="middle">Add specialist review</text><text class="small" x="787" y="447" text-anchor="middle">Correctness / Elegance · optional</text>
+  <path class="blue-line" d="M760 470V498" marker-end="url(#blue-arrow)"/>
+  <rect class="base" x="650" y="500" width="275" height="76" rx="12"/><text class="label" x="787" y="530" text-anchor="middle">Leave a resumable checkpoint</text><text class="small" x="787" y="554" text-anchor="middle">Continue · accept · integrate</text>
+  <path class="blue-line" d="M925 538H958" marker-end="url(#blue-arrow)"/>
+  <rect class="outcome" x="960" y="492" width="200" height="92" rx="12"/><text class="label green" x="1060" y="521" text-anchor="middle">Less repeated context.</text><text class="label green" x="1060" y="544" text-anchor="middle">Earlier correction.</text><text class="label green" x="1060" y="567" text-anchor="middle">Less avoidable usage.</text>
+
+  <rect class="conditional" x="40" y="405" width="500" height="122" rx="12"/><text class="label" x="60" y="437">Two mechanisms</text><text class="small" x="60" y="466">1. Spark has separate usage limits when access and routing criteria are satisfied.</text><text class="small" x="60" y="493">2. Early persistence and checks reduce context reconstruction and rework.</text><text class="small" x="60" y="514">Documentation lookup is conditional and never reverses the main flow.</text>
+</svg>

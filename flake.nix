@@ -36,5 +36,12 @@
       packages.${system} = basePackages // { inherit sync; sync-vendored-skills = sync; generated-skills = generatedSkills; default = basePackages.codex; };
       apps.${system}.sync-vendored-skills = { type = "app"; program = "${sync}/bin/sync-vendored-skills"; };
       checks.${system} = import ./nix/checks.nix { inherit pkgs srcRoot generatedSkills inputs self; packages = basePackages; };
+      devShells.${system}.default = pkgs.mkShell {
+        packages = [
+          pkgs.bash pkgs.coreutils pkgs.diffutils pkgs.git pkgs.curl pkgs.gnused
+          pkgs.gnutar pkgs.jq pkgs.gh pkgs.shellcheck pkgs.actionlint pkgs.typos
+          (pkgs.python3.withPackages (p: [ p.pyyaml ])) pkgs.librsvg basePackages.codex
+        ];
+      };
     };
 }

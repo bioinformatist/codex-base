@@ -1,0 +1,6 @@
+interface:
+  display_name: "Documentation Routing"
+  short_description: "Route current documentation lookups safely"
+  default_prompt: "Use $docs-routing to find current, version-matched documentation from traceable sources."
+policy:
+  allow_implicit_invocation: true

@@ -55,19 +55,5 @@ before redesigning the shell. Do not implement dynamic nixpkgs fallback in
 Use installed skills for reusable workflows; keep workflow details in
 skill descriptions and `SKILL.md`, not in this global file.
 
-Mintlify Index is a public documentation-search MCP server. For current
-library, framework, SDK, API, CLI, or cloud-service docs, query
-`mintlify_index` first with focused product and version terms. Accept its
-output only when it is nonempty, relevant, covers the requested version, and
-includes traceable source URLs. If the output is empty, irrelevant,
-version-insufficient, or source-insufficient, immediately fall back to
-anonymous `context7`; do not repeat an equivalent Mintlify query.
-
-Use anonymous `context7` to resolve the exact library and version. Use
-`context7_auth` only if anonymous Context7 is rate-limited, unavailable, or
-still lacks the result; then use official primary documentation or source.
-Never send secrets, credentials, or non-public internal content to Mintlify
-Index or Context7.
-
 Treat GitHub and Context7 tokens as per-user secrets. Never route one
 user's token or API key to another user's Codex configuration.

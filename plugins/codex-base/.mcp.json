@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mintlify_index": {
+      "type": "http",
+      "url": "https://index.mintlify.com/mcp"
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    }
+  }
+}
