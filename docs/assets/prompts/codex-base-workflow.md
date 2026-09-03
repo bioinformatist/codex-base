@@ -16,6 +16,6 @@ Name both mechanisms: eligible Spark routing preserves main-model capacity becau
 
 Both SVGs share the same non-text structure. Every ordinary node continues to its explicit outcome. Both executor branches rejoin before per-step verification. Optional correctness/elegance review and the direct path both enter the final checkpoint, which leads to the outcome. Full-Nix documentation lookup is conditional on availability but remains forward-only.
 
-Keep the `0 0 1200 720` viewBox, high-contrast slate/blue/amber/green palette, real text, `role="img"`, localized `<title>` and `<desc>`, and system fallbacks including `Segoe UI`, `Noto Sans CJK SC`, and `Microsoft YaHei`. Do not add external assets, hosted fonts, raster sources, or generators.
+Keep the `0 0 1200 620` viewBox, high-contrast slate/blue/amber/green palette, real text, `role="img"`, localized `<title>` and `<desc>`, and system fallbacks including `Segoe UI`, `Noto Sans CJK SC`, and `Microsoft YaHei`. Route the optional review and direct paths into distinct points on the checkpoint's top edge, then use one right-pointing edge from the checkpoint to the outcome. Do not add external assets, hosted fonts, raster sources, or generators.
 
 Parse both files as XML. Render each at 1200 px and 720 px with `rsvg-convert` through the repository devShell, then inspect all four PNGs for clipping, overlap, broken branches, and illegible labels. Keep previews temporary and update both SVGs and this brief together.

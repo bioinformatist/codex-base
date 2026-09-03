@@ -20,34 +20,33 @@ Long coding tasks waste model usage when they repeatedly rebuild context, drift 
 
 Planning and review also use capacity. A small, clear edit is usually better handled directly, and Codex Base does not promise fewer tokens, lower cost, or less usage for every task.
 
-## More than upstream Improve
+## What Codex Base adds
 
-[shadcn Improve](https://github.com/shadcn/improve) supplies the audit playbook and plan-template foundations. Codex Base builds a controlled execution and review lifecycle around them:
+[shadcn Improve](https://github.com/shadcn/improve) supplies the audit playbook and plan-template foundations. Codex Base adds:
 
-- plans are persisted early with semantic anchors, so settled intent survives a long task;
-- every plan selects Spark, standard, or deep execution deterministically;
-- an isolated executor starts without the planning conversation and receives a bounded, self-contained plan;
-- exact candidate identity and bounded recovery keep later review attached to the implementation that produced it;
-- each code- or test-changing step verifies first, then checks in-process for unnecessary complexity;
-- one final Ponytail pass looks for what can still be deleted or replaced with native facilities;
-- correctness and elegance reviews run only when their risks are present; and
-- explicit checkpoint, acceptance, and integration states leave the result resumable without treating it as already shipped.
+- Settled decisions live in a persisted plan instead of only in chat.
+- An isolated executor verifies and simplifies each changing step.
+- Candidate-bound review and recovery, together with explicit checkpoints, keep work reviewable and resumable.
 
 ## Choose an installation
+
+The columns below show what Codex Base provides or configures with each installation.
 
 | Installation | Codex plugin | Nix / Home Manager full environment |
 |---|---|---|
 | Bundled engineering skills | Namespaced, such as `$codex-base:improve` | Unnamespaced, such as `$improve` |
 | Improve runners | Bundled; Linux tools required | Packaged `codex-improve-*` commands |
-| Global guidance, MCP routing, GitHub MCP | No | Yes |
-| Mintlify / Context7 routing | No | Yes |
+| Global guidance and GitHub MCP | No | Yes |
+| Mintlify / Context7 MCP servers and routing | Not configured | Configured |
 | Codex, Code Mode Host, Node, Playwright CLI | No | Pinned packages |
 
 The [capability catalog](docs/capabilities.md) lists every trigger, responsibility, verification surface, and provenance. The plugin does not install Nix-only capabilities, commands, secrets, or global configuration.
 
+The portable plugin does not configure Mintlify or Context7. The full Nix/Home Manager environment configures both MCP servers and the Mintlify-first, Context7-fallback routing policy. Outside Nix, users can configure either server independently or get it from another plugin.
+
 The full Nix / Home Manager environment currently pins Codex 0.153.0 and Code Mode Host.
 
-## Quick start, including Windows
+## Quick start
 
 Plugins currently require a new Codex session after installation and are not available in the Codex IDE extension. Use the Codex CLI for this workflow.
 
@@ -72,30 +71,18 @@ The output should show `codex-base@bioinformatist-codex` installed and enabled. 
 Use $codex-base:stop-slop to tighten this disposable sentence without changing its facts.
 ```
 
-## First workflows
-
-Clarify a decision before acting:
-
-```text
-Use $codex-base:grilling to stress-test this API boundary before implementation.
-```
-
-Run a read-only audit:
-
-```text
-Use $codex-base:improve quick to audit this repository.
-```
-
-Persist a reviewed plan:
+## First workflow
 
 ```text
 Use $codex-base:improve plan <request>.
 ```
 
+Codex namespace-qualifies plugin skills, so the portable plugin uses `$codex-base:improve`. The full Nix/Home Manager installation exposes `$improve plan <request>` without that prefix.
+
 > [!NOTE]
 > Run `$improve plan ...` (or the portable plugin form `$codex-base:improve plan ...`) in normal/default collaboration mode, not built-in Plan Mode. Plan Mode is read-only, so Improve cannot persist intermediate plans, semantic anchors, and review records there. Writing those decisions down lets later execution avoid reconstructing them from a long conversation.
 
-The full Nix/Home Manager installation exposes the corresponding unnamespaced `$grilling` and `$improve` skills. Add the flake input and import the module:
+To install the full Nix/Home Manager environment, add the flake input and import the module:
 
 ```nix
 {

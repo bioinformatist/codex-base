@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img">
   <title>Reduce avoidable usage on long tasks</title>
   <desc>A small clear task moves through direct editing; as context grows, decisions can remain only in conversation and rereading, drift, and rework consume avoidable usage. Codex Base writes decisions down, verifies current documentation, selects Spark or Standard and Deep execution in the plan, verifies and simplifies each step, optionally adds risk-triggered review, and leaves a resumable checkpoint before the outcome.</desc>
   <defs>
@@ -6,7 +6,7 @@
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#475569"/></marker>
     <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#2563eb"/></marker>
   </defs>
-  <rect class="bg" width="1200" height="720" rx="24"/>
+  <rect class="bg" width="1200" height="620" rx="24"/>
   <text class="title" x="40" y="42">Reduce avoidable usage on long tasks</text>
   <text class="small muted" x="1160" y="40" text-anchor="end">Planning and review add overhead; direct editing usually wins for a small, clear task.</text>
 
@@ -33,11 +33,11 @@
   <path class="blue-line" d="M968 245H990V282H1010M968 340H990V282" marker-end="url(#blue-arrow)"/>
   <rect class="base" x="1012" y="235" width="148" height="95" rx="12"/><text class="label" x="1086" y="268" text-anchor="middle">Verify and</text><text class="label" x="1086" y="291" text-anchor="middle">simplify each step</text><text class="small" x="1086" y="315" text-anchor="middle">In-process check</text>
 
-  <path class="blue-line" d="M1086 330V430H925" marker-end="url(#blue-arrow)"/>
-  <path class="blue-line" d="M1086 382H1035V535H925" marker-end="url(#blue-arrow)"/>
-  <text class="small" x="1040" y="402">only when risk warrants</text>
+  <path class="blue-line" d="M1070 330V360H950V430H928" marker-end="url(#blue-arrow)"/>
+  <path class="blue-line" d="M1100 330V480H860V498" marker-end="url(#blue-arrow)"/>
+  <text class="small" x="650" y="382">only when risk warrants</text>
   <rect class="conditional" x="650" y="390" width="275" height="80" rx="12"/><text class="label" x="787" y="421" text-anchor="middle">Add specialist review</text><text class="small" x="787" y="447" text-anchor="middle">Correctness / Elegance · optional</text>
-  <path class="blue-line" d="M787 470V498" marker-end="url(#blue-arrow)"/>
+  <path class="blue-line" d="M760 470V498" marker-end="url(#blue-arrow)"/>
   <rect class="base" x="650" y="500" width="275" height="76" rx="12"/><text class="label" x="787" y="530" text-anchor="middle">Leave a resumable checkpoint</text><text class="small" x="787" y="554" text-anchor="middle">Continue · accept · integrate</text>
   <path class="blue-line" d="M925 538H958" marker-end="url(#blue-arrow)"/>
   <rect class="outcome" x="960" y="492" width="200" height="92" rx="12"/><text class="label green" x="1060" y="521" text-anchor="middle">Less repeated context.</text><text class="label green" x="1060" y="544" text-anchor="middle">Earlier correction.</text><text class="label green" x="1060" y="567" text-anchor="middle">Less avoidable usage.</text>

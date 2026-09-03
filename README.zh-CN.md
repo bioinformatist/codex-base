@@ -20,34 +20,33 @@
 
 规划和审查也会消耗用量。小而明确的改动通常直接做更合适；Codex Base 不承诺每项任务都会减少 token、降低费用或减少总用量。
 
-## 不只是把 Improve 搬过来
+## Codex Base 增加了什么
 
-[shadcn Improve](https://github.com/shadcn/improve) 提供了审计方法和计划模板基础。Codex Base 在此之上补上了执行、审查和续接机制：
+[shadcn Improve](https://github.com/shadcn/improve) 提供了审计方法和计划模板。Codex Base 在此基础上增加：
 
-- 尽早保存计划和语义锚点，让已经定下的目标不随长任务丢失；
-- 在计划中按明确规则选择 Spark、standard 或 deep 执行通道；
-- 由隔离的执行器只接收边界完整的计划，不依赖规划时的对话；
-- 每次实现都能准确对应到一个候选版本；恢复操作只在明确的范围内尝试有限次数，因此后续审查始终对应产生它的那次实现；
-- 每个代码或测试改动步骤都先验证，再在当前进程里检查能否删减；
-- 最后固定运行一次 Ponytail，继续寻找可删除或可由原生能力替代的复杂度；
-- 只有确有相应风险时，才追加正确性或优雅性审查；
-- 明确区分检查点、验收和集成状态，结果可以续接，但不会被误当成已经发布。
+- 把已经定下的决定写入持久化计划，而不是只留在对话里；
+- 由隔离执行器验证并简化每个发生改动的步骤；
+- 审查和恢复始终绑定对应的候选版本，再配合明确的检查点，让工作可审查、可续接。
 
 ## 选择安装方式
+
+下表只说明 Codex Base 在两种安装方式中会提供或配置什么。
 
 | 安装方式 | Codex 插件 | Nix / Home Manager 完整环境 |
 |---|---|---|
 | 内置工程技能 | 带命名空间，例如 `$codex-base:improve` | 无命名空间，例如 `$improve` |
 | Improve 执行器 | 随技能打包；需要 Linux 工具 | 打包为 `codex-improve-*` 命令 |
-| 全局指引、MCP 路由、GitHub MCP | 无 | 有 |
-| Mintlify / Context7 路由 | 无 | 有 |
+| 全局指引与 GitHub MCP | 无 | 有 |
+| Mintlify / Context7 MCP 服务及路由策略 | 不配置 | 配置 |
 | Codex、Code Mode Host、Node、Playwright CLI | 不安装 | 固定版本的软件包 |
 
 [详细能力目录](docs/capabilities.zh-CN.md)列出了每项能力的触发条件、职责、验证方式与来源。Codex 插件不会安装仅属于 Nix / Home Manager 完整环境的能力、命令、密钥或全局配置。
 
+可移植插件不会配置 Mintlify 或 Context7。Nix / Home Manager 完整环境会配置这两个 MCP 服务，以及先查 Mintlify、无合适结果时再查 Context7 的路由策略。不使用 Nix 的用户也可以自行配置任一服务，或通过其他插件获得相应配置。
+
 Nix / Home Manager 完整环境当前固定 Codex 0.153.0 和 Code Mode Host。
 
-## 快速开始（含 Windows）
+## 快速开始
 
 目前安装插件后需要新建 Codex 会话，且 Codex IDE 扩展尚不支持插件。请用 Codex CLI 运行这套工作流。
 
@@ -74,28 +73,16 @@ codex plugin list --marketplace bioinformatist-codex
 
 ## 首次工作流
 
-在行动前澄清决定：
-
 ```text
-使用 $codex-base:grilling，在实现前帮我检验这个 API 边界是否合理。
+使用 $codex-base:improve plan <request>。
 ```
 
-运行一次只读审计：
-
-```text
-使用 $codex-base:improve quick 对这个仓库做一次只读审计。
-```
-
-保存一份经过审查的计划：
-
-```text
-使用 $codex-base:improve plan 为 <request> 制订并保存计划。
-```
+Codex 会用插件命名空间限定技能名称，因此可移植插件使用 `$codex-base:improve`。Nix / Home Manager 完整环境不带这个前缀，使用 `$improve plan <request>`。
 
 > [!NOTE]
 > 请在普通/默认协作模式中运行 `$improve plan ...`（Codex 插件写法为 `$codex-base:improve plan ...`），不要使用内置 Plan Mode。Plan Mode 是只读的，Improve 无法在其中写入中间计划、语义锚点和审查记录。把这些决定写下来，后续执行才不必从很长的对话中重新梳理。
 
-Nix / Home Manager 完整环境会提供对应的无命名空间 `$grilling` 与 `$improve` 技能。添加 flake 输入并导入模块：
+如需安装 Nix / Home Manager 完整环境，请添加 flake 输入并导入模块：
 
 ```nix
 {
