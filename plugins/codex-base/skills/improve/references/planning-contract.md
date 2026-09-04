@@ -152,6 +152,41 @@ material semantic changes, and the verdict. This is review provenance, not a
 second source of task truth; current task semantics remain in the anchors and
 plan body.
 
+## Route checkpoints
+
+A Route checkpoint is a compact proof that a plan remains a necessary next unit
+on the evidenced path to the Program outcome. Include one when a new or
+reconciled plan has a predecessor or dependency, produces diagnostic or
+research evidence, or follows evidence that invalidated a prerequisite, scope,
+or approach. A standalone plan omits it.
+
+The checkpoint contains exactly these fields without becoming another source
+of lifecycle truth:
+
+- **Program outcome** — the user-requested end result the chain exists to reach.
+- **Present bottleneck** — the current decision or constraint.
+- **Fresh evidence** — the exact named result or observation that opened or
+  selected this route.
+- **Route claim** — why this plan is still a necessary next unit.
+- **Cheapest discriminator** — the least expensive check that can confirm,
+  redirect, or stop the route.
+- **Inherited artifacts** — each material artifact and its disposition as
+  product-bound, research-only, or retire-before-integration.
+
+A route-selecting evidence plan is a diagnostic or research plan whose material
+results choose whether the chain continues, redirects, or stops.
+Only a route-selecting evidence plan adds a result map. Map every material
+result to its meaning and a continue, redirect, or stop action; at least one
+mapped result must settle the route choice rather than have every row request
+more investigation. A failed experiment supplies evidence, not automatic
+permission for another diagnostic plan.
+
+The advisor judges the checkpoint during planning, and the main agent judges it
+again before dispatch. For chain-level route selection, read the compact Route
+checkpoint, Semantic anchors, Review record, and exact Fresh evidence without
+recursively loading predecessor plans. Still read the complete current plan
+before editing, review, or execution.
+
 ## Boundaries and repository contracts
 
 List modification scope separately from evidence/drift paths:
@@ -500,11 +535,15 @@ For `plan` and `review-plan`, run an internal loop in this order:
    Operational handoff.
 4. **Logic** — check precedence, dependencies, lifecycle, STOP conditions,
    verification, rollback, and acceptance for contradictions.
-5. **Necessity** — require explicit provenance for each new limit, numeric cap,
-   abstraction, dependency, configuration point, compatibility layer, or defensive
-   mechanism from one of: user decision, observed repository fact/failure,
-   repository rule, or an authoritative external constraint. Unsupported
-   machinery must be removed or explicitly deferred before READY.
+5. **Necessity** — first test the plan as a whole: every triggered Route
+   checkpoint must have Fresh evidence that supports its Route claim and must use the
+   Cheapest discriminator. Only a route-selecting evidence plan needs a
+   decision-closing result map. Then require explicit provenance for each new
+   limit, numeric cap, abstraction, dependency, configuration point,
+   compatibility layer, or defensive mechanism from one of: user decision,
+   observed repository fact/failure, repository rule, or an authoritative
+   external constraint. Unsupported machinery must be removed or explicitly
+   deferred before READY.
 6. **Elegance** — remove duplication and incidental detail without weakening
    operational semantics.
 

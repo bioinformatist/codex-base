@@ -111,6 +111,12 @@ Before dispatch:
   Verify that the commit is an ancestor of the execution baseline and that the
   prerequisite is observable before dispatch; implementation state or an
   unnamed expectation is not sufficient.
+- Determine whether the planning contract's Route checkpoint trigger applies.
+  When it does, revalidate the checkpoint against its exact named Fresh evidence.
+  Predecessor evidence, deferred-acceptance evidence, and a current
+  repository observation are applicable examples, not an exhaustive list.
+  Missing, stale, or unsupported evidence requires plan reconciliation or a
+  `BLOCKED` result; the executor must not improvise a route.
 - Run the plan's drift check against the current `HEAD`.
 - Check that uncommitted source changes do not overlap the plan. Initial
   execution starts from the caller's committed `HEAD`; `--next` starts from its
@@ -823,6 +829,10 @@ deferring work to a person or external system. For each deferred acceptance:
    current integrated baseline and a new worktree. A changed requirement,
    scope, authority, or approach returns to `BLOCKED` planning. An unrelated
    environment outage remains `ACCEPTANCE PENDING` with evidence.
+
+Before dispatching a successor plan or `--next` after a prerequisite, scope, or
+approach changed, repeat the pre-dispatch Route checkpoint check against its
+exact named Fresh evidence, including any applicable repository observation.
 
 Human feedback across turns is a normal pause in the Improve loop, not a
 terminated execution. Resume from the plan and checkpoint rather than from
