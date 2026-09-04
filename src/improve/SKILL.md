@@ -53,6 +53,9 @@ Order vetted findings by impact divided by effort, discounted for uncertainty an
 
 Read [references/planning-contract.md](references/planning-contract.md) and [references/plan-template.md](references/plan-template.md). Persist the skeleton after direction confirmation, then internally iterate to `READY` or `BLOCKED`. Stamp each plan with the current commit, reconcile existing plan indexes, and inspect every cited file yourself before quoting it. Plans go under the repository's explicit artifact convention, or default to local-only `plans/` or `advisor-plans/` with a priority and status index.
 
+Before writing or dispatching a triggered plan, apply the planning contract's
+Route checkpoint requirements.
+
 Make each plan the smallest complete integration, rollback, and acceptance
 unit. Consider whether independently landable parts need different executor
 lanes, but split only when every resulting plan has standalone value, exact

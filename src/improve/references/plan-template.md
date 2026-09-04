@@ -53,6 +53,30 @@ File naming: follow the repository's explicit artifact convention. Otherwise use
 - **Planned at**: commit `<short SHA>`, <YYYY-MM-DD>
 - **Issue**: <issue URL — only when published via `--issues`; omit otherwise>
 
+## Route checkpoint
+
+Omit this section for a standalone plan. Include it when the planning contract's
+Route checkpoint trigger applies.
+
+- **Program outcome**: <the user-requested end result the chain exists to reach>
+- **Present bottleneck**: <the current decision or constraint>
+- **Fresh evidence**: <the exact named result or observation that opened or selected this route>
+- **Route claim**: <why this plan is still a necessary next unit>
+- **Cheapest discriminator**: <the least expensive check that can confirm, redirect, or stop the route>
+- **Inherited artifacts**: <each material artifact and its product-bound, research-only, or retire-before-integration disposition>
+
+Quality checks:
+
+- Every triggered checkpoint: Fresh evidence supports the Route claim, and the
+  plan uses the Cheapest discriminator.
+- Only for a route-selecting evidence plan: include the result map below, map
+  every material result to its meaning and a continue, redirect, or stop
+  action, and require at least one mapped result to settle the route choice.
+
+| Result | Meaning | Continue, redirect, or stop |
+|---|---|---|
+| <material result> | <what it means> | <action> |
+
 ## Semantic anchors
 
 Persist concise material semantics with stable provenance prefixes: `U` user decision, `F` verified fact, `D` advisor derivation, `A` assumption, and `R` rejected alternative. Include only populated categories and preserve identifiers across review.
