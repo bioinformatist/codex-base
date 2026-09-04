@@ -44,7 +44,7 @@
 
 可移植插件会配置匿名的 Mintlify Index 与 Context7 HTTP 端点，并提供一份先查 Mintlify 的共享路由技能。Nix / Home Manager 环境会链接同一技能，同时保留本地匿名 Context7 及可选的用户级认证 Context7。两家服务都是公开的第三方服务：只发送聚焦的公开检索词，绝不能发送密钥、私有代码、完整提示词或非公开内部内容。Codex 原生配置中的同名项优先于插件默认值。
 
-Nix / Home Manager 完整环境当前固定 Codex 0.153.1 和 Code Mode Host。
+Nix / Home Manager 完整环境当前固定 Codex 0.153.2 和 Code Mode Host。
 
 ## 快速开始
 
