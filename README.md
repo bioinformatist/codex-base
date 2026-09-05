@@ -44,7 +44,7 @@ The [capability catalog](docs/capabilities.md) lists every trigger, responsibili
 
 The portable plugin configures anonymous Mintlify Index and Context7 HTTP endpoints plus one Mintlify-first routing skill. The Nix/Home Manager environment links the same skill while retaining local anonymous Context7 and optional per-user authenticated Context7. Both providers are public third parties: send only focused public lookup terms, never secrets, private code, full prompts, or non-public internal content. Native Codex configuration takes precedence over same-name plugin defaults.
 
-The full Nix / Home Manager environment currently pins Codex 0.153.3 and Code Mode Host.
+The full Nix / Home Manager environment currently pins Codex 0.153.4 and Code Mode Host.
 
 ## Quick start
 

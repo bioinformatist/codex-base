@@ -3,16 +3,16 @@
     "codex-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1788544562,
-        "narHash": "sha256-JujjJx9GHcTgirqEFr9tc4Ghzx65YNOqpNCc7rtthfI=",
+        "lastModified": 1788561664,
+        "narHash": "sha256-lHiDj5SodaM3mh8goMm6esfejeAT+Y3JJWrRnyj6sJo=",
         "owner": "openai",
         "repo": "codex",
-        "rev": "b1a547b1f73ce86205d9222ac19cff334b3b7a2e",
+        "rev": "3d2ee51ca2d5db578f328aa75e20aa22c0197c9a",
         "type": "github"
       },
       "original": {
         "owner": "openai",
-        "ref": "rust-v0.153.3",
+        "ref": "rust-v0.153.4",
         "repo": "codex",
         "type": "github"
       }
