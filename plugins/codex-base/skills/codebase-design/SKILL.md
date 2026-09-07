@@ -111,4 +111,4 @@ Good interfaces make testing natural:
 ## Going deeper
 
 - **Deepening a cluster given its dependencies**, see [DEEPENING.md](DEEPENING.md): dependency categories, seam discipline, and replace-don't-layer testing.
-- **Exploring alternative interfaces**, see [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md): use parallel sub-agents when multi-agent tools are available, or design the interface several radically different ways yourself, then compare on depth, locality, and seam placement.
+- **Exploring alternative interfaces**, see [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md): use parallel sub-agents only when delegation is authorized and multi-agent tools are available, or compare several viable interfaces yourself, then compare on depth, locality, and seam placement.

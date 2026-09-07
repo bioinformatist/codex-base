@@ -16,7 +16,7 @@ Long coding tasks waste model usage when they repeatedly rebuild context, drift 
 | Usage concern | Mechanism |
 |---|---|
 | Main-model capacity | Qualifying, tightly bounded implementation can use the predefined Spark executor. [Codex-Spark is a separate model with its own usage limits](https://learn.chatgpt.com/docs/agent-configuration/speed); access and the plan's routing criteria still apply. |
-| Avoidable work across the task | Decisions are written down early, documentation is checked before implementation, and every code-changing step is verified and simplified. This reduces repeated long-context reads, drift, over-engineering, and rework. |
+| Avoidable work across the task | Formal planning captures settled decisions in one complete Plan Mode response; a later authorized writable phase can persist them. Documentation is checked before implementation, and every code-changing step is verified and simplified. This reduces repeated long-context reads, drift, over-engineering, and rework. |
 
 Planning and review also use capacity. A small, clear edit is usually better handled directly, and Codex Base does not promise fewer tokens, lower cost, or less usage for every task.
 
@@ -24,7 +24,7 @@ Planning and review also use capacity. A small, clear edit is usually better han
 
 [shadcn Improve](https://github.com/shadcn/improve) supplies the audit playbook and plan-template foundations. Codex Base adds:
 
-- Settled decisions live in a persisted plan instead of only in chat.
+- Formal planning produces a complete replacement plan in chat; a later authorized writable phase can persist the settled result.
 - An isolated executor verifies and simplifies each changing step.
 - Candidate-bound review and recovery, together with explicit checkpoints, keep work reviewable and resumable.
 
@@ -87,13 +87,15 @@ default_mode_request_user_input = true
 
 This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level, while the three feature toggles belong in `[features]`. If any of these keys already exist, update them in place. Replace an existing boolean `context_management` or `code_mode` entry with the dotted form shown above; do not keep both a boolean and table form or duplicate a TOML key.
 
-Start a new normal/default Codex session after saving the file. `default_mode_request_user_input` makes the structured question tool available in that mode; it does not automatically run the Grilling skill or any other question workflow. See [Learn the config file](https://learn.chatgpt.com/docs/config-file/config-reference) for the official reference. No wrapper or installer is required.
+Start a new Codex session after saving the file. The fragment requests experimental context management, Code Mode, structured questions in Default Mode, and high reasoning effort in Plan Mode. Formal Improve planning still requires the session to expose native context management and structured questions: configured `true` values and a Plan Mode label do not prove that either capability is live. If one is missing, stop and reopen the task in a capable session. `default_mode_request_user_input` does not automatically run Grilling or another question workflow.
+
+The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers experimental context management, Code Mode, and Plan Mode effort. The Default Mode question flag is instead checked against the pinned Codex 0.153.4 [feature declaration](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core/tests/suite/request_user_input.rs). No wrapper or installer is required.
 
 > [!WARNING]
 > `context_management.experimental_mode` is experimental, works only on the supported OpenAI backend, and requires an eligible ChatGPT Plus, Pro, or Pro Lite session; plan names alone do not guarantee eligibility.
 > `code_mode.enabled` needs the matching Code Mode companion host.
 > The Nix/Home Manager environment installs that host; a standalone CLI may not.
-> High Plan-mode effort can take longer and use more tokens. Enabling these settings does not guarantee better results.
+> High Plan-mode effort can take longer and use more tokens. Astra, high reasoning effort, and Code Mode can help with sensitive planning work, but none is a hard gate. Enabling these settings does not guarantee better results.
 
 To roll back, preserve unrelated configuration, restore `plan_mode_reasoning_effort` to its previous value (`"medium"` is the managed Plan baseline), and explicitly set `context_management.experimental_mode`, `code_mode.enabled`, and `default_mode_request_user_input` to `false`. Do not only delete the keys: a merging overlay or source revert does not remove values already persisted in `config.toml`. Home Manager users must also reverse the managed overlay before activation, or activation will set the managed values again.
 
@@ -106,7 +108,9 @@ Use $codex-base:improve plan <request>.
 Codex namespace-qualifies plugin skills, so the portable plugin uses `$codex-base:improve`. The full Nix/Home Manager installation exposes `$improve plan <request>` without that prefix.
 
 > [!NOTE]
-> Run `$improve plan ...` (or the portable plugin form `$codex-base:improve plan ...`) in normal/default collaboration mode, not built-in Plan Mode. Plan Mode is read-only, so Improve cannot persist intermediate plans, semantic anchors, and review records there. Writing those decisions down lets later execution avoid reconstructing them from a long conversation.
+> Enter built-in Plan Mode with `/plan` or Shift+Tab, then run `$improve plan ...` (or the portable plugin form `$codex-base:improve plan ...`). Improve first discovers available facts and asks only about material choices that remain unsettled. It renders the complete replacement plan in chat and writes no plan, questionnaire, handoff, or temporary file. Persist the plan only in a later authorized writable phase.
+
+Default Mode implementation, audits, and ordinary lifecycle or dossier bookkeeping do not require a new formal-planning workflow. If formal planning is requested from Default Mode, switch to a capable Plan Mode session before continuing.
 
 To install the full Nix/Home Manager environment, add the flake input and import the module:
 

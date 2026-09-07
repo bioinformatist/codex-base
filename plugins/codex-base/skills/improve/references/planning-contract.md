@@ -2,6 +2,15 @@
 
 Contract version: `1.0.0-codex.15`
 
+## Planning session prerequisites
+
+Before `plan`, `review-plan`, or material replanning, apply the actionable mode,
+capability, and no-write gate in `../SKILL.md` under **Formal Planning
+Prerequisites**. Routine authorized lifecycle, index, or dossier bookkeeping
+that preserves approved semantics does not trigger formal planning. The
+mode-aware artifact rules below remain normative whenever plan artifacts are
+created or replaced.
+
 ## Execution environment contract
 
 Every new plan, revision dossier, and recovery dossier contains exactly one
@@ -94,15 +103,16 @@ change; it is not a transcript or a snapshot of every source consulted.
 
 ## Persist early
 
-After the user confirms a direction, create the plan skeleton before extended
-investigation or drafting. At minimum, persist the objective, initial semantic
-anchors, modification scope, evidence/drift paths, known engineering contract,
-artifact policy, dependencies, and open material decisions. Refine that same
-plan as evidence arrives.
+After the user confirms a direction, establish the plan skeleton before
+extended investigation or drafting. At minimum, capture the objective, initial
+semantic anchors, modification scope, evidence/drift paths, known engineering
+contract, artifact policy, dependencies, and open material decisions. In a
+writable phase, persist and refine that same artifact as evidence arrives. In
+Plan Mode, keep it in native context and render only complete replacement plans
+in chat.
 
-When the environment forbids writing plan files, the official rendered plan
-must be a complete replacement plan, never a delta that depends on an earlier
-rendering or conversation memory.
+Every official chat rendering is a complete replacement plan, never a delta
+that depends on an earlier rendering or conversation memory.
 
 ## Authority and semantic anchors
 

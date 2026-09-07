@@ -11,4 +11,4 @@ description: Resolve existing conflict hunks during an in-progress Git merge or 
 
 4. **Verify and report.** Stage only verified conflict-resolution paths when staging is needed to mark them resolved, and report the exact staged set. Run the relevant repository checks and fix only failures caused by the resolution.
 
-5. **Leave lifecycle actions to separate authorization.** Do not continue or abort the merge/rebase, commit, push, force-push, reset, discard with checkout, or clean up without separate user authorization.
+5. **Respect the exact lifecycle authorization.** Do not continue or abort the merge/rebase, commit, push, force-push, reset, discard with checkout, or clean up unless that exact action is already authorized. Do not repeat an approval request for an action the user has explicitly approved.

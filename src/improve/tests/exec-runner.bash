@@ -395,6 +395,14 @@ assert_stepwise_checkpoint_prompt() {
     grep -F -- "$text" "$FAKE_PROMPT_LOG" >/dev/null ||
       fail "$1 stepwise checkpoint clause missing: $text"
   done
+  for text in \
+    "Touch only the exact authorized scope, run every required check" \
+    "Preserve accepted decisions and required tests" \
+    "query it at most once" \
+    "Pending is not passed"; do
+    grep -F -- "$text" "$FAKE_PROMPT_LOG" >/dev/null ||
+      fail "$1 executor boundary clause missing: $text"
+  done
 }
 
 repo="$test_root/repo with spaces"

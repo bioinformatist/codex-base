@@ -11,7 +11,7 @@ description: >
 ---
 
 Review diffs for unnecessary complexity. One line per finding: location, what
-to cut, what replaces it. The diff's best outcome is getting shorter.
+to cut, what replaces it. The best outcome is the lowest supported complexity that preserves correctness, accepted behavior and interfaces, and necessary checks.
 
 ## Format
 
@@ -31,7 +31,7 @@ Tags:
 ❌ "This EmailValidator class might be more complex than necessary, have you
 considered whether all these validation rules are needed at this stage?"
 
-✅ `L12-38: stdlib: 27-line validator class. "@" in email, 1 line, real validation is the confirmation mail.`
+✅ `L12-38: stdlib: hand-rolled URL parser for validated inputs. The standard URL parser, preserving the accepted input and error behavior.`
 
 ✅ `L4: native: moment.js imported for one format call. Intl.DateTimeFormat, 0 deps.`
 
@@ -43,13 +43,13 @@ considered whether all these validation rules are needed at this stage?"
 
 ## Scoring
 
-End with the only metric that matters: `net: -<N> lines possible.`
+End with the supported finding count. You may estimate net lines as secondary context, never as the acceptance criterion.
 
-If there is nothing to cut, say `Lean already. Ship.` and stop.
+If there is nothing supported to cut, say `Lean for over-engineering. Correctness and shipping readiness were not assessed.` and stop.
 
 ## Boundaries
 
-Scope: over-engineering and complexity only. Correctness bugs, security holes,
+Scope: over-engineering and complexity only. Preserve accepted interfaces, behavior, and required tests. Correctness bugs, security holes,
 and performance are explicitly out of scope. Route them to a normal review
 pass, not this one. A single smoke test or `assert`-based
 self-check is the ponytail minimum, not bloat, never flag it for deletion.

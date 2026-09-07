@@ -775,7 +775,9 @@ a triggered review's `INCONCLUSIVE` status or tunes a provisional boundary on
 its own.
 
 After an approved main-agent implementation review, the advisor records all
-three facets in the plan and any index before deriving lifecycle:
+three facets in the plan and any index during an authorized writable phase,
+then derives lifecycle. This bookkeeping does not trigger formal planning while
+it preserves the approved semantics:
 
 - **Implementation review**: `APPROVED`.
 - **Checkpoint**: `NONE`, `RESUMABLE`, or `INTEGRATED`, with an exact
@@ -822,6 +824,10 @@ deferring work to a person or external system. For each deferred acceptance:
 4. Stop executor, reviewer, server, and other processes that are not themselves
    part of the named acceptance environment. Return control with the plan and
    checkpoint sufficient to resume in a later turn.
+   When remote GitHub CI is the only remaining step, query it at most once and
+   report the exact head, link, and remaining acceptance. Pending is not passed;
+   do not watch, poll, or schedule follow-up unless the user explicitly asked
+   for monitoring.
 5. Record the result. `PASSED` may advance an integrated change to `DONE`.
    Before integration, `FAILED` returns to `IN PROGRESS` for an in-scope defect
    and may use bounded revision. Against an integrated checkpoint, the same
@@ -856,6 +862,14 @@ ambiguous, or cross-repository state; never infer that the user no longer wants
 the worktree.
 
 ## Reconcile
+
+Start with read-only evidence. Updating lifecycle facets, checkpoint lineage,
+gate evidence, dossiers, or an index under already approved semantics is routine
+bookkeeping and may occur in an authorized writable phase. Enter the formal
+planning workflow only when reconciliation requires a material change to
+requirements, scope, authority, dependencies, approach, or another semantic
+anchor; execution, review, and recovery dossiers do not trigger it merely by
+existing.
 
 For each indexed plan:
 

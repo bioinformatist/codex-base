@@ -1329,6 +1329,13 @@ Do not commit, merge, push, open a pull request, update the plan or its index,
 remove the worktree, or launch subagents. Leave the complete diff uncommitted
 for the main agent to review.
 
+Touch only the exact authorized scope, run every required check, and stop on
+the stated STOP conditions. Preserve accepted decisions and required tests;
+do not independently redesign the product, publish results, or delegate work.
+If remote GitHub CI is the only remaining acceptance, query it at most once,
+report the exact head and link plus what remains, and return control.
+Pending is not passed; monitor only when the user explicitly requested monitoring.
+
 Do not call codex-improve-exec candidate, checkpoint, or resume operations, and
 do not calculate or reconstruct candidate identity with Git plumbing.
 Candidate identity, preservation, and lifecycle transitions are owned by the

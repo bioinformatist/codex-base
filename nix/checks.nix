@@ -75,7 +75,7 @@ in {
     touch $out
   '';
   mattpocock-skills = mkTest "mattpocock-skills-contract" shellTools ''
-    expected='codebase-design diagnosing-bugs domain-modeling resolving-merge-conflicts tdd grilling handoff writing-for-agents to-questionnaire'
+    expected='codebase-design diagnosing-bugs domain-modeling resolving-merge-conflicts tdd grilling handoff wait-what writing-for-agents to-questionnaire'
     actual=$(jq -r '.sources[] | select(.name == "mattpocock-skills") | .includedPaths[] | split("/")[-1]' ${srcRoot}/vendor/sources.json | paste -sd ' ' -)
     test "$actual" = "$expected"
     for skill in $expected; do test -d "${generatedSkills}/$skill"; done
@@ -98,15 +98,31 @@ in {
       ${generatedSkills}/writing-for-agents/SKILL-MECHANICS.md
     grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/to-questionnaire/agents/openai.yaml
     grep -Fq 'collision-resistant Markdown file' ${generatedSkills}/to-questionnaire/SKILL.md
+    grep -Fq 'the complete questionnaire is rendered in chat or the authorized file exists' ${generatedSkills}/to-questionnaire/SKILL.md
+    grep -Fq 'every item the user named in step 2 is covered by a question' ${generatedSkills}/to-questionnaire/SKILL.md
     grep -Fq 'Never overwrite an existing file, send or publish' ${generatedSkills}/to-questionnaire/SKILL.md
     grep -Fq 'Never request credentials' ${generatedSkills}/to-questionnaire/SKILL.md
     grep -Fq '**From role:** <role>, **To role:** <role>' ${generatedSkills}/to-questionnaire/SKILL.md
+    grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/wait-what/agents/openai.yaml
+    grep -Fq 'current conversation language' ${generatedSkills}/wait-what/SKILL.md
+    grep -Fq 'preserve all facts, constraints, caveats, and uncertainty' ${generatedSkills}/wait-what/SKILL.md
     grep -Fq 'at most three independent, high-value frontier questions' ${generatedSkills}/grilling/SKILL.md
     grep -Fq 'Do not implement automatically' ${generatedSkills}/grilling/SKILL.md
     grep -Fqx '  short_description: "Stress-test thinking in frontier rounds"' ${generatedSkills}/grilling/agents/openai.yaml
-    grep -Fq 'otherwise produce 3 distinct designs yourself' ${generatedSkills}/codebase-design/DESIGN-IT-TWICE.md
-    grep -Fq 'Leave lifecycle actions to separate authorization' ${generatedSkills}/resolving-merge-conflicts/SKILL.md
+    grep -Fq 'otherwise produce distinct viable designs yourself' ${generatedSkills}/codebase-design/DESIGN-IT-TWICE.md
+    grep -Fq 'only when delegation is authorized' ${generatedSkills}/codebase-design/SKILL.md
+    grep -Fq 'Do not repeat an approval request' ${generatedSkills}/resolving-merge-conflicts/SKILL.md
     grep -Fq 'Redact every secret first' ${generatedSkills}/diagnosing-bugs/SKILL.md
+    grep -Fq 'Production instrumentation requires explicit authorization' ${generatedSkills}/diagnosing-bugs/SKILL.md
+    grep -Fq 'do not invent hypotheses to meet a quota' ${generatedSkills}/diagnosing-bugs/SKILL.md
+    ! grep -Fq 'Skill tool' ${generatedSkills}/tdd/SKILL.md
+    grep -Fq 'Preserve accepted interfaces, behavior, and required tests.' ${generatedSkills}/ponytail-review/SKILL.md
+    grep -Fq 'Correctness and shipping readiness were not assessed.' ${generatedSkills}/ponytail-audit/SKILL.md
+    ! grep -Ezq '"audit this[[:space:]]+codebase"' ${generatedSkills}/ponytail-audit/SKILL.md
+    grep -Fq -- '--exclude-dir=node_modules' ${generatedSkills}/ponytail-debt/SKILL.md
+    grep -Fq -- '--exclude-dir=.git' ${generatedSkills}/ponytail-debt/SKILL.md
+    grep -Fq 'never writes, edits, stages, or persists a ledger' ${generatedSkills}/ponytail-debt/SKILL.md
+    test "$(jq -r '.sources[] | select(.name == "ponytail") | .patched' ${srcRoot}/vendor/sources.json)" = true
     touch $out
   '';
   shellcheck = mkTest "all-shell-scripts" shellTools ''
@@ -158,8 +174,16 @@ in {
     grep -Fq 'docs/updating.md' ${srcRoot}/CONTRIBUTING.md
     grep -Fq 'anonymous Mintlify Index and Context7 HTTP endpoints' ${srcRoot}/README.md
     grep -Fq '匿名的 Mintlify Index 与 Context7 HTTP 端点' ${srcRoot}/README.zh-CN.md
+    grep -Fq 'Enter built-in Plan Mode with `/plan` or Shift+Tab' ${srcRoot}/README.md
+    grep -Fq '请先用 `/plan` 或 Shift+Tab 进入内置 Plan Mode' ${srcRoot}/README.zh-CN.md
+    grep -Fq 'configured `true` values and a Plan Mode label do not prove that either capability is live' ${srcRoot}/README.md
+    grep -Fq '配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用' ${srcRoot}/README.zh-CN.md
+    ! grep -Fq 'not built-in Plan Mode' ${srcRoot}/README.md
+    ! grep -Fq '不要使用内置 Plan Mode' ${srcRoot}/README.zh-CN.md
     grep -Fq '`src/docs-routing` is the canonical first-party documentation-routing skill.' ${srcRoot}/docs/architecture.md
+    grep -Fq 'Adapted for Codex invocation, preservation, and reporting rules' ${srcRoot}/docs/credits.md
     grep -Fq 'Keep anonymous plugin MCP defaults' ${srcRoot}/CONTRIBUTING.md
+    test -f ${srcRoot}/tests/prompt-scenarios.md
     test -f ${srcRoot}/docs/assets/prompts/codex-base-logo.md
     test -f ${srcRoot}/docs/assets/prompts/codex-base-workflow.md
     jq -e '.interface.composerIcon == "./assets/codex-base.svg" and .interface.logo == "./assets/codex-base.svg"' \
@@ -184,7 +208,42 @@ in {
     def ids(path):
         return [line.split('|')[1].strip() for line in path.read_text().splitlines()
                 if line.startswith('| ') and not line.startswith('| ID ') and not line.startswith('|---')]
-    assert ids(root / 'docs/capabilities.md') == ids(root / 'docs/capabilities.zh-CN.md')
+    expected_ids = [
+        'global-agents', 'docs-routing', 'github-mcp', 'improve',
+        'executor-routing', 'early-simplification', 'grilling',
+        'ponytail-review', 'ponytail-audit', 'ponytail-debt',
+        'diagnosing-bugs', 'tdd', 'codebase-design', 'domain-modeling',
+        'merge-conflicts', 'playwright', 'stop-slop', 'handoff', 'wait-what',
+        'questionnaire', 'writing-agents',
+    ]
+    assert ids(root / 'docs/capabilities.md') == expected_ids
+    assert ids(root / 'docs/capabilities.zh-CN.md') == expected_ids
+
+    # These are static editorial guards, not runtime behavior evidence.
+    scenarios = (root / 'tests/prompt-scenarios.md').read_text()
+    flat_scenarios = ' '.join(scenarios.split())
+    architecture = (root / 'docs/architecture.md').read_text()
+    assert 'not an automated benchmark or evidence of universal model obedience' in flat_scenarios
+    headings = re.findall(r'^## (SC-\d{2}): .+$', scenarios, flags=re.M)
+    assert headings == [f'SC-{number:02d}' for number in range(1, 17)]
+    blocks = re.split(r'^## SC-\d{2}: .+$', scenarios, flags=re.M)[1:]
+    assert len(blocks) == 16
+    for block in blocks:
+        assert block.count('**Input/context:**') == 1
+        assert block.count('**Expected observable behavior:**') == 1
+        assert block.count('**Runtime observation:** NOT RUN') == 1
+    assert 'Codex Base has no model-index or per-model global guidance files' in ' '.join(architecture.split())
+    for phrase in [
+        'do not ask the user to choose again',
+        'without editing source, tests, or production instrumentation',
+        'do not launch a child agent',
+        'Do not require Astra, high reasoning effort, or Code Mode',
+        'Query CI at most once',
+        'user explicitly says, “Monitor this run until it finishes.”',
+        'Keep the compatibility test',
+        '使用中文在当前对话中改述',
+    ]:
+        assert phrase in flat_scenarios
     credits = (root / 'docs/credits.md').read_text()
     sources = json.loads((root / 'vendor/sources.json').read_text())['sources']
     assert all(source['name'] in credits for source in sources)
@@ -275,6 +334,7 @@ in {
     assert builtins.hasAttr ".agents/skills/docs-routing" files;
     assert builtins.hasAttr ".agents/skills/writing-for-agents" files;
     assert builtins.hasAttr ".agents/skills/to-questionnaire" files;
+    assert builtins.hasAttr ".agents/skills/wait-what" files;
     assert builtins.hasAttr ".codex/AGENTS.md" files;
     assert builtins.hasAttr ".codex/rules/baseline.rules" files;
     assert builtins.all (path: !(builtins.hasAttr path files)) legacy;
@@ -284,6 +344,7 @@ in {
     assert !(builtins.hasAttr ".agents/skills/diagnosing-bugs" filesOff);
     assert !(builtins.hasAttr ".agents/skills/writing-for-agents" filesOff);
     assert !(builtins.hasAttr ".agents/skills/to-questionnaire" filesOff);
+    assert !(builtins.hasAttr ".agents/skills/wait-what" filesOff);
     assert hm.config.programs.codexBase.stopSlop.enable;
     assert hm.config.programs.codexBase.ponytail.enable;
     assert hm.config.programs.codexBase.mattPocockSkills.enable;
