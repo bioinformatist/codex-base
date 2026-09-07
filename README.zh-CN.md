@@ -72,6 +72,31 @@ codex mcp list --json
 使用 $codex-base:stop-slop 精简下面这句临时文本，不要改变其中的事实。
 ```
 
+### 面向非 Nix 用户的 Codex 原生配置
+
+Home Manager 已经提供了这些默认值。其他安装方式只需将以下片段合并到持久配置文件中一次（`CODEX_HOME/config.toml`，默认 `~/.codex/config.toml`）：
+
+```toml
+plan_mode_reasoning_effort = "high"
+
+[features]
+context_management.experimental_mode = true
+code_mode.enabled = true
+default_mode_request_user_input = true
+```
+
+这是合并片段，不应替换整个文件，也不是每次启动要带的参数；请保留其他无关配置。`plan_mode_reasoning_effort` 是顶层键，三个功能开关则属于 `[features]`。如果其中某个键已经存在，请直接修改原定义。若 `context_management` 或 `code_mode` 目前是布尔值，请用上面的点分形式替换它；不要同时保留布尔值和表，也不要重复定义同一个 TOML 键。
+
+保存后，请新建一个普通/默认模式的 Codex 会话。`default_mode_request_user_input` 只会让该模式可以使用结构化提问工具，并不会自动运行 Grilling 技能或其他提问工作流。官方说明见 [Learn 配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。无需启动脚本或安装器。
+
+> [!WARNING]
+> `context_management.experimental_mode` 是实验特性，仅适用于受支持的 OpenAI 后端，并且需要符合资格的 ChatGPT Plus、Pro 或 Pro Lite 会话；仅凭套餐名称不能保证具备资格。
+> `code_mode.enabled` 依赖匹配的 Code Mode companion host。
+> Nix/Home Manager 环境会安装该 companion，单独 CLI 不一定具备。
+> Plan 模式使用高推理强度可能耗时更长、使用更多 token；启用这些设置并不保证结果更好。
+
+如需回退，请保留其他无关配置，将 `plan_mode_reasoning_effort` 恢复为先前的值（托管的 Plan 基线为 `"medium"`），并明确把 `context_management.experimental_mode`、`code_mode.enabled` 和 `default_mode_request_user_input` 设为 `false`。不要只删除这些键：合并式覆盖层或源码回退不会清除已经写入 `config.toml` 的值。Home Manager 用户还必须在下次激活前撤销托管覆盖层中的这些设置，否则激活时会再次写入托管值。
+
 ## 首次工作流
 
 ```text

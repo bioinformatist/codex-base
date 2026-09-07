@@ -39,7 +39,7 @@ let
     model = "gpt-5.6-sol"
     model_reasoning_effort = "medium"
     model_verbosity = "medium"
-    plan_mode_reasoning_effort = "medium"
+    plan_mode_reasoning_effort = "high"
     personality = "pragmatic"
     sandbox_mode = "workspace-write"
     approval_policy = "on-request"
@@ -52,6 +52,9 @@ let
     [features]
     memories = true
     hooks = true
+    context_management.experimental_mode = true
+    code_mode.enabled = true
+    default_mode_request_user_input = true
 
     [notice]
     hide_rate_limit_model_nudge = true

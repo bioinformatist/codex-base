@@ -72,6 +72,31 @@ The output should show `codex-base@bioinformatist-codex` installed and enabled, 
 Use $codex-base:stop-slop to tighten this disposable sentence without changing its facts.
 ```
 
+### Native Codex configuration for non-Nix users
+
+Home Manager already supplies these defaults. For other installations, merge this fragment once into your persistent Codex config (`CODEX_HOME/config.toml`, default `~/.codex/config.toml`):
+
+```toml
+plan_mode_reasoning_effort = "high"
+
+[features]
+context_management.experimental_mode = true
+code_mode.enabled = true
+default_mode_request_user_input = true
+```
+
+This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level, while the three feature toggles belong in `[features]`. If any of these keys already exist, update them in place. Replace an existing boolean `context_management` or `code_mode` entry with the dotted form shown above; do not keep both a boolean and table form or duplicate a TOML key.
+
+Start a new normal/default Codex session after saving the file. `default_mode_request_user_input` makes the structured question tool available in that mode; it does not automatically run the Grilling skill or any other question workflow. See [Learn the config file](https://learn.chatgpt.com/docs/config-file/config-reference) for the official reference. No wrapper or installer is required.
+
+> [!WARNING]
+> `context_management.experimental_mode` is experimental, works only on the supported OpenAI backend, and requires an eligible ChatGPT Plus, Pro, or Pro Lite session; plan names alone do not guarantee eligibility.
+> `code_mode.enabled` needs the matching Code Mode companion host.
+> The Nix/Home Manager environment installs that host; a standalone CLI may not.
+> High Plan-mode effort can take longer and use more tokens. Enabling these settings does not guarantee better results.
+
+To roll back, preserve unrelated configuration, restore `plan_mode_reasoning_effort` to its previous value (`"medium"` is the managed Plan baseline), and explicitly set `context_management.experimental_mode`, `code_mode.enabled`, and `default_mode_request_user_input` to `false`. Do not only delete the keys: a merging overlay or source revert does not remove values already persisted in `config.toml`. Home Manager users must also reverse the managed overlay before activation, or activation will set the managed values again.
+
 ## First workflow
 
 ```text
