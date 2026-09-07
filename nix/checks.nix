@@ -147,6 +147,7 @@ in {
     for readme in ${srcRoot}/README.md ${srcRoot}/README.zh-CN.md; do
       grep -Fq 'plugins/codex-base/assets/codex-base.svg' "$readme"
       grep -Fq '> [!NOTE]' "$readme"
+      grep -Fq '> [!WARNING]' "$readme"
       grep -Fq 'actions/workflows/ci.yml/badge.svg' "$readme"
       grep -Fq 'img.shields.io/badge/license-MIT-blue.svg' "$readme"
       grep -Fq 'codex plugin marketplace add https://github.com/bioinformatist/codex-base' "$readme"
@@ -170,7 +171,12 @@ in {
       and ($manifest.keywords | index("documentation") != null and index("mcp") != null)
     ' ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json >/dev/null
     python - <<'PY'
+    import os
+    import re
+    import subprocess
+    import tempfile
     import json
+    import tomllib
     from pathlib import Path
     from xml.etree import ElementTree as ET
 
@@ -189,6 +195,52 @@ in {
         assert svg.get('viewBox') and svg.get('role') == 'img'
         assert any(node.tag.endswith('title') for node in svg)
         assert any(node.tag.endswith('desc') for node in svg)
+
+    def parse_setup(path):
+      text = path.read_text()
+      blocks = re.findall(r'```toml\n(.*?)```', text, flags=re.S)
+      candidates = []
+      for block in blocks:
+        data = tomllib.loads(block)
+        if "plan_mode_reasoning_effort" in data:
+          candidates.append((block, data))
+      assert len(candidates) == 1, f"expected one setup fragment in {path}"
+      fragment, setup = candidates[0]
+      assert setup["plan_mode_reasoning_effort"] == "high"
+      features = setup["features"]
+      assert features["context_management"]["experimental_mode"] is True
+      assert features["code_mode"]["enabled"] is True
+      assert features["default_mode_request_user_input"] is True
+      return fragment, setup
+
+    expected_flags = (
+      ("context_management", "true"),
+      ("code_mode", "true"),
+      ("default_mode_request_user_input", "true"),
+    )
+    setups = [parse_setup(path) for path in [root / 'README.md', root / 'README.zh-CN.md']]
+    assert setups[0][1] == setups[1][1], "English and Chinese setup data differs"
+    for fragment, _ in setups:
+      with tempfile.TemporaryDirectory() as td:
+        cfg = Path(td) / '.codex' / 'config.toml'
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_bytes(fragment.encode())
+        result = subprocess.run(
+          [str(Path('${packages.codex}') / 'bin' / 'codex'), 'features', 'list'],
+          cwd=str(td),
+          env={**os.environ, 'HOME': str(td), 'CODEX_HOME': str(cfg.parent)},
+          capture_output=True,
+          text=True,
+          check=True,
+        )
+        output = result.stdout
+        for flag, expected in expected_flags:
+          for line in output.splitlines():
+            if line.lstrip().startswith(flag):
+              assert line.split()[-1] == expected, f"{flag} not {expected}"
+              break
+          else:
+            raise AssertionError(f"{flag} not found in feature listing")
     PY
     touch $out
   '';
@@ -244,7 +296,7 @@ in {
     assert builtins.elem packages.codex-improve-scout hm.config.home.packages;
     assert pkgs.lib.hasInfix ''configFile="$HOME/.codex/config.toml"'' activation;
     assert pkgs.lib.hasInfix ''if [ -L "$configFile" ]; then rm -f "$configFile"; fi'' activation;
-    mkTest "home-manager-contract" shellTools ''
+    mkTest "home-manager-contract" (shellTools ++ [ python ]) ''
       test -x ${hm.activationPackage}/activate
       for expected in \
         '/run/secrets/github' \
@@ -263,6 +315,80 @@ tool_timeout_sec = 120' \
         done <${hmClosure}/store-paths
         test "$found" -eq 0
       done
+python - <<'PY'
+import os
+import stat
+import subprocess
+import tempfile
+from pathlib import Path
+import tomllib
+
+closure = Path("${hmClosure}/store-paths").read_text().splitlines()
+managed = [path for path in closure if path.endswith("-codex-base-config.toml")]
+merge_helpers = [
+    candidate
+    for root in closure
+    if (candidate := Path(root) / "bin" / "merge-codex-base-config").is_file()
+    and os.access(candidate, os.X_OK)
+]
+assert len(managed) == 1, f"expected exactly one managed config in closure, got {len(managed)}"
+assert len(merge_helpers) == 1, f"expected exactly one merge helper in closure, got {len(merge_helpers)}"
+
+managed_path = Path(managed[0])
+merge_helper = merge_helpers[0]
+
+def run_merge(target: Path) -> dict:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.check_call([str(merge_helper), str(managed_path), str(target)])
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    return tomllib.loads(target.read_text())
+
+def assert_managed(merged: dict) -> None:
+    assert merged["model"] == "gpt-5.6-sol"
+    assert merged["model_reasoning_effort"] == "medium"
+    assert merged["model_verbosity"] == "medium"
+    assert merged["plan_mode_reasoning_effort"] == "high"
+    assert merged["sandbox_mode"] == "workspace-write"
+    assert merged["approval_policy"] == "on-request"
+    assert merged["web_search"] == "live"
+    assert merged["mcp_oauth_credentials_store"] == "file"
+    assert merged["features"]["context_management"]["experimental_mode"] is True
+    assert merged["features"]["code_mode"]["enabled"] is True
+    assert merged["features"]["default_mode_request_user_input"] is True
+    assert merged["features"]["memories"] is True
+    assert merged["features"]["hooks"] is True
+
+with tempfile.TemporaryDirectory() as td:
+    # Merge into an absent configuration.
+    empty_target = Path(td) / ".codex" / "config.toml"
+    assert not empty_target.exists()
+    assert_managed(run_merge(empty_target))
+
+    # Merge over the legacy boolean feature representation.
+    legacy_path = Path(td) / "legacy.toml"
+    legacy_path.write_text("""[history]\nfile = \"legacy.log\"\n\n[features]\ncode_mode = false\ncontext_management = false\ndefault_mode_request_user_input = false\nshell_snapshot = false\n""")
+    legacy_merged = run_merge(legacy_path)
+    assert_managed(legacy_merged)
+    assert legacy_merged["features"]["shell_snapshot"] is False
+    assert legacy_merged["history"] == {"file": "legacy.log"}
+
+    legacy_repeated = run_merge(legacy_path)
+    assert_managed(legacy_repeated)
+    assert legacy_repeated == legacy_merged
+
+    # Merge into a pre-populated config; owned managed values must win without erasing siblings.
+    existing_path = Path(td) / "existing.toml"
+    existing_path.write_text("""[history]\nfile = \"persisted.log\"\n\n[features]\nshell_snapshot = false\ncontext_management.experimental_mode = false\ndefault_mode_request_user_input = false\n\n[features.code_mode]\nenabled = false\ndefault_exec_yield_time_ms = 250\n""")
+    merged = run_merge(existing_path)
+    assert_managed(merged)
+    assert merged["features"]["shell_snapshot"] is False
+    assert merged["features"]["code_mode"]["default_exec_yield_time_ms"] == 250
+    assert merged["history"] == {"file": "persisted.log"}
+
+    repeated = run_merge(existing_path)
+    assert_managed(repeated)
+    assert repeated == merged
+PY
       cmp ${generatedSkills}/docs-routing/SKILL.md ${files.".agents/skills/docs-routing".source}/SKILL.md
       for clause in \
         'unless a higher-authority product-specific documentation workflow applies.' \
