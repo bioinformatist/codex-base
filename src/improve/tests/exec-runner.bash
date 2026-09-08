@@ -31,6 +31,31 @@ cat >>"$fake_bin/codex" <<'FAKE_CODEX'
 set -u
 
 : "${FAKE_CODEX_MODE:?}" "${FAKE_COUNT_FILE:?}" "${FAKE_INVOCATION_LOG:?}" "${FAKE_PROMPT_LOG:?}" "${FAKE_LOCALE_LOG:?}" "${FAKE_EXECUTION_ID_LOG:?}" "${FAKE_CACHE_EXECUTOR_LOG:?}"
+if [ "${1:-}" = app-server ]; then
+  printf '%s\n' query >>"$FAKE_METADATA_COUNT"
+  while IFS= read -r request; do
+    id="$(jq -r '.id // empty' <<<"$request")"
+    method="$(jq -r '.method' <<<"$request")"
+    case "$method" in
+      initialize) printf '{"id":%s,"result":{"serverInfo":{"name":"fake"}}}\n' "$id" ;;
+      initialized) ;;
+      account/read) printf '{"id":%s,"result":{"account":{"type":"chatgpt"}}}\n' "$id" ;;
+      model/list)
+        printf '{"id":%s,"result":{"data":[{"model":"gpt-5.3-codex-spark","hidden":false,"supportedReasoningEfforts":[{"reasoningEffort":"high"}]}],"nextCursor":null}}\n' "$id"
+        ;;
+      account/rateLimits/read)
+        if [ "${FAKE_METADATA_MODE:-spark}" = error ]; then
+          printf '%s\n' 'native metadata failure' >&2
+          exit 19
+        fi
+        used=10
+        [ "${FAKE_METADATA_MODE:-spark}" = luna ] && used=100
+        printf '{"id":%s,"result":{"rateLimitsByLimitId":{"codex_bengalfox":{"limitId":"codex_bengalfox","primary":{"usedPercent":%s},"secondary":null,"spendControlReached":false,"rateLimitReachedType":null}}}}\n' "$id" "$used"
+        ;;
+    esac
+  done
+  exit 0
+fi
 printf '%s\n' invoked >>"$FAKE_COUNT_FILE"
 printf '%s\n' "${FAKE_LAUNCHER_MARKER:-unset}" >"$FAKE_CODEX_LAUNCHER_LOG"
 printf '%s\n' "$@" >"$FAKE_INVOCATION_LOG"
@@ -351,6 +376,7 @@ export PATH="$fake_bin:$PATH"
 export CODEX_IMPROVE_ROLES_JSON='{
   "standard":{"profile":"improve-executor","model":"gpt-5.6-sol","reasoningEffort":"medium","verbosity":"medium","sandbox":"workspace-write","approval":"never","networkAccess":true,"writableRoots":[],"tokenLimit":120000,"reminders":[60000,30000,10000],"initialTimeout":5,"followupTimeout":4},
   "spark":{"profile":"improve-executor-spark","model":"gpt-5.3-codex-spark","reasoningEffort":"high","verbosity":"medium","sandbox":"workspace-write","approval":"never","networkAccess":true,"writableRoots":[],"tokenLimit":100000,"reminders":[50000,25000,10000],"initialTimeout":5,"followupTimeout":4},
+  "lunaLow":{"profile":"improve-executor-luna-low","model":"gpt-5.6-luna","reasoningEffort":"low","verbosity":"medium","sandbox":"workspace-write","approval":"never","networkAccess":true,"writableRoots":[],"tokenLimit":100000,"reminders":[50000,25000,10000],"initialTimeout":5,"followupTimeout":4},
   "deep":{"profile":"improve-executor-deep","model":"gpt-5.6-sol","reasoningEffort":"xhigh","verbosity":"medium","sandbox":"workspace-write","approval":"never","networkAccess":true,"writableRoots":[],"tokenLimit":160000,"reminders":[80000,40000,15000],"initialTimeout":7,"followupTimeout":6}
 }'
 valid_roles_json="$CODEX_IMPROVE_ROLES_JSON"
@@ -445,6 +471,8 @@ start_case() {
   export FAKE_PROBE_LOG="$case_dir/probes"
   export FAKE_PROBE_MODE=pass
   export FAKE_CODEX_MODE="${2:-complete}"
+  export FAKE_METADATA_MODE=spark
+  export FAKE_METADATA_COUNT="$case_dir/metadata-count"
   export TMPDIR="$case_dir/tmp"
   mkdir -p "$HOME" "$TMPDIR"
   mkdir -p "$HOME/.cargo"
@@ -455,6 +483,7 @@ start_case() {
   : >"$FAKE_PROMPT_LOG"
   : >"$FAKE_LAUNCHER_COUNT"
   : >"$FAKE_PROBE_LOG"
+  : >"$FAKE_METADATA_COUNT"
 }
 
 start_resume_case() {
@@ -477,6 +506,9 @@ copy_runner() {
     -e 's/^final_output_limit_bytes=65536$/final_output_limit_bytes=256/' \
     -e 's/^poll_seconds=1$/poll_seconds=0.1/' \
     "$runner_source" >"$runner"
+  install -m 755 -- "$(dirname -- "$runner_source")/codex-improve-spark-availability" \
+    "$case_dir/codex-improve-spark-availability"
+  sed -i "1c#!$(command -v bash)" "$case_dir/codex-improve-spark-availability"
 }
 
 run_runner() {
@@ -1443,13 +1475,191 @@ write_environment_artifact "$contract_15_plan" "$valid_environment_json"
 sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' "$contract_15_plan"
 printf '%s\n' CONTRACT_15_PRE_HOOK_BYTES >>"$contract_15_plan"
 
-future_contract_plan="$repo/plans/016-future-contract.md"
+contract_16_plan="$repo/plans/016-spark-priority.md"
+write_environment_artifact "$contract_16_plan" "$valid_environment_json"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.16/' "$contract_16_plan"
+
+start_case contract_15_fixed_spark_no_query complete
+export FAKE_METADATA_MODE=error
+run_runner --environment-json "$valid_environment_json" --spark "$contract_15_plan"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 0 ".15 Spark metadata query count"
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".15 Spark executor count"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-spark \
+  ".15 fixed Spark profile"
+
+future_contract_plan="$repo/plans/017-future-contract.md"
 write_environment_artifact "$future_contract_plan" "$valid_environment_json"
-sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.16/' "$future_contract_plan"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.17/' "$future_contract_plan"
 start_case environment_future_contract
 run_runner --environment-json "$valid_environment_json" "$future_contract_plan"
-assert_eq "$status" 2 "future environment contract status"
+assert_eq "$status" 2 "future .17 environment contract status"
 assert_preflight_not_invoked environment_future_contract
+
+start_case contract_16_spark_priority complete
+run_runner --environment-json "$valid_environment_json" --spark "$contract_16_plan"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 Spark metadata query count"
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 Spark executor count"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-spark ".16 Spark profile"
+assert_eq "$(field "$output" IMPROVE_MODEL)" gpt-5.3-codex-spark ".16 Spark model"
+assert_eq "$(field "$output" IMPROVE_REASONING_EFFORT)" high ".16 Spark effort"
+assert_role_invocation ".16 Spark" gpt-5.3-codex-spark high medium 100000 '[50000,25000,10000]'
+jq -e '.profile == "improve-executor-spark" and .executorInvoked == true' \
+  "$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)/execution.json" >/dev/null ||
+  fail ".16 Spark execution record"
+assert_contract_15_cache
+
+start_case contract_16_luna_priority complete
+export FAKE_METADATA_MODE=luna
+run_runner --environment-json "$valid_environment_json" --spark "$contract_16_plan"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 Luna metadata query count"
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 Luna executor count"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-luna-low ".16 Luna profile"
+assert_role_invocation ".16 Luna" gpt-5.6-luna low medium 100000 '[50000,25000,10000]'
+assert_contract_15_cache
+jq -e '.profile == "improve-executor-luna-low" and .executorInvoked == true' \
+  "$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)/execution.json" >/dev/null ||
+  fail ".16 Luna execution record"
+
+start_case contract_16_luna_native_failure nonzero
+export FAKE_METADATA_MODE=luna
+run_runner --environment-json "$valid_environment_json" --spark "$contract_16_plan"
+assert_transport_case 1 INCONCLUSIVE codex_exit_17
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 Luna failure metadata query count"
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 Luna failure executor count"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-luna-low \
+  ".16 Luna native failure did not replay"
+
+start_case contract_16_metadata_error complete
+export FAKE_METADATA_MODE=error
+run_runner --environment-json "$valid_environment_json" --spark "$contract_16_plan"
+assert_transport_case 1 STOPPED metadata_query_failed
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 0 ".16 metadata error executor count"
+metadata_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+jq -e '.phase == "finished" and .result == "STOPPED"
+  and .reason == "metadata_query_failed" and .executorInvoked == false
+  and .environment.preflight.status == "legacy_unchecked"' \
+  "$metadata_artifact/execution.json" >/dev/null || fail ".16 metadata terminal record"
+assert_eq "$(field "$output" IMPROVE_EXEC_RESULT)" STOPPED ".16 metadata result handoff"
+assert_eq "$(field "$output" IMPROVE_EXEC_EXIT)" 1 ".16 metadata raw helper status"
+assert_eq "$(field "$output" IMPROVE_EXEC_INVOKED)" 0 ".16 metadata invoked handoff"
+assert_eq "$(field "$output" IMPROVE_EXEC_ROLLOUT_BUDGET_EXHAUSTED)" 0 \
+  ".16 metadata rollout handoff"
+assert_eq "$(field "$output" IMPROVE_EXEC_EVENT_LOG_LIMIT_HIT)" 0 \
+  ".16 metadata event fuse handoff"
+assert_eq "$(field "$output" IMPROVE_EXEC_CLOSEOUT_ELIGIBLE)" 0 \
+  ".16 metadata closeout handoff"
+assert_eq "$(field "$output" IMPROVE_PLAN_SHA256)" \
+  "$(sha256sum "$contract_16_plan" | sed 's/[[:space:]].*$//')" \
+  ".16 metadata plan SHA-256"
+assert_eq "$(field "$output" IMPROVE_EXEC_METRICS)" "$metric" \
+  ".16 metadata metrics handoff"
+assert_eq "$(field "$output" IMPROVE_EXEC_RESUME_MANIFEST)" "" \
+  ".16 metadata resume handoff"
+assert_eq "$(field "$output" IMPROVE_CANDIDATE_AVAILABLE)" 1 ".16 metadata candidate handoff"
+assert_eq "$(field "$output" IMPROVE_WORKTREE)" \
+  "$(jq -r .worktree "$metadata_artifact/execution.json")" ".16 metadata worktree handoff"
+jq -e '.cache.enabled == true and .cache.root != null
+  and .cache.cargoHome != null and .cache.npmCache != null
+  and .cache.xdgCacheHome != null' "$metadata_artifact/execution.json" >/dev/null ||
+  fail ".16 metadata failure cache identity"
+grep -F 'native metadata failure' "$metadata_artifact/stderr.log" >/dev/null ||
+  fail ".16 metadata native diagnostics"
+jq -e '
+  .result == "STOPPED" and .exit_reason == "metadata_query_failed"
+    and .executor_invoked == false and .usage_observed == false
+    and .event_bytes == 0 and .tool_event_count == 0
+    and .command_execution_count == 0 and .file_change_count == 0
+    and .mcp_tool_call_count == 0 and .web_search_count == 0
+    and .fuse_flags == {
+      absolute_timeout: false, event_log_limit: false,
+      wrapper_signal: false, rollout_budget_exhausted: false
+    }
+' "$metric" >/dev/null || fail ".16 metadata zero-observation metric"
+[ ! -e "$metadata_artifact/resume-manifest.json" ] ||
+  fail ".16 metadata error created probe resume authority"
+
+start_case contract_16_standard_no_query complete
+run_runner --environment-json "$valid_environment_json" "$contract_16_plan"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 0 ".16 standard metadata query count"
+
+start_case contract_16_deep_no_query complete
+run_runner --environment-json "$valid_environment_json" --deep "$contract_16_plan"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 0 ".16 deep metadata query count"
+
+start_case contract_16_metadata_fuse complete
+fuse_bin="$case_dir/fuse-bin"
+mkdir -p "$fuse_bin"
+printf '#!%s\n' "$(command -v bash)" >"$fuse_bin/timeout"
+cat >>"$fuse_bin/timeout" <<'FAKE_TIMEOUT'
+set -euo pipefail
+if [ "${3:-}" = 30s ] && [[ "${4:-}" == */codex-improve-spark-availability ]]; then
+  printf '%s\n' "$*" >"$FAKE_METADATA_TIMEOUT_LOG"
+fi
+exec "$REAL_TIMEOUT" "$@"
+FAKE_TIMEOUT
+chmod +x "$fuse_bin/timeout"
+export FAKE_METADATA_TIMEOUT_LOG="$case_dir/metadata-timeout"
+REAL_TIMEOUT="$real_timeout" PATH="$fuse_bin:$PATH" \
+  run_runner --environment-json "$valid_environment_json" --spark "$contract_16_plan"
+assert_transport_case 0 COMPLETE completed
+grep -F -- '--signal=TERM --kill-after=5s 30s' "$FAKE_METADATA_TIMEOUT_LOG" >/dev/null ||
+  fail ".16 metadata query is not bounded by one 30s runner fuse"
+
+start_case contract_16_luna_preflight_failure complete
+export FAKE_METADATA_MODE=luna
+export FAKE_PROBE_MODE=fail
+run_runner --environment-json "$valid_environment_json" \
+  --allow-protected-path .agents --spark "$contract_16_plan"
+assert_transport_case 0 STOPPED environment_preflight_failed
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-luna-low \
+  ".16 failed preflight Luna profile"
+assert_eq "$(field "$output" IMPROVE_PROTECTED_PATHS)" '[".agents"]' \
+  ".16 failed preflight granted roots"
+assert_contract_15_cache '[".agents"]' execution 0
+luna_resume_worktree="$(field "$output" IMPROVE_WORKTREE)"
+luna_resume_tree="$(field "$output" IMPROVE_CANDIDATE_TREE)"
+luna_resume_artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+luna_resume_state_home="$XDG_STATE_HOME"
+luna_resume_home="$HOME"
+luna_resume_manifest="$luna_resume_artifact/resume-manifest.json"
+jq -e '.protectedPaths == [".agents"]' "$luna_resume_manifest" >/dev/null ||
+  fail ".16 failed preflight manifest granted roots"
+cp "$luna_resume_manifest" "$case_dir/resume-manifest.backup"
+cp "$luna_resume_artifact/resume-manifest.sha256" "$case_dir/resume-manifest.sha256.backup"
+jq '.role.model = "tampered-model"' "$case_dir/resume-manifest.backup" >"$luna_resume_manifest"
+sha256sum "$luna_resume_manifest" | sed 's/[[:space:]].*$//' \
+  >"$luna_resume_artifact/resume-manifest.sha256"
+start_resume_case contract_16_tampered_provenance \
+  "$luna_resume_state_home" "$luna_resume_home"
+run_runner --resume "$luna_resume_worktree" "$luna_resume_tree" "$luna_resume_artifact"
+assert_eq "$status" 2 ".16 tampered provenance status"
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 0 \
+  ".16 tampered provenance queried metadata"
+cp "$case_root/contract_16_luna_preflight_failure/resume-manifest.backup" \
+  "$luna_resume_manifest"
+cp "$case_root/contract_16_luna_preflight_failure/resume-manifest.sha256.backup" \
+  "$luna_resume_artifact/resume-manifest.sha256"
+
+start_resume_case contract_16_luna_to_spark_resume \
+  "$luna_resume_state_home" "$luna_resume_home" complete
+export FAKE_PROBE_MODE=pass
+export FAKE_METADATA_MODE=spark
+run_runner --resume "$luna_resume_worktree" "$luna_resume_tree" "$luna_resume_artifact"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 resume fresh metadata count"
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 resume executor count"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-spark \
+  ".16 previous Luna resume became Spark"
+assert_eq "$(field "$output" IMPROVE_CANDIDATE_TREE)" "$luna_resume_tree" \
+  ".16 resume preserved candidate identity"
+assert_eq "$(field "$output" IMPROVE_PROTECTED_PATHS)" '[".agents"]' \
+  ".16 resume preserved granted roots"
+assert_contract_15_cache '[".agents"]'
 
 legacy_environment_plan="$repo/plans/011-environment.md"
 write_environment_artifact "$legacy_environment_plan" "$valid_environment_json"
@@ -2851,6 +3061,9 @@ dossier="$test_root/revision dossier.md"
 checkpoint_dossier="$test_root/checkpoint dossier.md"
 write_environment_artifact "$checkpoint_dossier" "$valid_environment_json"
 sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' "$checkpoint_dossier"
+contract_16_dossier="$test_root/contract 16 dossier.md"
+write_environment_artifact "$contract_16_dossier" "$valid_environment_json"
+sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.16/' "$contract_16_dossier"
 revision_status_before="$(git -C "$revision_worktree" status --short)"
 revision_tree="$(candidate_tree "$revision_worktree")"
 worktrees_before="$(git -C "$repo" worktree list --porcelain)"
@@ -3047,6 +3260,18 @@ assert_eq "$(field "$output" IMPROVE_BRANCH)" codex/improve-contract-revision-te
 assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor "revision profile"
 assert_stepwise_checkpoint_prompt revision
 
+start_contract_case contract_16_luna_revision complete
+export FAKE_METADATA_MODE=luna
+run_runner --environment-json "$valid_environment_json" --spark --revise \
+  "$contract_worktree" "$contract_tree" "$contract_16_dossier"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 revision metadata count"
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 revision executor count"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-luna-low \
+  ".16 revision Luna profile"
+assert_eq "$(field "$output" IMPROVE_CANDIDATE_TREE)" "$contract_tree" \
+  ".16 revision preserved candidate identity"
+
 start_case environment_revision_outside_xdg complete
 run_runner --environment-json "$valid_environment_json" --revise \
   "$revision_worktree" "$revision_tree" "$environment_dossier"
@@ -3185,6 +3410,15 @@ assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor "recovery profil
 assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TIMEOUT_SECONDS)" 4 "normal recovery timeout"
 assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TOKEN_LIMIT)" 120000 "Standard recovery token limit"
 assert_stepwise_checkpoint_prompt recovery
+
+start_contract_case contract_16_spark_recovery complete
+run_runner --environment-json "$valid_environment_json" --spark --recover \
+  "$contract_worktree" "$contract_tree" "$contract_16_dossier"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 recovery metadata count"
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 recovery executor count"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-spark \
+  ".16 recovery Spark profile"
 
 chmod 755 "$contract_worktree_root" "$contract_worktree"
 start_contract_case environment_recovery_upgrade_failure complete
@@ -3449,6 +3683,32 @@ assert_private "$contract_15_next_artifact/plan.md"
 assert_eq "$(field "$output" IMPROVE_PLAN_SHA256)" \
   "$(sha256sum "$contract_15_plan" | sed 's/[[:space:]].*$//')" \
   ".15 next plan SHA-256"
+
+start_case contract_16_luna_next complete
+export FAKE_METADATA_MODE=luna
+run_runner --environment-json "$valid_environment_json" --spark --next \
+  "$checkpoint" "$contract_16_plan"
+assert_transport_case 0 COMPLETE completed
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 next metadata count"
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 next executor count"
+assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-luna-low \
+  ".16 next Luna profile"
+assert_eq "$(field "$output" IMPROVE_BASE)" "$checkpoint" ".16 next base"
+
+start_case contract_16_metadata_error_next complete
+export FAKE_METADATA_MODE=error
+run_runner --environment-json "$valid_environment_json" --spark --next \
+  "$checkpoint" "$contract_16_plan"
+assert_transport_case 1 STOPPED metadata_query_failed
+assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 0 ".16 next metadata error executor count"
+assert_eq "$(field "$output" IMPROVE_PREDECESSOR_CHECKPOINT)" "$checkpoint" \
+  ".16 metadata error next predecessor"
+assert_eq "$(field "$output" IMPROVE_PLAN_SHA256)" \
+  "$(sha256sum "$contract_16_plan" | sed 's/[[:space:]].*$//')" \
+  ".16 metadata error next plan SHA-256"
+assert_eq "$(field "$output" IMPROVE_CANDIDATE_TREE)" \
+  "$(jq -r .inputCandidate.tree "$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)/execution.json")" \
+  ".16 metadata error next candidate preservation"
 
 start_case contract_15_worktree_cache_next complete
 export XDG_CACHE_HOME="$worktree_scope_cache_parent"

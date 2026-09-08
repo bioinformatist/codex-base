@@ -15,10 +15,15 @@ Long coding tasks waste model usage when they repeatedly rebuild context, drift 
 
 | Usage concern | Mechanism |
 |---|---|
-| Main-model capacity | Qualifying, tightly bounded implementation can use the predefined Spark executor. [Codex-Spark is a separate model with its own usage limits](https://learn.chatgpt.com/docs/agent-configuration/speed); access and the plan's routing criteria still apply. |
+| Main-model capacity | Qualifying, tightly bounded implementation uses Spark-priority under Improve `.16`: Spark when available with quota, otherwise Luna with low reasoning. Each new call checks again; a started model is never replayed on another model. [Codex-Spark has its own usage limits](https://learn.chatgpt.com/docs/agent-configuration/speed). |
 | Avoidable work across the task | Formal planning captures settled decisions in one complete Plan Mode response; a later authorized writable phase can persist them. Documentation is checked before implementation, and every code-changing step is verified and simplified. This reduces repeated long-context reads, drift, over-engineering, and rework. |
 
 Planning and review also use capacity. A small, clear edit is usually better handled directly, and Codex Base does not promise fewer tokens, lower cost, or less usage for every task.
+
+Existing `.15` and older supported plans keep fixed Spark. Metadata query
+errors stop before execution rather than selecting Luna. Luna usage is not
+guaranteed or unlimited; the runner does not precheck its quota or switch
+accounts or providers. Standard, deep, scout and review roles are unchanged.
 
 ## What Codex Base adds
 

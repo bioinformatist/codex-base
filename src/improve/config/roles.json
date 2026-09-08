@@ -41,6 +41,20 @@
     "initialTimeout": 1200,
     "followupTimeout": 720
   },
+  "lunaLow": {
+    "profile": "improve-executor-luna-low",
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "low",
+    "verbosity": "medium",
+    "sandbox": "workspace-write",
+    "approval": "never",
+    "networkAccess": true,
+    "writableRoots": [],
+    "tokenLimit": 100000,
+    "reminders": [50000, 25000, 10000],
+    "initialTimeout": 1200,
+    "followupTimeout": 720
+  },
   "deep": {
     "profile": "improve-executor-deep",
     "model": "gpt-5.6-sol",

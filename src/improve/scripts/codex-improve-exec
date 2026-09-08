@@ -204,11 +204,12 @@ validate_artifact_environment() {
   improve_contract="${declared_contract:-undeclared}"
   if [ "$protected_paths_json" != '[]' ] &&
     [ "$declared_contract" != "1.0.0-codex.14" ] &&
-    [ "$declared_contract" != "1.0.0-codex.15" ]; then
-    fail_input "--allow-protected-path requires Improve contract 1.0.0-codex.14 or 1.0.0-codex.15"
+    [ "$declared_contract" != "1.0.0-codex.15" ] &&
+    [ "$declared_contract" != "1.0.0-codex.16" ]; then
+    fail_input "--allow-protected-path requires Improve contract 1.0.0-codex.14, 1.0.0-codex.15, or 1.0.0-codex.16"
   fi
   case "$declared_contract" in
-    1.0.0-codex.13|1.0.0-codex.14|1.0.0-codex.15)
+    1.0.0-codex.13|1.0.0-codex.14|1.0.0-codex.15|1.0.0-codex.16)
       if [ "$environment_json_supplied" -ne 1 ]; then
         fail_input "Improve contract $declared_contract requires --environment-json"
       fi
@@ -454,7 +455,7 @@ validate_granted_protected_roots() {
   local protected_root
 
   case "$validation_contract" in
-    1.0.0-codex.14|1.0.0-codex.15) ;;
+    1.0.0-codex.14|1.0.0-codex.15|1.0.0-codex.16) ;;
     *) return 0 ;;
   esac
   case "$validation_paths" in
@@ -514,7 +515,7 @@ capture_plan_input() {
     fail_input "cannot protect temporary plan snapshot"
 
   artifact_contract "$plan_input_snapshot"
-  if [ "$declared_contract" = "1.0.0-codex.15" ]; then
+  if [ "$declared_contract" = "1.0.0-codex.15" ] || [ "$declared_contract" = "1.0.0-codex.16" ]; then
     validate_artifact_environment "$plan_input_snapshot"
   else
     cleanup_plan_input_snapshot
@@ -566,7 +567,7 @@ prepare_execution_cache() {
   npm_cache=""
   execution_xdg_cache=""
   xdg_scope="execution"
-  [ "$improve_contract" = "1.0.0-codex.15" ] || return 0
+  { [ "$improve_contract" = "1.0.0-codex.15" ] || [ "$improve_contract" = "1.0.0-codex.16" ]; } || return 0
 
   requested_root="$caller_cache_parent/codex-improve"
   prepare_private_directory "$requested_root"
@@ -789,7 +790,7 @@ validate_execution_record() {
       type == "string"
         and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
     def exit_reason:
-      type == "string" and test("^(completed|environment_preflight_failed|environment_preflight_mutated_candidate|event_log_limit|absolute_timeout|rollout_budget_exhausted|invalid_event_log|empty_final_output|invalid_final_output|final_output_limit|wrapper_signal_(INT|TERM)|codex_exit_[0-9]+)$");
+      type == "string" and test("^(completed|metadata_query_failed|environment_preflight_failed|environment_preflight_mutated_candidate|event_log_limit|absolute_timeout|rollout_budget_exhausted|invalid_event_log|empty_final_output|invalid_final_output|final_output_limit|wrapper_signal_(INT|TERM)|codex_exit_[0-9]+)$");
     type == "object"
       and exact(["artifactDirectory", "base", "branch", "cache",
       "closeoutEligible", "currentCandidate", "environment", "events",
@@ -811,12 +812,16 @@ validate_execution_record() {
       and (.mode == "initial" or .mode == "revision" or .mode == "recovery")
       and (.profile == "improve-executor"
         or .profile == "improve-executor-spark"
+        or .profile == "improve-executor-luna-low"
         or .profile == "improve-executor-deep")
       and (.improveContract == "undeclared"
         or .improveContract == "1.0.0-codex.11"
         or .improveContract == "1.0.0-codex.13"
         or .improveContract == "1.0.0-codex.14"
-        or .improveContract == "1.0.0-codex.15")
+        or .improveContract == "1.0.0-codex.15"
+        or .improveContract == "1.0.0-codex.16")
+      and (.profile != "improve-executor-luna-low"
+        or .improveContract == "1.0.0-codex.16")
       and (.userId | integer and . >= 0)
       and (.planSha256 == null or (.planSha256 | sha))
       and (.resume
@@ -889,7 +894,7 @@ validate_execution_record() {
               and .xdgCacheHome == null and .cargoScope == null
               and .npmScope == null and .xdgScope == null
           end)
-      and (.cache.enabled == (.improveContract == "1.0.0-codex.15"))
+      and (.cache.enabled == (.improveContract == "1.0.0-codex.15" or .improveContract == "1.0.0-codex.16"))
       and (.events
         | type == "object" and exact(["bytes", "count", "latestType"])
           and (.count | integer and . >= 0)
@@ -922,6 +927,7 @@ validate_execution_record() {
                 .reason == "completed" and .nextAction == "review_candidate"
               elif .result == "STOPPED" then
                 (.reason == "completed"
+                  or .reason == "metadata_query_failed"
                   or .reason == "environment_preflight_failed"
                   or .reason == "environment_preflight_mutated_candidate")
                   and (if .reason == "environment_preflight_failed" then
@@ -1068,6 +1074,7 @@ final_output_limit_bytes=65536
 poll_seconds=1
 
 role_key="standard"
+spark_priority=0
 mode="initial"
 operation="execute"
 
@@ -1111,6 +1118,7 @@ case "${1:-}" in
     ;;
   --spark)
     role_key="spark"
+    spark_priority=1
     shift
     ;;
 esac
@@ -1281,7 +1289,7 @@ if [ -z "$roles_json" ]; then
   roles_json="$(<"$roles_file")"
 fi
 if ! jq -e '
-  [.standard, .spark, .deep]
+  [.standard, .spark, .lunaLow, .deep]
   | all(.[];
     (.profile | type == "string" and length > 0)
       and (.model | type == "string" and length > 0)
@@ -1299,23 +1307,27 @@ if ! jq -e '
   fail_input "generated executor role configuration is missing or invalid"
 fi
 
+load_role_settings() {
+  profile="$(jq -r '.profile' <<<"$role_json")"
+  model="$(jq -r '.model' <<<"$role_json")"
+  reasoning_effort="$(jq -r '.reasoningEffort' <<<"$role_json")"
+  verbosity="$(jq -r '.verbosity' <<<"$role_json")"
+  sandbox="$(jq -r '.sandbox' <<<"$role_json")"
+  approval="$(jq -r '.approval' <<<"$role_json")"
+  network_access="$(jq -r '.networkAccess' <<<"$role_json")"
+  writable_roots="$(jq -c '.writableRoots' <<<"$role_json")"
+  token_limit="$(jq -r '.tokenLimit' <<<"$role_json")"
+  reminders="$(jq -c '.reminders' <<<"$role_json")"
+  if [ "$mode" = "initial" ]; then
+    absolute_seconds="$(jq -r '.initialTimeout' <<<"$role_json")"
+  else
+    absolute_seconds="$(jq -r '.followupTimeout' <<<"$role_json")"
+  fi
+}
+
 role_json="$(jq -ce --arg role "$role_key" '.[$role]' <<<"$roles_json")" ||
   fail_input "cannot select generated executor role configuration"
-profile="$(jq -r '.profile' <<<"$role_json")"
-model="$(jq -r '.model' <<<"$role_json")"
-reasoning_effort="$(jq -r '.reasoningEffort' <<<"$role_json")"
-verbosity="$(jq -r '.verbosity' <<<"$role_json")"
-sandbox="$(jq -r '.sandbox' <<<"$role_json")"
-approval="$(jq -r '.approval' <<<"$role_json")"
-network_access="$(jq -r '.networkAccess' <<<"$role_json")"
-writable_roots="$(jq -c '.writableRoots' <<<"$role_json")"
-token_limit="$(jq -r '.tokenLimit' <<<"$role_json")"
-reminders="$(jq -c '.reminders' <<<"$role_json")"
-if [ "$mode" = "initial" ]; then
-  absolute_seconds="$(jq -r '.initialTimeout' <<<"$role_json")"
-else
-  absolute_seconds="$(jq -r '.followupTimeout' <<<"$role_json")"
-fi
+load_role_settings
 
 emit_report_contract() {
   cat <<'EOF'
@@ -1346,7 +1358,7 @@ or STOPPED. Report each step, changed file, and note as one array item.
 For COMPLETE, set stoppedBecause to null. For STOPPED, set stoppedBecause to
 one concrete nonempty reason other than `none` in any letter case.
 EOF
-  if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+  if [ "$improve_contract" = "1.0.0-codex.15" ] || [ "$improve_contract" = "1.0.0-codex.16" ]; then
     cat <<'EOF'
 This is a compact stepwise checkpoint contract that applies to initial, revision,
 and recovery:
@@ -1463,6 +1475,233 @@ resolve_command_path() {
   printf '%s\n' "$command_path"
 }
 
+select_spark_priority_role() {
+  [ "$improve_contract" = "1.0.0-codex.16" ] &&
+    [ "$spark_priority" -eq 1 ] || return 0
+  local selection
+  codex_path="$(resolve_command_path codex)"
+  selection="$(timeout --signal=TERM --kill-after=5s 30s \
+    "$script_dir/codex-improve-spark-availability" \
+    "$codex_path" "$diagnostic_log")"
+  metadata_query_status="$?"
+  if [ "$metadata_query_status" -ne 0 ]; then
+    printf '%s\n' 'codex-improve-exec: Spark availability query failed' >&2
+    return 1
+  fi
+  case "$selection" in
+    spark) role_key="spark" ;;
+    luna) role_key="lunaLow" ;;
+    *)
+      printf '%s\n' \
+        'codex-improve-exec: Spark availability query returned an invalid selection' >&2
+      return 1
+      ;;
+  esac
+  role_json="$(jq -ce --arg role "$role_key" '.[$role]' <<<"$roles_json")" ||
+    fail_input "cannot select generated executor role configuration"
+  load_role_settings
+}
+
+persist_execution_metrics() {
+  stats='{"token_usage":{"input_tokens":0,"cached_input_tokens":0,"output_tokens":0},"usage_observed":false,"tool_event_count":0,"command_execution_count":0,"file_change_count":0,"mcp_tool_call_count":0,"web_search_count":0}'
+  if [ "$event_log_valid" -eq 1 ]; then
+    stats="$(jq -c -s '
+      def n: if type == "number" then . else 0 end;
+      ([.[] | select(.type? == "turn.completed") | .usage? | select(type == "object")]) as $usages
+      | ($usages | last // {}) as $usage
+      | {
+          token_usage: {
+            input_tokens: (($usage.input_tokens // 0) | n),
+            cached_input_tokens: (($usage.cached_input_tokens // 0) | n),
+            output_tokens: (($usage.output_tokens // 0) | n)
+          },
+          usage_observed: (($usages | length) > 0),
+          tool_event_count: ([.[]
+            | select(.type? == "item.completed")
+            | .item.type?
+            | select(. != "reasoning" and . != "agent_message")] | length),
+          command_execution_count: ([.[] | select(.type? == "item.completed" and .item.type? == "command_execution")] | length),
+          file_change_count: ([.[] | select(.type? == "item.completed" and .item.type? == "file_change")] | length),
+          mcp_tool_call_count: ([.[] | select(.type? == "item.completed" and .item.type? == "mcp_tool_call")] | length),
+          web_search_count: ([.[] | select(.type? == "item.completed" and .item.type? == "web_search")] | length)
+        }
+    ' "$event_log")"
+  fi
+
+  metric="$(jq -nc \
+    --arg timestamp "$started_at" \
+    --arg execution_id "$execution_id" \
+    --arg improve_contract "$improve_contract" \
+    --argjson protected_paths "$protected_paths_json" \
+    --arg mode "$mode" \
+    --arg profile "$profile" \
+    --arg result "$result" \
+    --arg exit_reason "$exit_reason" \
+    --argjson elapsed_seconds "$elapsed_seconds" \
+    --argjson event_bytes "$event_bytes" \
+    --argjson prompt_bytes "$prompt_bytes" \
+    --argjson stats "$stats" \
+    --argjson max_event_gap_seconds "$max_event_gap_seconds" \
+    --argjson quiet_interval_observed "$quiet_interval_observed" \
+    --argjson active_timeout_seconds "$absolute_seconds" \
+    --argjson active_token_limit "$token_limit" \
+    --argjson timeout_fuse "$([ "$exit_reason" = "absolute_timeout" ] && echo 1 || echo 0)" \
+    --argjson event_log_fuse "$event_log_limit_hit" \
+    --argjson signal_fuse "$([ -n "$cancelled" ] && echo 1 || echo 0)" \
+    --argjson rollout_budget_exhausted "$rollout_budget_exhausted" \
+    --argjson executor_invoked "$executor_invoked" \
+    --arg environment_hash "$environment_hash" \
+    --argjson preflight_count "$preflight_count" \
+    --arg preflight_status "$preflight_status" \
+    '{
+      timestamp: $timestamp,
+      execution_id: $execution_id,
+      improve_contract: $improve_contract,
+      protected_paths: $protected_paths,
+      mode: $mode,
+      profile: $profile,
+      result: $result,
+      exit_reason: $exit_reason,
+      elapsed_seconds: $elapsed_seconds,
+      event_bytes: $event_bytes,
+      prompt_bytes: $prompt_bytes,
+      token_usage: $stats.token_usage,
+      usage_observed: $stats.usage_observed,
+      tool_event_count: $stats.tool_event_count,
+      command_execution_count: $stats.command_execution_count,
+      file_change_count: $stats.file_change_count,
+      mcp_tool_call_count: $stats.mcp_tool_call_count,
+      web_search_count: $stats.web_search_count,
+      max_event_gap_seconds: $max_event_gap_seconds,
+      quiet_interval_observed: ($quiet_interval_observed == 1),
+      active_timeout_seconds: $active_timeout_seconds,
+      active_token_limit: $active_token_limit,
+      executor_invoked: ($executor_invoked == 1),
+      environment_hash: $environment_hash,
+      preflight_count: $preflight_count,
+      preflight_status: $preflight_status,
+      fuse_flags: {
+        absolute_timeout: ($timeout_fuse == 1),
+        event_log_limit: ($event_log_fuse == 1),
+        wrapper_signal: ($signal_fuse == 1),
+        rollout_budget_exhausted: ($rollout_budget_exhausted == 1)
+      }
+    }')"
+  state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/codex-improve"
+  if mkdir -p "$state_dir" 2>/dev/null; then
+    printf '%s\n' "$metric" >>"$metrics_file" 2>/dev/null ||
+      printf 'codex-improve-exec: metrics unavailable\n' >&2
+  else
+    printf 'codex-improve-exec: metrics unavailable\n' >&2
+  fi
+}
+
+emit_execution_handoff() {
+  if [ "$result" = "COMPLETE" ] || [ "$result" = "STOPPED" ]; then
+    cat "$final_output"
+    case "$(tail -c 1 "$final_output" 2>/dev/null)" in
+      '') ;;
+      *) printf '\n' ;;
+    esac
+  fi
+  printf 'IMPROVE_MODE=%s\n' "$mode"
+  printf 'IMPROVE_WORKTREE=%s\n' "$worktree"
+  printf 'IMPROVE_BRANCH=%s\n' "$branch"
+  if [ "$mode" = "initial" ]; then
+    printf 'IMPROVE_BASE=%s\n' "$base"
+  fi
+  printf 'IMPROVE_PROFILE=%s\n' "$profile"
+  printf 'IMPROVE_MODEL=%s\n' "$model"
+  printf 'IMPROVE_REASONING_EFFORT=%s\n' "$reasoning_effort"
+  printf 'IMPROVE_CONTRACT=%s\n' "$improve_contract"
+  printf 'IMPROVE_PROTECTED_PATHS=%s\n' "$protected_paths_json"
+  printf 'IMPROVE_EXECUTION_ID=%s\n' "$execution_id"
+  printf 'IMPROVE_EXEC_EXIT=%s\n' "$codex_status"
+  printf 'IMPROVE_EXEC_RESULT=%s\n' "$result"
+  printf 'IMPROVE_EXEC_EXIT_REASON=%s\n' "$exit_reason"
+  printf 'IMPROVE_EXEC_ELAPSED_SECONDS=%s\n' "$elapsed_seconds"
+  printf 'IMPROVE_EXEC_MAX_EVENT_GAP_SECONDS=%s\n' "$max_event_gap_seconds"
+  printf 'IMPROVE_EXEC_QUIET_INTERVAL_OBSERVED=%s\n' "$quiet_interval_observed"
+  printf 'IMPROVE_EXEC_ACTIVE_TIMEOUT_SECONDS=%s\n' "$absolute_seconds"
+  printf 'IMPROVE_EXEC_ACTIVE_TOKEN_LIMIT=%s\n' "$token_limit"
+  printf 'IMPROVE_EXEC_ROLLOUT_BUDGET_EXHAUSTED=%s\n' "$rollout_budget_exhausted"
+  printf 'IMPROVE_EXEC_EVENT_LOG_LIMIT_HIT=%s\n' "$event_log_limit_hit"
+  printf 'IMPROVE_EXEC_INVOKED=%s\n' "$executor_invoked"
+  printf 'IMPROVE_EXEC_ENVIRONMENT_HASH=%s\n' "$environment_hash"
+  printf 'IMPROVE_EXEC_PREFLIGHT_COUNT=%s\n' "$preflight_count"
+  printf 'IMPROVE_EXEC_PREFLIGHT_STATUS=%s\n' "$preflight_status"
+  if [ "$improve_contract" = "1.0.0-codex.15" ] || [ "$improve_contract" = "1.0.0-codex.16" ]; then
+    printf 'IMPROVE_EXEC_CLOSEOUT_ELIGIBLE=%s\n' "$closeout_eligible"
+  fi
+  printf 'IMPROVE_EXEC_PREFLIGHT_LOG=%s\n' "$preflight_log"
+  printf 'IMPROVE_EXEC_RESUME_MANIFEST=%s\n' "$resume_manifest"
+  printf 'IMPROVE_EXEC_ARTIFACT_DIR=%s\n' "$artifact_dir"
+  printf 'IMPROVE_EXEC_PROMPT=%s\n' "$prompt_file"
+  printf 'IMPROVE_EXEC_EVENT_LOG=%s\n' "$event_log"
+  printf 'IMPROVE_EXEC_FINAL_OUTPUT=%s\n' "$final_output"
+  printf 'IMPROVE_EXEC_DIAGNOSTIC_LOG=%s\n' "$diagnostic_log"
+  printf 'IMPROVE_EXEC_METRICS=%s\n' "$metrics_file"
+  printf 'IMPROVE_CANDIDATE_AVAILABLE=%s\n' "$candidate_available"
+  if [ "$candidate_available" -eq 1 ]; then
+    printf 'IMPROVE_CANDIDATE_HEAD=%s\n' "$candidate_head"
+    printf 'IMPROVE_CANDIDATE_TREE=%s\n' "$candidate_tree"
+  else
+    printf 'IMPROVE_CANDIDATE_ERROR=%s\n' "$candidate_error"
+  fi
+  if [ -n "${predecessor_checkpoint:-}" ]; then
+    printf 'IMPROVE_PREDECESSOR_CHECKPOINT=%s\n' "$predecessor_checkpoint"
+  fi
+  if [ -n "$plan_hash" ]; then
+    printf 'IMPROVE_PLAN_SHA256=%s\n' "$plan_hash"
+  fi
+}
+
+finish_execution() {
+  persist_execution_metrics
+
+  if [ "$executor_invoked" -eq 0 ] &&
+    [ "$exit_reason" = "environment_preflight_failed" ]; then
+    write_resume_manifest
+  fi
+
+  candidate_available=0
+  if compute_candidate; then
+    candidate_available=1
+  fi
+  record_candidate_available="$candidate_available"
+  if [ "$candidate_available" -eq 1 ]; then
+    record_candidate_head="$candidate_head"
+    record_candidate_tree="$candidate_tree"
+    record_candidate_error=""
+  else
+    record_candidate_head=""
+    record_candidate_tree=""
+    record_candidate_error="$candidate_error"
+  fi
+  closeout_eligible=0
+  if { [ "$improve_contract" = "1.0.0-codex.15" ] || [ "$improve_contract" = "1.0.0-codex.16" ]; } &&
+    [ "$result" = "INCONCLUSIVE" ] &&
+    [ "$event_log_valid" -eq 1 ] &&
+    [ "$candidate_available" -eq 1 ]; then
+    case "$exit_reason" in
+      rollout_budget_exhausted|absolute_timeout|empty_final_output|invalid_final_output|final_output_limit)
+        closeout_eligible=1
+        ;;
+      esac
+  fi
+  record_executor_invoked="$executor_invoked"
+  record_closeout_eligible="$closeout_eligible"
+  execution_phase="finished"
+  record_finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if ! write_execution_record; then
+    printf 'codex-improve-exec: cannot finalize execution record\n' >&2
+    return 1
+  fi
+  emit_execution_handoff
+
+  [ "$result" != "INCONCLUSIVE" ] && [ "$candidate_available" -eq 1 ]
+}
+
 prepare_preflight_wrapper() {
   runner_path="$(realpath -- "$0" 2>/dev/null)" ||
     fail_input "cannot resolve runner executable"
@@ -1506,7 +1745,7 @@ npm_cache="${23}"
 xdg_cache_home="${24}"
 shift 24
 
-if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+if [ "$improve_contract" = "1.0.0-codex.15" ] || [ "$improve_contract" = "1.0.0-codex.16" ]; then
   export CARGO_HOME="$cargo_home"
   export npm_config_cache="$npm_cache"
   export XDG_CACHE_HOME="$xdg_cache_home"
@@ -1691,7 +1930,7 @@ write_resume_manifest() {
   manifest_hash_file="$artifact_dir/resume-manifest.sha256"
   local manifest_contract="$improve_contract"
   case "$manifest_contract" in
-    1.0.0-codex.14|1.0.0-codex.15) ;;
+    1.0.0-codex.14|1.0.0-codex.15|1.0.0-codex.16) ;;
     *) manifest_contract="1.0.0-codex.13" ;;
   esac
   prompt_body_hash="$(sha256sum "$prompt_body_file" | sed 's/[[:space:]].*$//')" ||
@@ -1771,7 +2010,7 @@ write_resume_manifest() {
       parentManifestSha256:
         (if $parentManifestSha256 == "" then null else $parentManifestSha256 end)
     } + (if $improveContract == "1.0.0-codex.14"
-      or $improveContract == "1.0.0-codex.15" then
+      or $improveContract == "1.0.0-codex.15" or $improveContract == "1.0.0-codex.16" then
       {protectedPaths: $protectedPaths}
     else {} end)' >"$resume_manifest" || fail_input "cannot write resume manifest"
   sha256sum "$resume_manifest" | sed 's/[[:space:]].*$//' >"$manifest_hash_file" ||
@@ -1786,9 +2025,32 @@ run_execution() {
   prompt_bytes="$(wc -c <"$prompt_file")"
   cancelled=""
   event_log_limit_hit=0
+  executor_invoked=0
+  event_log_valid=0
+  rollout_budget_exhausted=0
+  max_event_gap_seconds=0
+  quiet_interval_observed=0
+  metadata_query_status=0
+  resume_manifest=""
+  if ! select_spark_priority_role; then
+    result="STOPPED"
+    exit_reason="metadata_query_failed"
+    codex_status="$metadata_query_status"
+    finished_epoch="$(date +%s)"
+    elapsed_seconds="$((finished_epoch - started_epoch))"
+    event_bytes="$(wc -c <"$event_log")"
+    {
+      printf '%s\n' 'STATUS: STOPPED'
+      printf '%s\n' 'STEPS: Spark availability metadata query stopped before executor invocation'
+      printf '%s\n' 'STOPPED BECAUSE: metadata_query_failed'
+      printf '%s\n' 'FILES CHANGED: none by the executor model'
+      printf '%s\n' 'NOTES: candidate and private metadata diagnostics were preserved'
+    } >"$final_output"
+    finish_execution
+    return 1
+  fi
   supervisor_pid=""
   executor_invoked=1
-  resume_manifest=""
 
   # shellcheck disable=SC2329 # Invoked by INT and TERM traps.
   cancel_execution() {
@@ -1825,7 +2087,7 @@ run_execution() {
     --output-last-message "$structured_output" -C "$worktree" -
   )
   if [ "$improve_contract" = "1.0.0-codex.14" ] ||
-    [ "$improve_contract" = "1.0.0-codex.15" ]; then
+    { [ "$improve_contract" = "1.0.0-codex.15" ] || [ "$improve_contract" = "1.0.0-codex.16" ]; }; then
     case "$protected_paths_json" in
       '[]') workspace_permissions='{ "." = "write", ".agents" = "read", ".codex" = "read", ".git" = "read" }' ;;
       '[".agents"]') workspace_permissions='{ "." = "write", ".agents" = "write", ".codex" = "read", ".git" = "read" }' ;;
@@ -1836,7 +2098,7 @@ run_execution() {
     codex_command+=(
       -c 'default_permissions="improve-executor-runtime"'
     )
-    if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+    if [ "$improve_contract" = "1.0.0-codex.15" ] || [ "$improve_contract" = "1.0.0-codex.16" ]; then
       filesystem_permissions="{ \":root\" = \"read\", \":workspace_roots\" = $workspace_permissions, \":tmpdir\" = \"write\", \":slash_tmp\" = \"write\", $cache_config_key = \"write\" }"
       cargo_home_config="$(jq -nr --arg value "$cargo_home" '$value | @json')" ||
         fail_input "cannot encode Cargo cache path"
@@ -2083,194 +2345,7 @@ run_execution() {
   if [ "$event_log_valid" -eq 0 ] && validate_event_log; then
     event_log_valid=1
   fi
-  stats='{"token_usage":{"input_tokens":0,"cached_input_tokens":0,"output_tokens":0},"usage_observed":false,"tool_event_count":0,"command_execution_count":0,"file_change_count":0,"mcp_tool_call_count":0,"web_search_count":0}'
-  if [ "$event_log_valid" -eq 1 ]; then
-    stats="$(jq -c -s '
-      def n: if type == "number" then . else 0 end;
-      ([.[] | select(.type? == "turn.completed") | .usage? | select(type == "object")]) as $usages
-      | ($usages | last // {}) as $usage
-      | {
-          token_usage: {
-            input_tokens: (($usage.input_tokens // 0) | n),
-            cached_input_tokens: (($usage.cached_input_tokens // 0) | n),
-            output_tokens: (($usage.output_tokens // 0) | n)
-          },
-          usage_observed: (($usages | length) > 0),
-          tool_event_count: ([.[]
-            | select(.type? == "item.completed")
-            | .item.type?
-            | select(. != "reasoning" and . != "agent_message")] | length),
-          command_execution_count: ([.[] | select(.type? == "item.completed" and .item.type? == "command_execution")] | length),
-          file_change_count: ([.[] | select(.type? == "item.completed" and .item.type? == "file_change")] | length),
-          mcp_tool_call_count: ([.[] | select(.type? == "item.completed" and .item.type? == "mcp_tool_call")] | length),
-          web_search_count: ([.[] | select(.type? == "item.completed" and .item.type? == "web_search")] | length)
-        }
-    ' "$event_log")"
-  fi
-
-  metric="$(jq -nc \
-    --arg timestamp "$started_at" \
-    --arg execution_id "$execution_id" \
-    --arg improve_contract "$improve_contract" \
-    --argjson protected_paths "$protected_paths_json" \
-    --arg mode "$mode" \
-    --arg profile "$profile" \
-    --arg result "$result" \
-    --arg exit_reason "$exit_reason" \
-    --argjson elapsed_seconds "$elapsed_seconds" \
-    --argjson event_bytes "$event_bytes" \
-    --argjson prompt_bytes "$prompt_bytes" \
-    --argjson stats "$stats" \
-    --argjson max_event_gap_seconds "$max_event_gap_seconds" \
-    --argjson quiet_interval_observed "$quiet_interval_observed" \
-    --argjson active_timeout_seconds "$absolute_seconds" \
-    --argjson active_token_limit "$token_limit" \
-    --argjson timeout_fuse "$([ "$exit_reason" = "absolute_timeout" ] && echo 1 || echo 0)" \
-    --argjson event_log_fuse "$event_log_limit_hit" \
-    --argjson signal_fuse "$([ -n "$cancelled" ] && echo 1 || echo 0)" \
-    --argjson rollout_budget_exhausted "$rollout_budget_exhausted" \
-    --argjson executor_invoked "$executor_invoked" \
-    --arg environment_hash "$environment_hash" \
-    --argjson preflight_count "$preflight_count" \
-    --arg preflight_status "$preflight_status" \
-    '{
-      timestamp: $timestamp,
-      execution_id: $execution_id,
-      improve_contract: $improve_contract,
-      protected_paths: $protected_paths,
-      mode: $mode,
-      profile: $profile,
-      result: $result,
-      exit_reason: $exit_reason,
-      elapsed_seconds: $elapsed_seconds,
-      event_bytes: $event_bytes,
-      prompt_bytes: $prompt_bytes,
-      token_usage: $stats.token_usage,
-      usage_observed: $stats.usage_observed,
-      tool_event_count: $stats.tool_event_count,
-      command_execution_count: $stats.command_execution_count,
-      file_change_count: $stats.file_change_count,
-      mcp_tool_call_count: $stats.mcp_tool_call_count,
-      web_search_count: $stats.web_search_count,
-      max_event_gap_seconds: $max_event_gap_seconds,
-      quiet_interval_observed: ($quiet_interval_observed == 1),
-      active_timeout_seconds: $active_timeout_seconds,
-      active_token_limit: $active_token_limit,
-      executor_invoked: ($executor_invoked == 1),
-      environment_hash: $environment_hash,
-      preflight_count: $preflight_count,
-      preflight_status: $preflight_status,
-      fuse_flags: {
-        absolute_timeout: ($timeout_fuse == 1),
-        event_log_limit: ($event_log_fuse == 1),
-        wrapper_signal: ($signal_fuse == 1),
-        rollout_budget_exhausted: ($rollout_budget_exhausted == 1)
-      }
-    }')"
-  state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/codex-improve"
-  if mkdir -p "$state_dir" 2>/dev/null; then
-    printf '%s\n' "$metric" >>"$metrics_file" 2>/dev/null ||
-      printf 'codex-improve-exec: metrics unavailable\n' >&2
-  else
-    printf 'codex-improve-exec: metrics unavailable\n' >&2
-  fi
-
-  if [ "$executor_invoked" -eq 0 ] &&
-    [ "$exit_reason" = "environment_preflight_failed" ]; then
-    write_resume_manifest
-  fi
-
-  if [ "$result" = "COMPLETE" ] || [ "$result" = "STOPPED" ]; then
-    cat "$final_output"
-    case "$(tail -c 1 "$final_output" 2>/dev/null)" in
-      '') ;;
-      *) printf '\n' ;;
-    esac
-  fi
-
-  candidate_available=0
-  if compute_candidate; then
-    candidate_available=1
-  fi
-  record_candidate_available="$candidate_available"
-  if [ "$candidate_available" -eq 1 ]; then
-    record_candidate_head="$candidate_head"
-    record_candidate_tree="$candidate_tree"
-    record_candidate_error=""
-  else
-    record_candidate_head=""
-    record_candidate_tree=""
-    record_candidate_error="$candidate_error"
-  fi
-  closeout_eligible=0
-  if [ "$improve_contract" = "1.0.0-codex.15" ] &&
-    [ "$result" = "INCONCLUSIVE" ] &&
-    [ "$event_log_valid" -eq 1 ] &&
-    [ "$candidate_available" -eq 1 ]; then
-    case "$exit_reason" in
-      rollout_budget_exhausted|absolute_timeout|empty_final_output|invalid_final_output|final_output_limit)
-        closeout_eligible=1
-        ;;
-      esac
-  fi
-  record_executor_invoked="$executor_invoked"
-  record_closeout_eligible="$closeout_eligible"
-  execution_phase="finished"
-  record_finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  if ! write_execution_record; then
-    printf 'codex-improve-exec: cannot finalize execution record\n' >&2
-    return 1
-  fi
-  printf 'IMPROVE_MODE=%s\n' "$mode"
-  printf 'IMPROVE_WORKTREE=%s\n' "$worktree"
-  printf 'IMPROVE_BRANCH=%s\n' "$branch"
-  if [ "$mode" = "initial" ]; then
-    printf 'IMPROVE_BASE=%s\n' "$base"
-  fi
-  printf 'IMPROVE_PROFILE=%s\n' "$profile"
-  printf 'IMPROVE_CONTRACT=%s\n' "$improve_contract"
-  printf 'IMPROVE_PROTECTED_PATHS=%s\n' "$protected_paths_json"
-  printf 'IMPROVE_EXECUTION_ID=%s\n' "$execution_id"
-  printf 'IMPROVE_EXEC_EXIT=%s\n' "$codex_status"
-  printf 'IMPROVE_EXEC_RESULT=%s\n' "$result"
-  printf 'IMPROVE_EXEC_EXIT_REASON=%s\n' "$exit_reason"
-  printf 'IMPROVE_EXEC_ELAPSED_SECONDS=%s\n' "$elapsed_seconds"
-  printf 'IMPROVE_EXEC_MAX_EVENT_GAP_SECONDS=%s\n' "$max_event_gap_seconds"
-  printf 'IMPROVE_EXEC_QUIET_INTERVAL_OBSERVED=%s\n' "$quiet_interval_observed"
-  printf 'IMPROVE_EXEC_ACTIVE_TIMEOUT_SECONDS=%s\n' "$absolute_seconds"
-  printf 'IMPROVE_EXEC_ACTIVE_TOKEN_LIMIT=%s\n' "$token_limit"
-  printf 'IMPROVE_EXEC_ROLLOUT_BUDGET_EXHAUSTED=%s\n' "$rollout_budget_exhausted"
-  printf 'IMPROVE_EXEC_EVENT_LOG_LIMIT_HIT=%s\n' "$event_log_limit_hit"
-  printf 'IMPROVE_EXEC_INVOKED=%s\n' "$executor_invoked"
-  printf 'IMPROVE_EXEC_ENVIRONMENT_HASH=%s\n' "$environment_hash"
-  printf 'IMPROVE_EXEC_PREFLIGHT_COUNT=%s\n' "$preflight_count"
-  printf 'IMPROVE_EXEC_PREFLIGHT_STATUS=%s\n' "$preflight_status"
-  if [ "$improve_contract" = "1.0.0-codex.15" ]; then
-    printf 'IMPROVE_EXEC_CLOSEOUT_ELIGIBLE=%s\n' "$closeout_eligible"
-  fi
-  printf 'IMPROVE_EXEC_PREFLIGHT_LOG=%s\n' "$preflight_log"
-  printf 'IMPROVE_EXEC_RESUME_MANIFEST=%s\n' "$resume_manifest"
-  printf 'IMPROVE_EXEC_ARTIFACT_DIR=%s\n' "$artifact_dir"
-  printf 'IMPROVE_EXEC_PROMPT=%s\n' "$prompt_file"
-  printf 'IMPROVE_EXEC_EVENT_LOG=%s\n' "$event_log"
-  printf 'IMPROVE_EXEC_FINAL_OUTPUT=%s\n' "$final_output"
-  printf 'IMPROVE_EXEC_DIAGNOSTIC_LOG=%s\n' "$diagnostic_log"
-  printf 'IMPROVE_EXEC_METRICS=%s\n' "$metrics_file"
-  printf 'IMPROVE_CANDIDATE_AVAILABLE=%s\n' "$candidate_available"
-  if [ "$candidate_available" -eq 1 ]; then
-    printf 'IMPROVE_CANDIDATE_HEAD=%s\n' "$candidate_head"
-    printf 'IMPROVE_CANDIDATE_TREE=%s\n' "$candidate_tree"
-  else
-    printf 'IMPROVE_CANDIDATE_ERROR=%s\n' "$candidate_error"
-  fi
-  if [ -n "${predecessor_checkpoint:-}" ]; then
-    printf 'IMPROVE_PREDECESSOR_CHECKPOINT=%s\n' "$predecessor_checkpoint"
-  fi
-  if [ -n "$plan_hash" ]; then
-    printf 'IMPROVE_PLAN_SHA256=%s\n' "$plan_hash"
-  fi
-
-  [ "$result" != "INCONCLUSIVE" ] && [ "$candidate_available" -eq 1 ]
+  finish_execution
 }
 
 prepare_resumable_worktree_state() {
@@ -2354,15 +2429,18 @@ validate_resume_and_load() {
       .version == 1
       and (.improveContract == "1.0.0-codex.13"
         or .improveContract == "1.0.0-codex.14"
-        or .improveContract == "1.0.0-codex.15")
+        or .improveContract == "1.0.0-codex.15"
+        or .improveContract == "1.0.0-codex.16")
       and (if .improveContract == "1.0.0-codex.14"
-        or .improveContract == "1.0.0-codex.15" then
+        or .improveContract == "1.0.0-codex.15"
+        or .improveContract == "1.0.0-codex.16" then
         (.protectedPaths == [] or .protectedPaths == [".agents"]
           or .protectedPaths == [".codex"]
           or .protectedPaths == [".agents", ".codex"])
       else has("protectedPaths") | not end);
     common and keys == (if .improveContract == "1.0.0-codex.14"
-      or .improveContract == "1.0.0-codex.15" then [
+      or .improveContract == "1.0.0-codex.15"
+      or .improveContract == "1.0.0-codex.16" then [
       "absoluteSeconds", "artifactDirectory", "base", "branch",
       "candidateHead", "candidateTree", "environmentFile",
       "environmentSha256", "executionId", "executorInvoked",
@@ -2396,6 +2474,9 @@ validate_resume_and_load() {
       and (.roleKey | type == "string" and length > 0)
       and (.profile | type == "string" and length > 0)
       and (.role | type == "object")
+      and (.improveContract == "1.0.0-codex.16"
+        or (.roleKey != "lunaLow"
+          and .profile != "improve-executor-luna-low"))
       and (.artifactDirectory | type == "string" and length > 0)
       and (.repositoryCommonDirectory | type == "string" and length > 0)
       and (.worktree | type == "string" and length > 0)
@@ -2499,25 +2580,16 @@ validate_resume_and_load() {
   profile="$(jq -r '.profile' <<<"$role_json")"
   [ "$profile" = "$(jq -r '.profile' <<<"$manifest_snapshot")" ] ||
     fail_input "resume profile does not match generated configuration"
-  model="$(jq -r '.model' <<<"$role_json")"
-  reasoning_effort="$(jq -r '.reasoningEffort' <<<"$role_json")"
-  verbosity="$(jq -r '.verbosity' <<<"$role_json")"
-  sandbox="$(jq -r '.sandbox' <<<"$role_json")"
-  approval="$(jq -r '.approval' <<<"$role_json")"
-  network_access="$(jq -r '.networkAccess' <<<"$role_json")"
-  writable_roots="$(jq -c '.writableRoots' <<<"$role_json")"
-  token_limit="$(jq -r '.tokenLimit' <<<"$role_json")"
-  reminders="$(jq -c '.reminders' <<<"$role_json")"
   mode="$(jq -r '.mode' <<<"$manifest_snapshot")"
   operation="$(jq -r '.operation' <<<"$manifest_snapshot")"
-  if [ "$mode" = "initial" ]; then
-    absolute_seconds="$(jq -r '.initialTimeout' <<<"$role_json")"
-  else
-    absolute_seconds="$(jq -r '.followupTimeout' <<<"$role_json")"
-  fi
+  load_role_settings
   [ "$absolute_seconds" = "$(jq -r '.absoluteSeconds' <<<"$manifest_snapshot")" ] &&
     [ "$token_limit" = "$(jq -r '.tokenLimit' <<<"$manifest_snapshot")" ] ||
     fail_input "resume timeout or token configuration has changed"
+  if [ "$improve_contract" = "1.0.0-codex.16" ] &&
+    { [ "$role_key" = "spark" ] || [ "$role_key" = "lunaLow" ]; }; then
+    spark_priority=1
+  fi
   base="$(jq -r '.base // empty' <<<"$manifest_snapshot")"
   predecessor_checkpoint="$(jq -r '.predecessorCheckpoint // empty' <<<"$manifest_snapshot")"
   original_execution_id="$(jq -r '.originalExecutionId' <<<"$manifest_snapshot")"
@@ -2714,7 +2786,7 @@ input_candidate_tree="$candidate_tree"
 validate_granted_protected_roots \
   "$improve_contract" "$protected_paths_json" "$worktree" || exit 2
 prepare_artifacts
-if [ "$improve_contract" = "1.0.0-codex.15" ]; then
+if [ "$improve_contract" = "1.0.0-codex.15" ] || [ "$improve_contract" = "1.0.0-codex.16" ]; then
   snapshot_plan
 fi
 {

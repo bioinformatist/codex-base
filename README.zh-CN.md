@@ -15,10 +15,14 @@
 
 | 用量问题 | Codex Base 的做法 |
 |---|---|
-| 主模型额度 | 边界和检查都已明确的实现任务，可以按计划交给预先指定的 Spark 执行器。[Codex-Spark 是独立模型，有自己的用量限制](https://learn.chatgpt.com/docs/agent-configuration/speed)；能否使用仍取决于访问权限和计划中的通道条件。 |
+| 主模型额度 | 符合通道条件、边界明确的实现任务，在 Improve `.16` 下使用 Spark 优先策略：Spark 可用且有额度时选 Spark，否则选低推理强度的 Luna。每次新调用重新检查；模型启动后不会换模重放。[Codex-Spark 有独立的用量限制](https://learn.chatgpt.com/docs/agent-configuration/speed)。 |
 | 长任务中的重复消耗 | 正式规划先在 Plan Mode 的一份完整回复中记录已经定下的决定，之后获准进入可写阶段时再持久化。实现前查证文档，每个改动步骤都先验证、再删繁就简，从而减少反复读取长上下文、做偏、过度设计和返工。 |
 
 规划和审查也会消耗用量。小而明确的改动通常直接做更合适；Codex Base 不承诺每项任务都会减少 token、降低费用或减少总用量。
+
+已有的 `.15` 及更早受支持计划仍使用固定 Spark。元数据查询出错会在执行前停止，
+不会因此改选 Luna。Luna 并非保证可用或不限量；执行器不预查它的额度，也不切换
+账号或提供商。standard、deep、scout 和审查角色保持不变。
 
 ## Codex Base 增加了什么
 

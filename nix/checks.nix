@@ -31,7 +31,7 @@ let
   filesOff = hmOff.config.home.file;
   activation = hm.config.home.activation.codex-base-config.data;
   hmClosure = pkgs.closureInfo { rootPaths = [ hm.activationPackage ]; };
-  legacy = map (n: ".codex/${n}.config.toml") [ "improve-scout" "improve-executor" "improve-executor-spark" "improve-executor-deep" "improve-reviewer" "improve-elegance-reviewer" ];
+  legacy = map (n: ".codex/${n}.config.toml") [ "improve-scout" "improve-executor" "improve-executor-spark" "improve-executor-luna-low" "improve-executor-deep" "improve-reviewer" "improve-elegance-reviewer" ];
 in {
   generated-plugin-parity = mkTest "generated-plugin-parity" shellTools ''
     diff -ruN --no-dereference ${generatedSkills} ${srcRoot}/plugins/codex-base/skills
@@ -304,6 +304,7 @@ in {
     touch $out
   '';
   improve-exec = mkTest "improve-exec-tests" shellTools ''
+    bash ${srcRoot}/tests/improve/spark-availability.bash ${srcRoot}/src/improve/scripts/codex-improve-spark-availability
     CODEX_IMPROVE_REAL_CODEX=${packages.codex}/bin/codex CODEX_IMPROVE_EXEC_SCHEMA=${srcRoot}/src/improve/references/executor-report.schema.json CODEX_IMPROVE_ROLES_FILE=${srcRoot}/src/improve/config/roles.json bash ${srcRoot}/tests/improve/exec-runner.bash ${srcRoot}/src/improve/scripts/codex-improve-exec
     touch $out
   '';
@@ -326,6 +327,7 @@ in {
     test -r ${generatedSkills}/improve/config/roles.json
     test -r ${generatedSkills}/improve/references/executor-report.schema.json
     test -r ${generatedSkills}/improve/references/review-verdict.schema.json
+    test -x ${generatedSkills}/improve/scripts/codex-improve-spark-availability
     touch $out
   '';
   codex-layout = packages.codex;

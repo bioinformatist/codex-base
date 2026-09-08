@@ -7,7 +7,12 @@ below. The worktree is preserved until the user decides what to do with it.
 
 ## Environment preflight and resume
 
-For `.14` or `.15`, pass the artifact's environment JSON as the first option.
+Version `.16` inherits all `.15` lifecycle facilities described here, including
+cache isolation, immutable plan identity, status and closeout eligibility.
+Its Spark-priority selection rule is defined in the planning contract's Executor
+routing section; older artifacts keep fixed Spark without migration.
+
+For `.14`, `.15` or `.16`, pass the artifact's environment JSON as the first option.
 Add an explicit protected-path grant only after user approval:
 
 ```console
@@ -48,7 +53,7 @@ verification, immediately before Codex. A failure at the second boundary uses
 the nonresumable mutated-preflight classification. Symlinks nested below a
 physical granted directory remain governed by the sandbox. `.13`
 artifacts retain their existing execution and resume semantics and reject
-the protected-path option. `.14` and `.15` share the protected-path behavior.
+the protected-path option. `.14`, `.15` and `.16` share the protected-path behavior.
 Revisions and recoveries must restate the approved set; resume
 reconstructs it from the authenticated manifest and accepts no override.
 
@@ -91,7 +96,7 @@ and other transport failures are also nonresumable. Never retry automatically,
 migrate legacy artifacts, or ask an executor to call candidate, checkpoint, or
 resume.
 
-Artifacts declaring `.13`, `.14`, or `.15` require a matching environment JSON.
+Artifacts declaring `.13`, `.14`, `.15`, or `.16` require a matching environment JSON.
 Artifacts declaring `.12` are unsupported and must be re-reviewed and restamped
 before execution. Artifacts declaring `.11`, or no Improve contract, retain
 `legacy_unchecked` behavior when no environment JSON is supplied. They may opt
@@ -169,7 +174,8 @@ invokes it without a per-dispatch user prompt. `--spark` and `--deep` are
 mutually exclusive. The helper never parses the plan to select a lane.
 
 The helper creates a branch and worktree from the current `HEAD`, selects
-`improve-executor`, `improve-executor-spark`, or `improve-executor-deep`, inlines
+`improve-executor`, `improve-executor-spark`, or `improve-executor-deep`
+(or `improve-executor-luna-low` for a `.16` Spark-priority call), inlines
 the entire plan, and pins the lane model, reasoning effort, verbosity, sandbox,
 approval policy, unrestricted outbound network access with the network proxy
 disabled, writable roots, rollout budget, memory, goals, and multi-agent setting
@@ -188,6 +194,8 @@ IMPROVE_WORKTREE=...
 IMPROVE_BRANCH=...
 IMPROVE_BASE=...
 IMPROVE_PROFILE=...
+IMPROVE_MODEL=...
+IMPROVE_REASONING_EFFORT=...
 IMPROVE_EXECUTION_ID=...
 IMPROVE_EXEC_EXIT=...
 IMPROVE_EXEC_RESULT=...
@@ -308,10 +316,20 @@ newlines remain escaped. `IMPROVE_EXEC_FINAL_OUTPUT`, result/reason fields,
 candidate fields, return codes, metrics, and lifecycle behavior remain
 unchanged, and no public structured-output field is added.
 
-A Spark model or entitlement failure is the same nonzero Codex failure as any
+A Spark or Luna model or entitlement failure is the same nonzero Codex failure as any
 other executor failure: the result is `INCONCLUSIVE`, every artifact is
 preserved, and control returns to the main agent. The helper never retries with
 Spark, standard, or deep and never consumes another lane as a fallback.
+
+A `.16` metadata query failure returns `STOPPED` with
+`metadata_query_failed` and `IMPROVE_EXEC_INVOKED=0`, preserving the complete
+handoff, candidate, private diagnostics and terminal execution record. The raw
+exit field identifies the metadata helper/timeout, not a nonexistent executor.
+Metrics contain zero executor observations and no account or quota content.
+This failure creates no failed-probe resume authority. A resumed-preflight
+Spark-priority call first validates its original immutable provenance, then
+selects again and snapshots the newly effective role; previous Luna selection
+does not prevent selecting Spark for the new call.
 
 Standard initial execution has a provisional 20-minute absolute timeout and a
 120,000-token rollout budget with 60,000/30,000/10,000 reminders. Spark initial
@@ -320,7 +338,9 @@ execution keeps the 20-minute timeout and 100,000-token budget with
 30-minute timeout and 160,000-token budget with 80,000/40,000/15,000 reminders.
 Standard and Spark revisions and recovery slices reuse their profile token
 budgets with a provisional 12-minute timeout; deep revisions and recovery
-slices reuse the Deep budget with an 18-minute timeout. The provisional
+slices reuse the Deep budget with an 18-minute timeout.
+Luna-low role uses Spark's token budgets and initial/follow-up timeouts.
+The provisional
 transport fuses use a five-second hard-kill grace, a 32 MiB event-log limit,
 and a 64 KiB final-output limit. All of these numeric values are
 metrics-calibrated safeguards, not product or compatibility contracts.

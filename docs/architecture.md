@@ -47,3 +47,13 @@ model prompts.
 Improve profile names remain stable labels in roles, manifests, metrics, and
 handoffs. Runners pin effective settings at CLI precedence and never look up a
 Codex profile.
+
+Improve `.16` adds one caller-time choice to the existing eligible Spark lane.
+A short-lived native app-server query selects Spark/high when available with
+quota, otherwise Luna/low, before one executor starts. Query errors terminate
+without execution; inference errors never cause replay. Each new call, including
+preflight resume, reevaluates availability after validating any inherited
+provenance. The existing role snapshot, execution record, metrics and
+profile/model/effort handoff identify the choice. There is no scheduler,
+persistent routing cache, account switch or new configuration-profile lookup.
+Older supported contracts keep fixed Spark, and all other roles are unchanged.
