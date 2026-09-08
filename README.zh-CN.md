@@ -95,11 +95,18 @@ default_mode_request_user_input = true
 
 官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了实验性上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由当前固定的 Codex 0.153.4 [功能声明](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core/tests/suite/request_user_input.rs)验证。无需启动脚本或安装器。
 
+> [!NOTE]
+> **为什么采用这组模型默认值**
+>
+> - **Default Mode — `gpt-5.6-sol`、`medium` 推理强度：**[GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) 是 OpenAI 面向复杂专业工作的旗舰模型，`medium` 也是它的默认推理设置。这为日常实现、审计、研究和维护提供了均衡基线：保留旗舰模型能力，同时避免让每一轮都承担更高推理强度带来的额外延迟和 token 消耗。
+> - **Plan Mode — `gpt-5.6-sol`、`high` 推理强度：**正式规划要在进入可写阶段前综合仓库证据、约束、取舍和验收条件。继续使用 Sol 可以保持模型基线一致；只提高推理强度，则为这个决策密集的阶段增加思考深度。这里接受额外的延迟和 token 消耗，是为了减少后续做偏与返工，而不是因为 `high` 天然更好。
+> - **Plan Mode 何时应使用 Astra：**[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) 是 OpenAI 能力最强的模型，适合最困难的端到端工作。当规划必须解决影响重大且难以回退的产品或架构选择、综合多个系统中的大量或相互冲突的证据，或在异常漫长且不确定的调查中保持连贯时，才应为该 Plan Mode 会话选择 Astra。不要仅仅因为进入了 Plan Mode 或计划篇幅较长就切换模型；对于边界清楚的规划，默认仍是 Sol/high。
+
 > [!WARNING]
 > `context_management.experimental_mode` 是实验特性，仅适用于受支持的 OpenAI 后端，并且需要符合资格的 ChatGPT Plus、Pro 或 Pro Lite 会话；仅凭套餐名称不能保证具备资格。
 > `code_mode.enabled` 依赖匹配的 Code Mode companion host。
 > Nix/Home Manager 环境会安装该 companion，单独 CLI 不一定具备。
-> Plan Mode 使用高推理强度可能耗时更长、使用更多 token。Astra、高推理强度和 Code Mode 可用于对指引敏感的规划任务，但都不是硬性门槛；启用这些设置也不保证结果更好。
+> 启用这些设置也不保证结果更好。
 
 如需回退，请保留其他无关配置，将 `plan_mode_reasoning_effort` 恢复为先前的值（托管的 Plan 基线为 `"medium"`），并明确把 `context_management.experimental_mode`、`code_mode.enabled` 和 `default_mode_request_user_input` 设为 `false`。不要只删除这些键：合并式覆盖层或源码回退不会清除已经写入 `config.toml` 的值。Home Manager 用户还必须在下次激活前撤销托管覆盖层中的这些设置，否则激活时会再次写入托管值。
 
@@ -136,4 +143,5 @@ Default Mode 中的实现、审计及普通生命周期或 dossier 记录不需�
 - [贡献指南](CONTRIBUTING.md)
 - [架构](docs/architecture.md)与[更新说明](docs/updating.md)
 - [Codex 插件与 Nix / Home Manager 的选择](#选择安装方式)
+- [版本记录（英文）](CHANGELOG.md)
 - [MIT 许可证](LICENSE)

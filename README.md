@@ -96,11 +96,18 @@ Start a new Codex session after saving the file. The fragment requests experimen
 
 The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers experimental context management, Code Mode, and Plan Mode effort. The Default Mode question flag is instead checked against the pinned Codex 0.153.4 [feature declaration](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core/tests/suite/request_user_input.rs). No wrapper or installer is required.
 
+> [!NOTE]
+> **Why these model defaults**
+>
+> - **Default Mode — `gpt-5.6-sol` with `medium` reasoning:** [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) is OpenAI's flagship model for complex professional work, and `medium` is its default reasoning setting. This is a balanced baseline for routine implementation, audits, research, and maintenance: it retains flagship capability without imposing the latency and token use of higher reasoning on every turn.
+> - **Plan Mode — `gpt-5.6-sol` with `high` reasoning:** formal planning must synthesize repository evidence, constraints, tradeoffs, and acceptance criteria before writable work begins. Reusing Sol keeps the model baseline consistent; raising only the reasoning effort gives this decision-heavy phase more room to deliberate. The extra latency and token use are accepted here to reduce downstream drift and rework, not because `high` is inherently better.
+> - **When Plan Mode should use Astra:** [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) is OpenAI's most capable model for the hardest end-to-end work. Select it for a Plan Mode thread when planning must resolve high-impact, difficult-to-reverse product or architecture choices, integrate large or conflicting evidence across systems, or stay coherent through an unusually long and uncertain investigation. Do not switch merely because Plan Mode is active or a plan is lengthy; Sol/high remains the default for well-bounded planning.
+
 > [!WARNING]
 > `context_management.experimental_mode` is experimental, works only on the supported OpenAI backend, and requires an eligible ChatGPT Plus, Pro, or Pro Lite session; plan names alone do not guarantee eligibility.
 > `code_mode.enabled` needs the matching Code Mode companion host.
 > The Nix/Home Manager environment installs that host; a standalone CLI may not.
-> High Plan-mode effort can take longer and use more tokens. Astra, high reasoning effort, and Code Mode can help with sensitive planning work, but none is a hard gate. Enabling these settings does not guarantee better results.
+> Enabling these settings does not guarantee better results.
 
 To roll back, preserve unrelated configuration, restore `plan_mode_reasoning_effort` to its previous value (`"medium"` is the managed Plan baseline), and explicitly set `context_management.experimental_mode`, `code_mode.enabled`, and `default_mode_request_user_input` to `false`. Do not only delete the keys: a merging overlay or source revert does not remove values already persisted in `config.toml`. Home Manager users must also reverse the managed overlay before activation, or activation will set the managed values again.
 
@@ -137,4 +144,5 @@ To install the full Nix/Home Manager environment, add the flake input and import
 - [Contributing](CONTRIBUTING.md)
 - [Architecture](docs/architecture.md) and [updating](docs/updating.md)
 - [Plugin versus Nix choice](#choose-an-installation)
+- [Changelog](CHANGELOG.md)
 - [MIT License](LICENSE)
