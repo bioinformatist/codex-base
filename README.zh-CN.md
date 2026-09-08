@@ -136,4 +136,5 @@ Default Mode 中的实现、审计及普通生命周期或 dossier 记录不需�
 - [贡献指南](CONTRIBUTING.md)
 - [架构](docs/architecture.md)与[更新说明](docs/updating.md)
 - [Codex 插件与 Nix / Home Manager 的选择](#选择安装方式)
+- [版本记录（英文）](CHANGELOG.md)
 - [MIT 许可证](LICENSE)

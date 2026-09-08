@@ -137,4 +137,5 @@ To install the full Nix/Home Manager environment, add the flake input and import
 - [Contributing](CONTRIBUTING.md)
 - [Architecture](docs/architecture.md) and [updating](docs/updating.md)
 - [Plugin versus Nix choice](#choose-an-installation)
+- [Changelog](CHANGELOG.md)
 - [MIT License](LICENSE)

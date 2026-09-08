@@ -149,6 +149,7 @@ in {
   typos = mkTest "public-docs-typos" [ pkgs.typos ] ''
     typos --config ${srcRoot}/typos.toml \
       ${srcRoot}/README.md ${srcRoot}/README.zh-CN.md \
+      ${srcRoot}/CHANGELOG.md \
       ${srcRoot}/CONTRIBUTING.md ${srcRoot}/.github/PULL_REQUEST_TEMPLATE.md \
       ${srcRoot}/docs ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json
     touch $out
@@ -180,6 +181,13 @@ in {
     grep -Fq '配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用' ${srcRoot}/README.zh-CN.md
     ! grep -Fq 'not built-in Plan Mode' ${srcRoot}/README.md
     ! grep -Fq '不要使用内置 Plan Mode' ${srcRoot}/README.zh-CN.md
+    test "$(grep -Foc '[Changelog](CHANGELOG.md)' ${srcRoot}/README.md)" -eq 1
+    test "$(grep -Foc '[版本记录（英文）](CHANGELOG.md)' ${srcRoot}/README.zh-CN.md)" -eq 1
+    test "$(grep -Fxoc '# Changelog' ${srcRoot}/CHANGELOG.md)" -eq 1
+    release_version="$(jq -r '.version' ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json)"
+    test "$(grep -Foc "## [$release_version]" ${srcRoot}/CHANGELOG.md)" -eq 1
+    test "$(grep -Fxoc "[$release_version]: https://github.com/bioinformatist/codex-base/releases/tag/v$release_version" ${srcRoot}/CHANGELOG.md)" -eq 1
+    grep -Fq '52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e' ${srcRoot}/CHANGELOG.md
     grep -Fq '`src/docs-routing` is the canonical first-party documentation-routing skill.' ${srcRoot}/docs/architecture.md
     grep -Fq 'Adapted for Codex invocation, preservation, and reporting rules' ${srcRoot}/docs/credits.md
     grep -Fq 'Keep anonymous plugin MCP defaults' ${srcRoot}/CONTRIBUTING.md
