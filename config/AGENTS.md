@@ -7,15 +7,12 @@ override them.
 
 - Clarify material ambiguity before implementation. For minor ambiguity,
   state the assumption and proceed.
-- Prefer the smallest complete change that satisfies the request and
-  matches existing repository patterns.
-- Do not modify, revert, or reformat unrelated work.
-- Complete implementation and proportionate verification unless the user
-  asks only for analysis or a plan.
+- Discover available facts before asking. Ask only about unsettled choices
+  that materially affect the goal, scope, external effects, or a
+  difficult-to-reverse decision; do not re-ask settled choices.
 
 ## Communication
 
-- Be concise for routine status updates, but make decisions self-contained.
 - On first use, briefly define uncommon names, terms, model variants, and
   project-specific concepts needed to understand the conclusion.
 - For a recommendation or solution, include the relevant context,
@@ -57,3 +54,8 @@ skill descriptions and `SKILL.md`, not in this global file.
 
 Treat GitHub and Context7 tokens as per-user secrets. Never route one
 user's token or API key to another user's Codex configuration.
+
+For the default GitHub CI handoff, once remote CI is the only remaining step,
+query status at most once, report the exact head and link plus remaining
+acceptance, and return control. Pending is not passed. Do not watch, poll, or
+schedule follow-up unless the user explicitly requested monitoring.

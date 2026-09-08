@@ -14,6 +14,7 @@
         "skills/engineering/tdd",
         "skills/productivity/grilling",
         "skills/productivity/handoff",
+        "skills/productivity/wait-what",
         "skills/productivity/writing-for-agents",
         "skills/productivity/to-questionnaire"
       ],
@@ -45,13 +46,13 @@
       "revision": "v4.8.3",
       "license": "MIT",
       "includedPaths": ["skills/ponytail-review", "skills/ponytail-audit", "skills/ponytail-debt"],
-      "patched": false
+      "patched": true
     },
     {
       "name": "playwright-cli",
       "repository": "https://github.com/microsoft/playwright-cli",
-      "version": "0.1.17",
-      "revision": "v0.1.17",
+      "version": "0.1.19",
+      "revision": "v0.1.19",
       "license": "Apache-2.0",
       "includedPaths": ["skills/playwright-cli"],
       "patched": true

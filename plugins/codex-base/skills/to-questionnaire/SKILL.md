@@ -13,7 +13,7 @@ Never request credentials, authentication tokens, API keys, passwords, or other 
 
 2. **What do you need back?** Ask, in one exchange, the specific decisions or facts the user can't resolve alone and needs from this person. Done when you have a concrete list of what the user must walk away able to do or decide.
 
-3. **Write the questionnaire.** Draft questions aimed at the gap from steps 1–2, following the Document structure below. Write exactly one collision-resistant Markdown file under `$TMPDIR` when set, otherwise `/tmp`, and report its absolute path. Never overwrite an existing file, send or publish the questionnaire, or write it in the repository. Done when the file exists and every item the user named in step 2 is covered by a question.
+3. **Write the questionnaire.** Draft questions aimed at the gap from steps 1–2, following the Document structure below. When writing is allowed, write exactly one collision-resistant Markdown file under `$TMPDIR` when set, otherwise `/tmp`, and report its absolute path. When writing is forbidden, render the complete questionnaire in chat and create no file. Never overwrite an existing file, send or publish the questionnaire, or write it in the repository. Done when either the complete questionnaire is rendered in chat or the authorized file exists, and every item the user named in step 2 is covered by a question.
 
 ## Document structure
 

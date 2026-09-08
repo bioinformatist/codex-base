@@ -124,10 +124,44 @@ let
     displayName = "Diagnosing Bugs";
     shortDescription = "Debug hard bugs with a tight feedback loop";
     defaultPrompt = "Use $diagnosing-bugs to build a tight repro loop and diagnose this bug.";
+    postPatch = ''
+      substituteInPlace "$out/SKILL.md" \
+        --replace-fail 'A discipline for hard bugs. Skip phases only when explicitly justified.' 'Start from a concrete symptom and gather read-only evidence. A reproduction tightens hypotheses but is not a prerequisite for inspecting relevant code, history, configuration, or logs.' \
+        --replace-fail '**This is the skill.** Everything else is mechanical. If you have a **tight** pass/fail signal for the bug (one that goes red on _this_ bug), you will find the cause; bisection, hypothesis-testing, and instrumentation all just consume it. If you don'"'"'t have one, no amount of staring at code will save you.' '**Prefer a tight, symptom-specific pass/fail signal when one is practical.** Scale reproduction work to the request, risk, and available environment. Read-only evidence can still support a useful diagnosis when no runnable loop is available.' \
+        --replace-fail 'Spend disproportionate effort here. **Be aggressive. Be creative. Refuse to give up.**' 'Try the least invasive, highest-signal reproduction that fits the authorized scope. Stop when further experiments are disproportionate, require unavailable access, or would cross an authorization boundary; report the limitation.' \
+        --replace-fail '5. **Replay a captured trace.** Save a real network request / payload / event log to disk; replay it through the code path in isolation.' '5. **Replay an authorized captured trace.** If writes and the captured data are in scope, save a redacted request, payload, or event log and replay it through the code path in isolation.' \
+        --replace-fail '6. **Throwaway harness.** Spin up a minimal subset of the system (one service, mocked deps) that exercises the bug code path with a single function call.' '6. **Temporary harness.** When implementation is authorized, use a minimal subset of the system that exercises the bug path without changing unrelated source or services.' \
+        --replace-fail '7. **Property / fuzz loop.** If the bug is "sometimes wrong output", run 1000 random inputs and look for the failure mode.' '7. **Property / fuzz loop.** For intermittent wrong output, use a bounded sample sized to the failure rate, cost, and risk; record the seed and observed rate.' \
+        --replace-fail 'The goal is not a clean repro but a **higher reproduction rate**. Loop the trigger 100×, parallelise, add stress, narrow timing windows, inject sleeps. A 50%-flake bug is debuggable; 1% is not, so keep raising the rate until it'"'"'s debuggable.' 'The goal is a reproduction rate high enough to distinguish hypotheses. Use a bounded number of attempts based on runtime and observed failure rate; add concurrency, stress, narrowed timing windows, or injected delays only when safe and within scope. Record both attempts and failures.' \
+        --replace-fail 'Stop and say so explicitly. List what you tried. Ask the user for: (a) access to whatever environment reproduces it, (b) a redacted captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation. Do **not** proceed to hypothesise without a loop.' 'Say so explicitly, list the evidence gathered and proportionate attempts made, and continue with labeled hypotheses where the evidence supports them. Ask only for missing access or a redacted artifact that is material to the diagnosis. Production instrumentation requires explicit authorization and must stay within the requested scope.' \
+        --replace-fail '### Completion criterion: a tight loop that goes red' '### When a runnable loop is available' \
+        --replace-fail 'Phase 1 is done when the loop is **tight** and **red-capable**: you can name **one command** (a script path, a test invocation, a curl) that you have **already run at least once** (show the invocation and its output, redacted), and that is:' 'Before relying on a runnable loop, name the command and run it when safe (show the invocation and its output, redacted). Prefer a loop that is:' \
+        --replace-fail 'If you catch yourself reading code to build a theory before this command exists, **stop: jumping straight to a hypothesis is the exact failure this skill prevents.** No red-capable command, no Phase 2.' 'Read-only inspection may precede a red-capable command. Do not claim reproduction or a confirmed cause until the evidence supports it.' \
+        --replace-fail 'Do not proceed until you have reproduced **and** minimised.' 'If reproduction is possible, minimise it proportionally; otherwise continue diagnosis from the available evidence and record the limitation.' \
+        --replace-fail 'Generate **3–5 ranked hypotheses** before testing any of them. Single-hypothesis generation anchors on the first plausible idea.' 'Generate and rank the distinct hypotheses justified by the evidence. Consider alternatives before committing to the first plausible cause, but do not invent hypotheses to meet a quota.' \
+        --replace-fail '**Show the ranked list to the user before testing.** They often have domain knowledge that re-ranks instantly ("we just deployed a change to #3"), or know hypotheses they'"'"'ve already ruled out. Cheap checkpoint, big time saver. Don'"'"'t block on it; proceed with your ranking if the user is AFK.' 'Report the ranked hypotheses and why they differ. Run safe, in-scope read-only probes without waiting; ask the user first only when a test needs a material choice, new access, or additional authorization.' \
+        --replace-fail '## Phase 4: Instrument' '## Phase 4: Probe or instrument within scope' \
+        --replace-fail '**Tag every debug log** with a unique prefix, e.g. `[DEBUG-a4f2]`. Cleanup at the end becomes a single grep. Untagged logs survive; tagged logs die.' 'Add debug logging only when source changes are authorized. Tag each added log with a unique prefix such as `[DEBUG-a4f2]`, track the changed paths, and remove only that temporary instrumentation before handoff.' \
+        --replace-fail '## Phase 5: Fix + regression test' '## Phase 5: Authorized fix + regression test' \
+        --replace-fail 'Write the regression test **before the fix**, but only if there is a **correct seam** for it.' 'When implementation is authorized, write the regression test **before the fix**, but only if there is a **correct seam** for it.' \
+        --replace-fail '## Phase 6: Cleanup' '## Phase 6: Verify and report authorized changes' \
+        --replace-fail 'Required before declaring done:' 'For an authorized implementation, verify proportionally before declaring done:' \
+        --replace-fail '- [ ] Original repro no longer reproduces (re-run the Phase 1 loop)' '- [ ] The original repro no longer reproduces when a runnable loop exists' \
+        --replace-fail '- [ ] Regression test passes (or absence of seam is documented)' '- [ ] The authorized regression test passes, or the absence of a correct seam is documented' \
+        --replace-fail '- [ ] All `[DEBUG-...]` instrumentation removed (`grep` the prefix)' '- [ ] Temporary instrumentation added during this task is removed and its unique prefix no longer appears' \
+        --replace-fail '- [ ] Throwaway prototypes deleted (or moved to a clearly-marked debug location)' '- [ ] Temporary artifacts created during this task are reported and removed only when that cleanup is authorized' \
+        --replace-fail '- [ ] The hypothesis that turned out correct is stated in the commit / PR message, so the next debugger learns' '- [ ] The supported root cause and verification evidence are reported to the user'
+      sed -i '/## Phase 1: Build a feedback loop/i ## Scope\n\nDiagnosis-only requests stop after reporting the supported cause, confidence, and next verification. Apply a fix or add a regression test only when implementation is authorized; keep changes within the approved scope.\n' "$out/SKILL.md"
+    '';
     semanticGuard = ''
       grep -Fq 'Redact every secret first' "$out/SKILL.md"
       grep -Fq 'show the invocation and its output, redacted' "$out/SKILL.md"
       grep -Fq 'credential stays in the environment' "$out/SKILL.md"
+      grep -Fq 'Diagnosis-only requests stop after reporting' "$out/SKILL.md"
+      grep -Fq 'Read-only inspection may precede a red-capable command.' "$out/SKILL.md"
+      grep -Fq 'do not invent hypotheses to meet a quota' "$out/SKILL.md"
+      grep -Fq 'Production instrumentation requires explicit authorization' "$out/SKILL.md"
+      ! grep -Fq -e 'no amount of staring at code' -e 'Refuse to give up' -e 'run 1000 random inputs' -e 'Loop the trigger 100×' -e 'Generate **3–5 ranked hypotheses**' "$out/SKILL.md"
     '';
   };
   tddSkill = mkMattPocockSkill {
@@ -158,11 +192,14 @@ let
             - **Refactor only while green.** After the minimal implementation passes, improve structure without changing behavior; keep the tests green throughout, then begin the next red → green slice.
           ''
         }
+      substituteInPlace "$out/SKILL.md" \
+        --replace-fail 'call the Skill tool with "codebase-design" for the vocabulary' 'consult the available `codebase-design` guidance for the vocabulary'
     '';
     semanticGuard = ''
       grep -Fq 'accepted plan, specification, or repository evidence' "$out/SKILL.md"
       grep -Fq 'Ask the user only when the seam is materially ambiguous.' "$out/SKILL.md"
       grep -Fq 'Refactor only while green.' "$out/SKILL.md"
+      ! grep -Fq 'Skill tool' "$out/SKILL.md"
     '';
   };
   codebaseDesignSkill = mkMattPocockSkill {
@@ -175,14 +212,27 @@ let
     postPatch = ''
       substituteInPlace "$out/SKILL.md" \
         --replace-fail 'spin up parallel sub-agents to design the interface several radically different ways' \
-        'use parallel sub-agents when multi-agent tools are available, or design the interface several radically different ways yourself'
+        'use parallel sub-agents only when delegation is authorized and multi-agent tools are available, or compare several viable interfaces yourself'
       substituteInPlace "$out/DESIGN-IT-TWICE.md" \
+        --replace-fail 'use this parallel sub-agent pattern' 'use this comparison workflow' \
+        --replace-fail 'Before spawning sub-agents, write a user-facing explanation' 'Before producing alternatives, write a user-facing explanation' \
+        --replace-fail 'Show this to the user, then immediately proceed to Step 2. The user reads and thinks while the sub-agents work in parallel.' 'Show this to the user, then proceed to Step 2 without requiring confirmation when the constraints are already settled.' \
+        --replace-fail '### 2. Spawn sub-agents' '### 2. Produce alternatives' \
         --replace-fail 'Spawn 3+ sub-agents in parallel. Each must produce a **radically different** interface for the deepened module.' \
-        'When multi-agent tools are available, spawn 3+ sub-agents in parallel; otherwise produce 3 distinct designs yourself. Each must produce a **radically different** interface for the deepened module.'
+        'When delegation is authorized and multi-agent tools are available, use parallel sub-agents; otherwise produce distinct viable designs yourself. Each design must offer a meaningfully different interface for the deepened module.' \
+        --replace-fail 'Prompt each sub-agent with a separate technical brief' 'Develop each design from the same technical brief' \
+        --replace-fail 'Give each agent a different design constraint:' 'Give each design a different constraint:' \
+        --replace-fail '- Agent 1:' '- Design 1:' \
+        --replace-fail '- Agent 2:' '- Design 2:' \
+        --replace-fail '- Agent 3:' '- Design 3:' \
+        --replace-fail '- Agent 4 (if applicable):' '- Design 4 (if applicable):' \
+        --replace-fail 'Include both [SKILL.md](SKILL.md) vocabulary and CONTEXT.md vocabulary in the brief so each sub-agent names things consistently with the architecture language and the project'"'"'s domain language.' 'Use both [SKILL.md](SKILL.md) vocabulary and available CONTEXT.md vocabulary so every design names things consistently with the architecture language and the project'"'"'s domain language.' \
+        --replace-fail 'Each sub-agent outputs:' 'Each design includes:'
     '';
     semanticGuard = ''
-      grep -Fq 'or design the interface several radically different ways yourself' "$out/SKILL.md"
-      grep -Fq 'otherwise produce 3 distinct designs yourself' "$out/DESIGN-IT-TWICE.md"
+      grep -Fq 'only when delegation is authorized' "$out/SKILL.md"
+      grep -Fq 'otherwise produce distinct viable designs yourself' "$out/DESIGN-IT-TWICE.md"
+      ! grep -Fq -e 'Before spawning sub-agents' -e '### 2. Spawn sub-agents' -e 'Each sub-agent outputs:' "$out/DESIGN-IT-TWICE.md"
     '';
   };
   grillingSkill = mkMattPocockSkill {
@@ -199,7 +249,8 @@ let
         "Finding _facts_ is your job, never the user's. Discover repository and environment facts before asking questions, using available tools directly. The _decisions_ are the user's: put each to them and wait."
       substituteInPlace "$out/SKILL.md" \
         --replace-fail 'Ask the whole frontier in one round: number each question and give your recommended answer.' \
-        'Ask at most three independent, high-value frontier questions in one round: number each question and give your recommended answer.' \
+        'Ask at most three independent, high-value frontier questions about material unresolved decisions in one round. Prefer a usable structured-question tool when available; otherwise ask concise numbered questions. Give your recommended answer.' \
+        --replace-fail 'The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed.' 'The session is done when no material unresolved decision remains. Respect choices already settled by the user or authoritative evidence; do not exhaust speculative branches.' \
         --replace-fail 'Do not act on it until the user confirms you have reached a shared understanding.' \
         'End by reporting the shared understanding and open decisions. Do not implement automatically; implementation requires a separate user request.'
     '';
@@ -207,6 +258,7 @@ let
       grep -Fq 'at most three independent, high-value frontier questions' "$out/SKILL.md"
       grep -Fq 'Discover repository and environment facts before asking questions' "$out/SKILL.md"
       grep -Fq 'Do not implement automatically' "$out/SKILL.md"
+      grep -Fq 'structured-question tool when available' "$out/SKILL.md"
     '';
   };
   handoffSkill = mkMattPocockSkill {
@@ -234,7 +286,7 @@ let
           ''
             # Handoff
 
-            Write exactly one uniquely named Markdown file under `$TMPDIR` when set, otherwise `/tmp`; never write the handoff in the repository. Use a collision-resistant name such as `codex-handoff-<timestamp>-<random>.md`. Report its absolute path when finished and do not automatically start a new session.
+            When writing is allowed, write exactly one uniquely named Markdown file under `$TMPDIR` when set, otherwise `/tmp`; never write the handoff in the repository. Use a collision-resistant name such as `codex-handoff-<timestamp>-<random>.md`. When writing is forbidden, render the complete handoff in chat and create no file. Report the absolute path when a file is written and do not automatically start a new session.
 
             Include the next-session focus, repository path, branch and HEAD, working-tree status, objective, settled decisions, relevant artifacts by path or URL, completed verification, blockers, exact next actions, and remaining authorization boundaries. If the user supplied a next-session focus, tailor the document to it.
 
@@ -258,6 +310,11 @@ let
     displayName = "Domain Modeling";
     shortDescription = "Sharpen domain language and durable decisions";
     defaultPrompt = "Use $domain-modeling to resolve domain terminology or record an ADR-worthy decision.";
+    postPatch = ''
+      substituteInPlace "$out/SKILL.md" \
+        --replace-fail 'Create files lazily: only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed.' 'Create files lazily and only with write authorization. When writing is forbidden, render the proposed glossary or ADR change in chat. If authorized and no `CONTEXT.md` exists, create one when the first term is resolved; create `docs/adr/` only when the first ADR is needed.' \
+        --replace-fail 'When a term is resolved, update `CONTEXT.md` right there.' 'When a term is resolved and writing is authorized, update `CONTEXT.md` right there. Otherwise render the exact proposed update in chat.'
+    '';
   };
   resolvingMergeConflictsSkill = mkMattPocockSkill {
     name = "resolving-merge-conflicts";
@@ -289,13 +346,13 @@ let
 
             4. **Verify and report.** Stage only verified conflict-resolution paths when staging is needed to mark them resolved, and report the exact staged set. Run the relevant repository checks and fix only failures caused by the resolution.
 
-            5. **Leave lifecycle actions to separate authorization.** Do not continue or abort the merge/rebase, commit, push, force-push, reset, discard with checkout, or clean up without separate user authorization.
+            5. **Respect the exact lifecycle authorization.** Do not continue or abort the merge/rebase, commit, push, force-push, reset, discard with checkout, or clean up unless that exact action is already authorized. Do not repeat an approval request for an action the user has explicitly approved.
           ''
         }
     '';
     semanticGuard = ''
       grep -Fq 'Stage only verified conflict-resolution paths' "$out/SKILL.md"
-      grep -Fq 'Do not continue or abort the merge/rebase' "$out/SKILL.md"
+      grep -Fq 'Do not repeat an approval request' "$out/SKILL.md"
       if grep -F -e 'Always resolve; never `--abort`' -e 'Stage everything and commit' -e 'continue the rebase process' "$out/SKILL.md"; then
         echo "resolving-merge-conflicts retains automatic Git lifecycle actions" >&2
         exit 1
@@ -385,14 +442,34 @@ let
     allowImplicit = false;
     postPatch = ''
       substituteInPlace "$out/SKILL.md" \
-        --replace-fail 'Write it to `to-questionnaire-<slug>.md` in the current directory (slug from the topic) and report the path.' 'Write exactly one collision-resistant Markdown file under `$TMPDIR` when set, otherwise `/tmp`, and report its absolute path. Never overwrite an existing file, send or publish the questionnaire, or write it in the repository.' \
+        --replace-fail 'Write it to `to-questionnaire-<slug>.md` in the current directory (slug from the topic) and report the path.' 'When writing is allowed, write exactly one collision-resistant Markdown file under `$TMPDIR` when set, otherwise `/tmp`, and report its absolute path. When writing is forbidden, render the complete questionnaire in chat and create no file. Never overwrite an existing file, send or publish the questionnaire, or write it in the repository.' \
+        --replace-fail 'Done when the file exists and every item the user named in step 2 is covered by a question.' 'Done when either the complete questionnaire is rendered in chat or the authorized file exists, and every item the user named in step 2 is covered by a question.' \
         --replace-fail '**From:** <the user>, **To:** <the recipient>, **How your answers will be used:** <where they go>' '**From role:** <role>, **To role:** <role>, **How your answers will be used:** <where they go>'
       sed -i '/Turn something the user/a Never request credentials, authentication tokens, API keys, passwords, or other secret values. Prefer roles and only include personal information necessary for the questionnaire.' "$out/SKILL.md"
     '';
     semanticGuard = ''
       grep -Fq 'otherwise `/tmp`' "$out/SKILL.md"
+      grep -Fq 'the complete questionnaire is rendered in chat or the authorized file exists' "$out/SKILL.md"
+      grep -Fq 'every item the user named in step 2 is covered by a question' "$out/SKILL.md"
       grep -Fq 'Never overwrite an existing file, send or publish' "$out/SKILL.md"
       grep -Fq 'Never request credentials' "$out/SKILL.md"
+    '';
+  };
+  waitWhatSkill = mkMattPocockSkill {
+    name = "wait-what";
+    path = "skills/productivity/wait-what";
+    description = "Explicit-only request to restate the previous explanation plainly in the current conversation language while preserving facts and uncertainty.";
+    displayName = "Wait, What?";
+    shortDescription = "Restate the last explanation plainly";
+    defaultPrompt = "Use $wait-what to restate the last explanation plainly in the current conversation language.";
+    allowImplicit = false;
+    postPatch = ''
+      substituteInPlace "$out/SKILL.md" \
+        --replace-fail 'Wait, I don'"'"'t understand where you'"'"'ve got to here. Re-pitch that: give me a little bit of context, talk in ASD-STE100 Simplified Technical English, and use the ubiquitous language from `CONTEXT.md` (follow `CONTEXT-MAP.md` to the right one if the repo has more than one).' 'Restate the previous explanation in the current conversation language. Add only the context needed to understand it, use plain language and the project'"'"'s established terms, and preserve all facts, constraints, caveats, and uncertainty. Do not write a file or change the underlying decision.'
+    '';
+    semanticGuard = ''
+      grep -Fq 'current conversation language' "$out/SKILL.md"
+      grep -Fq 'preserve all facts, constraints, caveats, and uncertainty' "$out/SKILL.md"
     '';
   };
   playwrightCliSkillHeader = pkgs.writeText "playwright-cli-SKILL-header.md" ''
@@ -485,6 +562,7 @@ let
     resolving-merge-conflicts = resolvingMergeConflictsSkill;
     writing-for-agents = writingForAgentsSkill;
     to-questionnaire = toQuestionnaireSkill;
+    wait-what = waitWhatSkill;
     stop-slop = stopSlopSkill;
     playwright-cli = playwrightCliSkill;
   };
@@ -499,7 +577,41 @@ pkgs.runCommand "codex-base-generated-skills" { } ''
   for name in ponytail-review ponytail-audit ponytail-debt; do
     mkdir -p "$out/$name"
     cp -R ${ponytailSource}/skills/$name/. "$out/$name/"
+    chmod -R u+w "$out/$name"
   done
+
+  substituteInPlace "$out/ponytail-review/SKILL.md" \
+    --replace-fail 'The diff'"'"'s best outcome is getting shorter.' 'The best outcome is the lowest supported complexity that preserves correctness, accepted behavior and interfaces, and necessary checks.' \
+    --replace-fail '✅ `L12-38: stdlib: 27-line validator class. "@" in email, 1 line, real validation is the confirmation mail.`' '✅ `L12-38: stdlib: hand-rolled URL parser for validated inputs. The standard URL parser, preserving the accepted input and error behavior.`' \
+    --replace-fail 'End with the only metric that matters: `net: -<N> lines possible.`' 'End with the supported finding count. You may estimate net lines as secondary context, never as the acceptance criterion.' \
+    --replace-fail 'If there is nothing to cut, say `Lean already. Ship.` and stop.' 'If there is nothing supported to cut, say `Lean for over-engineering. Correctness and shipping readiness were not assessed.` and stop.' \
+    --replace-fail 'Scope: over-engineering and complexity only. Correctness bugs, security holes,' 'Scope: over-engineering and complexity only. Preserve accepted interfaces, behavior, and required tests. Correctness bugs, security holes,'
+
+  sed -i '/Use when the user says "audit this$/ { N; s/"audit this\n  codebase", //; }' "$out/ponytail-audit/SKILL.md"
+  substituteInPlace "$out/ponytail-audit/SKILL.md" \
+    --replace-fail '## Hunt
+
+Deps the stdlib or platform already ships' '## Hunt
+
+Report a cut only when repository evidence supports it and the replacement preserves accepted behavior and checks.
+
+Deps the stdlib or platform already ships' \
+    --replace-fail 'End with `net: -<N> lines, -<M> deps possible.` Nothing to cut: `Lean already. Ship.`' 'End with the supported finding count; estimated lines and dependencies are secondary context. Nothing supported to cut: `Lean for over-engineering. Correctness and shipping readiness were not assessed.`' \
+    --replace-fail 'Scope: over-engineering and complexity only. Correctness bugs, security holes,' 'Scope: over-engineering and complexity only. Preserve accepted interfaces, behavior, and required tests. Correctness bugs, security holes,'
+
+  substituteInPlace "$out/ponytail-debt/SKILL.md" \
+    --replace-fail '`grep -rnE '"'"'(#|//) ?ponytail:'"'"' .`  (add other comment prefixes if your stack uses them)' '`grep -rnE --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=build --exclude-dir=dist --exclude-dir=out --exclude-dir=target --exclude-dir=.next --exclude-dir=coverage '"'"'(#|//) ?ponytail:'"'"' .` (add other comment prefixes if the stack uses them)' \
+    --replace-fail 'Reads and reports only, changes nothing. To persist it, ask and it writes the
+ledger to a file (e.g. `PONYTAIL-DEBT.md`). One-shot. "stop ponytail-debt" or
+"normal mode" to revert.' 'Reads and reports only; never writes, edits, stages, or persists a ledger. One-shot. "stop ponytail-debt" or "normal mode" to revert.'
+
+  grep -Fq 'Preserve accepted interfaces, behavior, and required tests.' "$out/ponytail-review/SKILL.md"
+  grep -Fq 'Correctness and shipping readiness were not assessed.' "$out/ponytail-review/SKILL.md"
+  grep -Fq 'Preserve accepted interfaces, behavior, and required tests.' "$out/ponytail-audit/SKILL.md"
+  ! grep -Ezq '"audit this[[:space:]]+codebase"' "$out/ponytail-audit/SKILL.md"
+  grep -Fq -- '--exclude-dir=node_modules' "$out/ponytail-debt/SKILL.md"
+  grep -Fq -- '--exclude-dir=.git' "$out/ponytail-debt/SKILL.md"
+  grep -Fq 'never writes, edits, stages, or persists a ledger' "$out/ponytail-debt/SKILL.md"
 
   mkdir -p "$out/improve"
   cp -R ${srcRoot}/src/improve/. "$out/improve/"

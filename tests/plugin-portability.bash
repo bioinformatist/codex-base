@@ -101,6 +101,7 @@ for relative in \
   references/executor-report.schema.json \
   references/review-verdict.schema.json \
   scripts/codex-improve-exec \
+  scripts/codex-improve-spark-availability \
   scripts/codex-improve-review \
   scripts/codex-improve-scout; do
   [[ -f "$improve/$relative" ]] || fail "installed plugin is missing skills/improve/$relative"
@@ -108,13 +109,15 @@ done
 
 cmp "$repo/plugins/codex-base/skills/improve/config/roles.json" "$improve/config/roles.json"
 for profile in \
-  improve-scout improve-executor improve-executor-spark improve-executor-deep \
+  improve-scout improve-executor improve-executor-spark improve-executor-luna-low improve-executor-deep \
   improve-reviewer improve-elegance-reviewer; do
   [[ ! -e "$improve/$profile.config.toml" ]] \
     || fail "installed plugin contains legacy profile $profile.config.toml"
 done
 
 bash "$repo/tests/improve/compatibility.bash"
+bash "$repo/tests/improve/spark-availability.bash" \
+  "$improve/scripts/codex-improve-spark-availability"
 CODEX_IMPROVE_REAL_CODEX="$root/bin/codex" \
   CODEX_IMPROVE_EXEC_SCHEMA="$improve/references/executor-report.schema.json" \
   bash "$repo/tests/improve/exec-runner.bash" "$improve/scripts/codex-improve-exec"

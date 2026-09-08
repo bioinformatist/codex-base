@@ -3,8 +3,7 @@ name: ponytail-audit
 description: >
   Whole-repo audit for over-engineering. Like ponytail-review, but scans the
   entire codebase instead of a diff: a ranked list of what to delete, simplify,
-  or replace with stdlib/native equivalents. Use when the user says "audit this
-  codebase", "audit for over-engineering", "what can I delete from this repo",
+  or replace with stdlib/native equivalents. Use when the user says "audit for over-engineering", "what can I delete from this repo",
   "find bloat", "ponytail-audit", or "/ponytail-audit". One-shot report, does
   not apply fixes.
 ---
@@ -24,6 +23,8 @@ Same as ponytail-review:
 
 ## Hunt
 
+Report a cut only when repository evidence supports it and the replacement preserves accepted behavior and checks.
+
 Deps the stdlib or platform already ships, single-implementation interfaces,
 factories with one product, wrappers that only delegate, files exporting one
 thing, dead flags and config, hand-rolled stdlib.
@@ -31,11 +32,11 @@ thing, dead flags and config, hand-rolled stdlib.
 ## Output
 
 One line per finding, ranked: `<tag> <what to cut>. <replacement>. [path]`.
-End with `net: -<N> lines, -<M> deps possible.` Nothing to cut: `Lean already. Ship.`
+End with the supported finding count; estimated lines and dependencies are secondary context. Nothing supported to cut: `Lean for over-engineering. Correctness and shipping readiness were not assessed.`
 
 ## Boundaries
 
-Scope: over-engineering and complexity only. Correctness bugs, security holes,
+Scope: over-engineering and complexity only. Preserve accepted interfaces, behavior, and required tests. Correctness bugs, security holes,
 and performance are explicitly out of scope. Route them to a normal review
 pass. Lists findings, applies nothing. One-shot.
 "stop ponytail-audit" or "normal mode" to revert.

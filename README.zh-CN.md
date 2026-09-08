@@ -15,16 +15,20 @@
 
 | 用量问题 | Codex Base 的做法 |
 |---|---|
-| 主模型额度 | 边界和检查都已明确的实现任务，可以按计划交给预先指定的 Spark 执行器。[Codex-Spark 是独立模型，有自己的用量限制](https://learn.chatgpt.com/docs/agent-configuration/speed)；能否使用仍取决于访问权限和计划中的通道条件。 |
-| 长任务中的重复消耗 | 尽早写下决定，实现前查证文档，每个改动步骤都先验证、再删繁就简，从而减少反复读取长上下文、做偏、过度设计和返工。 |
+| 主模型额度 | 符合通道条件、边界明确的实现任务，在 Improve `.16` 下使用 Spark 优先策略：Spark 可用且有额度时选 Spark，否则选低推理强度的 Luna。每次新调用重新检查；模型启动后不会换模重放。[Codex-Spark 有独立的用量限制](https://learn.chatgpt.com/docs/agent-configuration/speed)。 |
+| 长任务中的重复消耗 | 正式规划先在 Plan Mode 的一份完整回复中记录已经定下的决定，之后获准进入可写阶段时再持久化。实现前查证文档，每个改动步骤都先验证、再删繁就简，从而减少反复读取长上下文、做偏、过度设计和返工。 |
 
 规划和审查也会消耗用量。小而明确的改动通常直接做更合适；Codex Base 不承诺每项任务都会减少 token、降低费用或减少总用量。
+
+已有的 `.15` 及更早受支持计划仍使用固定 Spark。元数据查询出错会在执行前停止，
+不会因此改选 Luna。Luna 并非保证可用或不限量；执行器不预查它的额度，也不切换
+账号或提供商。standard、deep、scout 和审查角色保持不变。
 
 ## Codex Base 增加了什么
 
 [shadcn Improve](https://github.com/shadcn/improve) 提供了审计方法和计划模板。Codex Base 在此基础上增加：
 
-- 把已经定下的决定写入持久化计划，而不是只留在对话里；
+- 正式规划先在对话中给出完整的替换计划；之后获准进入可写阶段时，再持久化已经定下的结果；
 - 由隔离执行器验证并简化每个发生改动的步骤；
 - 审查和恢复始终绑定对应的候选版本，再配合明确的检查点，让工作可审查、可续接。
 
@@ -87,13 +91,15 @@ default_mode_request_user_input = true
 
 这是合并片段，不应替换整个文件，也不是每次启动要带的参数；请保留其他无关配置。`plan_mode_reasoning_effort` 是顶层键，三个功能开关则属于 `[features]`。如果其中某个键已经存在，请直接修改原定义。若 `context_management` 或 `code_mode` 目前是布尔值，请用上面的点分形式替换它；不要同时保留布尔值和表，也不要重复定义同一个 TOML 键。
 
-保存后，请新建一个普通/默认模式的 Codex 会话。`default_mode_request_user_input` 只会让该模式可以使用结构化提问工具，并不会自动运行 Grilling 技能或其他提问工作流。官方说明见 [Learn 配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。无需启动脚本或安装器。
+保存后，请新建 Codex 会话。这个片段会请求实验性上下文管理、Code Mode、Default Mode 中的结构化提问，以及 Plan Mode 中的高推理强度。正式 Improve 规划仍要求当前会话实际提供原生上下文管理和结构化提问；配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用。如果缺少任何一项，请停止并换到具备这些能力的会话。`default_mode_request_user_input` 不会自动运行 Grilling 或其他提问工作流。
+
+官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了实验性上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由当前固定的 Codex 0.153.4 [功能声明](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core/tests/suite/request_user_input.rs)验证。无需启动脚本或安装器。
 
 > [!WARNING]
 > `context_management.experimental_mode` 是实验特性，仅适用于受支持的 OpenAI 后端，并且需要符合资格的 ChatGPT Plus、Pro 或 Pro Lite 会话；仅凭套餐名称不能保证具备资格。
 > `code_mode.enabled` 依赖匹配的 Code Mode companion host。
 > Nix/Home Manager 环境会安装该 companion，单独 CLI 不一定具备。
-> Plan 模式使用高推理强度可能耗时更长、使用更多 token；启用这些设置并不保证结果更好。
+> Plan Mode 使用高推理强度可能耗时更长、使用更多 token。Astra、高推理强度和 Code Mode 可用于对指引敏感的规划任务，但都不是硬性门槛；启用这些设置也不保证结果更好。
 
 如需回退，请保留其他无关配置，将 `plan_mode_reasoning_effort` 恢复为先前的值（托管的 Plan 基线为 `"medium"`），并明确把 `context_management.experimental_mode`、`code_mode.enabled` 和 `default_mode_request_user_input` 设为 `false`。不要只删除这些键：合并式覆盖层或源码回退不会清除已经写入 `config.toml` 的值。Home Manager 用户还必须在下次激活前撤销托管覆盖层中的这些设置，否则激活时会再次写入托管值。
 
@@ -106,7 +112,9 @@ default_mode_request_user_input = true
 Codex 会用插件命名空间限定技能名称，因此可移植插件使用 `$codex-base:improve`。Nix / Home Manager 完整环境不带这个前缀，使用 `$improve plan <request>`。
 
 > [!NOTE]
-> 请在普通/默认协作模式中运行 `$improve plan ...`（Codex 插件写法为 `$codex-base:improve plan ...`），不要使用内置 Plan Mode。Plan Mode 是只读的，Improve 无法在其中写入中间计划、语义锚点和审查记录。把这些决定写下来，后续执行才不必从很长的对话中重新梳理。
+> 请先用 `/plan` 或 Shift+Tab 进入内置 Plan Mode，再运行 `$improve plan ...`（Codex 插件写法为 `$codex-base:improve plan ...`）。Improve 会先查清已有事实，只询问仍未确定且会实质影响任务的选择，然后在对话中给出完整的替换计划；此时不会写入计划、问卷、交接或临时文件。只有之后获准进入可写阶段，才持久化计划。
+
+Default Mode 中的实现、审计及普通生命周期或 dossier 记录不需要重新走正式规划流程。如果在 Default Mode 中要求正式规划，请先切换到具备所需能力的 Plan Mode 会话。
 
 如需安装 Nix / Home Manager 完整环境，请添加 flake 输入并导入模块：
 

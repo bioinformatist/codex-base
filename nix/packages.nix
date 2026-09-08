@@ -45,7 +45,7 @@ in rec {
   playwright-cli = pkgs.writeShellScriptBin "playwright-cli" ''
     export PATH="${pkgs.nodejs_24}/bin:$PATH"
     export npm_config_cache="''${XDG_CACHE_HOME:-$HOME/.cache}/npm"
-    exec ${pkgs.nodejs_24}/bin/npx -y @playwright/cli@0.1.17 "$@"
+    exec ${pkgs.nodejs_24}/bin/npx -y @playwright/cli@0.1.19 "$@"
   '';
   codex-improve-exec = mkRunner "codex-improve-exec";
   codex-improve-review = mkRunner "codex-improve-review";

@@ -1,102 +1,110 @@
 # Handoff Plan Template
 
-Every plan is written for an executor model that has **zero context**: it has not seen the advisor session, the audit, the other plans, or any prior conversation. It may be a smaller/cheaper model. Assume it is competent at following explicit instructions and weak at filling gaps, recovering from ambiguity, or knowing when to stop.
+Write for an executor with zero conversation context. Inline every
+decision-bearing constraint, give each step an exact verification and expected
+result, and state scope and STOP conditions. The planning contract owns the
+semantics; this file supplies their filled-in shape.
 
-Three properties make a plan executable by a weaker model:
-
-1. **Decision-complete context** — inline every decision-bearing constraint; point to stable background by exact repository path and section.
-2. **Verification gates** — every step ends with a command and its expected result. The executor never has to *judge* whether it succeeded.
-3. **Hard boundaries and escape hatches** — explicit out-of-scope list, and "STOP and report" conditions instead of letting the model improvise when reality doesn't match the plan.
-
-File naming: follow the repository's explicit artifact convention. Otherwise use local-only `plans/NNN-short-slug.md`, or `advisor-plans/NNN-short-slug.md` when `plans/` already has another purpose, numbered in recommended execution order.
-
----
+Follow the repository's artifact convention. Otherwise use local-only
+`plans/NNN-short-slug.md`, or `advisor-plans/NNN-short-slug.md` when `plans/`
+already has another purpose, numbered in recommended execution order.
 
 ## Template
 
-```markdown
-# Plan NNN: <Imperative title — what will be true after this plan>
+````markdown
+# Plan NNN: <Imperative title — what will be true>
 
-> **Executor instructions**: Before editing, reread this complete plan and recover its objective, Semantic anchors, Modification scope, evidence/drift paths, Engineering contract, checks, and STOP conditions. Then follow it step by step. Run every
-> verification command and confirm the expected result before moving to the
-> next step. If anything in the "STOP conditions" section occurs, stop and
-> report — do not improvise. Leave the plan and index unchanged; the advisor
-> updates lifecycle state after review.
-> After every code/test-changing step, run its named verification, inspect only
-> that step's delta for `delete`, `stdlib`, `native`, `yagni`, and `shrink`
-> opportunities, and rerun invalidated checks after each accepted simplification.
+> **Executor instructions**: Reread this complete plan before editing. Recover
+> its objective, anchors, scope, Engineering contract, checks, and STOP
+> conditions; then execute the ordered steps. Run each verification and confirm
+> its expected result before continuing. Leave the plan and index unchanged.
 >
-> **Drift check (run first)**: `git diff --stat <planned-at SHA>..HEAD -- <Modification scope and evidence/drift paths>`
-> If any path in Modification scope or evidence/drift paths changed since this plan was written, compare the
-> "Current state" excerpts against the live code before proceeding; on a
-> mismatch, treat it as a STOP condition.
-> The runner owns the exact plan snapshot/hash and candidate identity. Do not
-> calculate, reconstruct, or update either identity, and do not invoke candidate,
+> After every code/test-changing step, run its named verification; inspect only
+> that step's new delta for `delete`, `stdlib`, `native`, `yagni`, and `shrink`
+> opportunities; apply only semantics-preserving simplifications; rerun the step
+> check and explicitly invalidated earlier checks; record `ponytail=lean` or
+> `ponytail=simplified` on the step and put finding dispositions in notes. STOP
+> if a finding conflicts with a settled requirement.
+>
+> **Drift check (run first)**: `<exact command comparing Planned-at SHA through
+> HEAD across every Modification scope and Evidence/drift path>` → no relevant
+> drift, or the live state matches the Current state after explicit comparison.
+> A mismatch is a STOP. The runner owns the plan snapshot/hash and candidate
+> identity; never calculate, reconstruct, or update either, or invoke candidate,
 > checkpoint, or resume operations.
 
 ## Status
 
 - **Status**: TODO
-- **Improve contract**: `1.0.0-codex.15`
-- **Implementation review**: PENDING
-- **Checkpoint**: NONE
-- **External acceptance**: NOT REQUIRED | PENDING
+- **Improve contract**: `1.0.0-codex.16`
+- **Implementation review**: PENDING | APPROVED | REVISE | BLOCKED
+- **Checkpoint**: NONE | RESUMABLE | INTEGRATED
+- **External acceptance**: NOT REQUIRED | PENDING | PASSED | FAILED
 - **Checkpoint ID**: none
 - **Priority**: P1 | P2 | P3
 - **Effort**: S | M | L
 - **Risk**: LOW | MED | HIGH
 - **Executor lane**: spark | standard | deep
-- **Executor routing evidence**: <why this lane satisfies the Improve routing contract>
-- **Recovery seams**: none | <one to three dependency-ordered seams, each with relevant paths, gates, and a candidate lane>
-- **Depends on**: <plan artifact identifier at the repository-specific location> (or "none"); inline every dependency contract so execution never requires conversation context or another plan
+- **Executor routing evidence**: <why this lane satisfies the routing contract>
+- **Recovery seams**: none | <one to three dependency-ordered seams with paths, gates, and candidate lane>
+- **Depends on**: none | <plan identifier; inline any code-only exception's exact approved checkpoint or landing commit and observable prerequisite>
 - **Category**: bug | security | perf | tests | tech-debt | migration | dx | docs | direction
+- **Artifact policy**: <repository convention, or local-only fallback>
 - **Planned at**: commit `<short SHA>`, <YYYY-MM-DD>
-- **Issue**: <issue URL — only when published via `--issues`; omit otherwise>
+- **Issue**: <URL only when explicitly published; otherwise omit>
+
+## Objective
+
+<What changes, why it matters, and the bounded outcome.>
+
+## Acceptance surface
+
+<The one concrete API, CLI, preview, or real consumer that makes this unit
+independently observable, integrable, reversible, and acceptable.>
 
 ## Route checkpoint
 
-Omit this section for a standalone plan. Include it when the planning contract's
-Route checkpoint trigger applies.
+<Omit for a standalone plan. When triggered, fill every field.>
 
-- **Program outcome**: <the user-requested end result the chain exists to reach>
-- **Present bottleneck**: <the current decision or constraint>
-- **Fresh evidence**: <the exact named result or observation that opened or selected this route>
-- **Route claim**: <why this plan is still a necessary next unit>
-- **Cheapest discriminator**: <the least expensive check that can confirm, redirect, or stop the route>
-- **Inherited artifacts**: <each material artifact and its product-bound, research-only, or retire-before-integration disposition>
+- **Program outcome**: <chain-level user outcome>
+- **Present bottleneck**: <current decision or constraint>
+- **Fresh evidence**: <named result or observation selecting this route>
+- **Route claim**: <why this is still a necessary next unit>
+- **Cheapest discriminator**: <least expensive confirming/redirecting/stopping check>
+- **Inherited artifacts**: <artifact plus product-bound, research-only, or retire-before-integration disposition>
 
-Quality checks:
-
-- Every triggered checkpoint: Fresh evidence supports the Route claim, and the
-  plan uses the Cheapest discriminator.
-- Only for a route-selecting evidence plan: include the result map below, map
-  every material result to its meaning and a continue, redirect, or stop
-  action, and require at least one mapped result to settle the route choice.
+<Only for a route-selecting evidence plan: add this exhaustive result map;
+at least one row must settle the route.>
 
 | Result | Meaning | Continue, redirect, or stop |
 |---|---|---|
-| <material result> | <what it means> | <action> |
+| <material result> | <meaning> | <action> |
 
 ## Semantic anchors
 
-Persist concise material semantics with stable provenance prefixes: `U` user decision, `F` verified fact, `D` advisor derivation, `A` assumption, and `R` rejected alternative. Include only populated categories and preserve identifiers across review.
+<List concise, stable anchors using only populated provenance prefixes: `U`
+user decision, `F` verified fact, `D` derivation, `A` assumption, `R` rejected
+alternative. Preserve IDs across revisions.>
 
 ## Review record
 
-Record the reviewed baseline, refreshed evidence, material semantic changes with provenance, and the `READY` or `BLOCKED` verdict.
+- **Reviewed baseline**: <identity>
+- **Evidence refreshed**: <paths/results>
+- **Material semantic changes**: none | <change and provenance>
+- **Verdict**: READY | BLOCKED — <reason/input needed>
 
 ## Checkpoint lineage
 
-Keep the scalar Checkpoint and Checkpoint ID above authoritative. Omit lineage rows until that persistent identity changes. Then append:
+<The scalar Checkpoint and Checkpoint ID above are authoritative. Omit this
+section until identity changes; then append one row per transition.>
 
 | Stage | Identity | Superseded identity | Preserved evidence | Invalidated evidence |
-|-------|----------|---------------------|--------------------|----------------------|
+|---|---|---|---|---|
 
 ## Execution environment
 
-Declare the exact launcher and literal preflight probes for this execution.
-Use an empty launcher to inherit the runner environment. Empty probes require
-`probeOmissionReason`.
+<Replace placeholders with the exact reviewed literal argv values. Empty probes
+require `probeOmissionReason`; nonempty probes omit it.>
 
 ```json codex-improve-environment
 {
@@ -107,249 +115,177 @@ Use an empty launcher to inherit the runner environment. Empty probes require
 }
 ```
 
-Ordinary plans omit `cache`, which means a fresh per-execution XDG cache. Add
-`"cache":{"xdgScope":"worktree"}` only when evidence shows expensive cache
-state must survive recovery or revision in this registered worktree. Record
-that tradeoff in Semantic anchors and include any required clean-state gate;
-cache hits are never acceptance evidence.
-
-The main agent passes this exact reviewed JSON first through
-`--environment-json`. Do not include secrets or environment-variable values.
-For a `.15` initial or `--next` invocation, the runner snapshots these exact
-plan bytes privately and returns their SHA-256. Record that returned identity
-in later dossier or ledger provenance; do not edit the executed plan to embed
-its own hash.
+<Omitting `cache` means fresh per-execution XDG scope. Add
+`"cache":{"xdgScope":"worktree"}` only with evidence that expensive state
+must survive revision/recovery in this registered worktree; record the rationale
+in Semantic anchors and add a clean-state gate. Cache hits are never evidence.
+The main agent passes this JSON unchanged through `--environment-json`. Do not
+include secrets or environment-variable values.>
 
 ## Execution isolation
 
-- **Dispatch**: serial
-- **Mutable stateful resources**: none
-
-When mutable external state is required, replace `none` with:
+- **Dispatch**: serial | parallel-eligible
+- **Mutable stateful resources**: none | <table below>
 
 | Resource | Isolation coordinate | Provision/select | Lifecycle owner | Cleanup |
-|----------|----------------------|------------------|-----------------|---------|
-| `<service>` | `<scope derived from execution ID or explicit handoff>` | `<exact commands>` | `<owner>` | `<policy/evidence>` |
-
-## Why this matters
-
-2–5 sentences. The problem, its concrete cost, and what improves when this
-lands. Written so the executor (and a human reviewer) understands the intent —
-intent is what lets a correct judgment call happen when a detail is off.
-
-## Acceptance surface
-
-Name the one concrete surface that makes this unit independently observable,
-integrable, reversible, and acceptable: a testable API or CLI, runnable
-preview, or real consumer. Keep only its minimum supporting foundation here.
-Split independent outcomes, rollback boundaries, or unresolved decisions; do
-not use line, file, directory, or layer quotas.
+|---|---|---|---|---|
+| <service> | <logical scope> | <idempotent commands> | <owner> | <policy/evidence> |
 
 ## Current state
 
-The facts the executor needs, inlined — never "as discussed" or "see audit":
-
-- The relevant files, each with one line on its role:
-  - `src/orders/api.ts` — order-list endpoint; contains the N+1 (lines 130–160)
-- Excerpts of the code as it exists today (short, with `file:line` markers),
-  enough that the executor can confirm it's looking at the right thing.
-- The repo conventions that apply here, with a pointer to one exemplar file:
-  "Error handling follows the Result pattern — see `src/lib/result.ts` and its
-  use in `src/users/api.ts:40-60`. Match it."
-- Any documented vocabulary or design constraints the plan must honor, inlined
-  from the intent/design docs found in recon: the relevant `CONTEXT.md` terms
-  the executor should use in names and comments, the `DESIGN.md` tokens/components
-  to reuse, or the ADR whose decision this work must stay consistent with. Quote
-  the specific decision-bearing lines. Stable non-decision background may be
-  referenced by exact repository path and section.
+- **Relevant files and roles**: <exact paths, symbols, and short current excerpts with line markers>
+- **Applicable conventions**: <rule plus exact exemplar path>
+- **Vocabulary/design constraints**: <inline decision-bearing lines; point to stable background by exact path and section>
+- **Current evidence**: <facts/results the executor must not rediscover>
 
 ## Engineering contract
 
-Record one row for every planned change trigger. Modification scope limits edits, not read-only impact analysis; record a concern as not applicable only with repository evidence.
+<One row per planned trigger. Modification scope limits writes, not impact
+analysis. Mark N/A only with repository evidence. `pending approval` makes the
+plan BLOCKED; after approval add its paths and checks to this plan.>
 
 | Concern | Planned change trigger | Requirement or command | Repository evidence | Expected result | Contract edit |
-|---------|------------------------|------------------------|---------------------|-----------------|---------------|
-| Build/generated artifacts | `<package, generated output, or N/A>` | `<exact command or N/A>` | `<path, config, or documented rule>` | `<observable result>` | `<no, pending approval, or approved>` |
-| Test/lint/type | `<behavior or source change>` | `<exact command or N/A>` | `<path, config, or documented rule>` | `<observable result>` | `<no, pending approval, or approved>` |
-| CI/policy/classifier | `<artifact, dependency, or workflow impact>` | `<exact gate or N/A>` | `<path, config, or documented rule>` | `<observable result>` | `<no, pending approval, or approved>` |
-| Compatibility/public interface | `<interface, format, or dependency change>` | `<boundary check or N/A>` | `<path, config, or documented rule>` | `<preserved behavior>` | `<no, pending approval, or approved>` |
-| Release/deployment | `<packaging, runtime, or rollout impact>` | `<exact check or N/A>` | `<path, config, or documented rule>` | `<observable result>` | `<no, pending approval, or approved>` |
-| Review/acceptance | `<risk or user-visible impact>` | `<required review or N/A>` | `<path, config, or documented rule>` | `<observable result>` | `<no, pending approval, or approved>` |
-
-Run state-sensitive checks before a build, cache, installation, deployment, or other local state can hide their evidence, or use clean base/head isolation. Any `pending approval` contract edit requires an evidence-backed `BLOCKED` verdict; after approval, mark it `approved`, add the exact edit paths to Modification scope, and add the exact checks to this table and the verification commands. Adding ordinary behavior tests inside an existing harness does not require approval.
+|---|---|---|---|---|---|
+| Build/generated artifacts | <trigger/N/A> | <command/N/A> | <path/rule> | <result> | <no/pending approval/approved> |
+| Test/lint/type | <trigger/N/A> | <command/N/A> | <path/rule> | <result> | <...> |
+| CI/policy/classifier | <trigger/N/A> | <gate/N/A> | <path/rule> | <result> | <...> |
+| Compatibility/public interface | <trigger/N/A> | <check/N/A> | <path/rule> | <preserved behavior> | <...> |
+| Release/deployment | <trigger/N/A> | <check/N/A> | <path/rule> | <result> | <...> |
+| Review/acceptance | <trigger/N/A> | <review/N/A> | <path/rule> | <result> | <...> |
 
 ## Verification and acceptance contract
 
-Classify every check exactly once. Implementation gates are deterministic or agent-observable and must pass before implementation approval. Deferred acceptance is limited to behavior the available agent and environment cannot exercise. Observations are non-blocking unless an explicit threshold and lifecycle transition are recorded.
+<Classify every check once. Implementation gates pass before review approval;
+deferred acceptance is only for behavior this agent/environment cannot exercise;
+observations are non-blocking without an explicit threshold and transition.>
 
 | Check | Class | Owner | Stage and target | Required evidence |
-|-------|-------|-------|------------------|-------------------|
-| `<exact check>` | `<implementation gate, deferred acceptance, or observation>` | `<executor, main agent, user, or external system>` | `<before review, checkpoint ID, or after integration>` | `<command output or observable result>` |
+|---|---|---|---|---|
+| <exact check> | <implementation gate/deferred acceptance/observation> | <owner> | <stage/checkpoint> | <output/result> |
 
 ### Gate ledger
 
-Use stable IDs. Triggers name paths, interfaces, generated outputs, environment
-inputs, or other facts that invalidate evidence. Declare a genuinely holistic
-gate `always-invalidated`; revision or recovery count is never a trigger.
+<Use stable IDs. Name complete invalidation triggers and environment identity;
+use `always-invalidated` only for a genuinely holistic gate.>
 
 | Gate ID | Command/reviewer | Invalidation triggers | Environment identity | Current candidate evidence |
-|---------|------------------|-----------------------|----------------------|----------------------------|
-| `G1` | `<exact command or reviewer ID>` | `<paths or always-invalidated>` | `<toolchain/probe/checkpoint identity>` | `<candidate tree, result, artifact>` |
+|---|---|---|---|---|
+| G1 | <exact command/reviewer> | <paths/interfaces/outputs/inputs/checkpoint, or always-invalidated> | <toolchain/probe/checkpoint> | <candidate tree/result/artifact> |
 
-After every candidate transition the main agent appends one row. Preserve an ID
-only when its complete trigger mapping and relevant environment identity prove
-the delta irrelevant. Missing or uncertain mapping fails closed by invalidating
-that ID. Run invalidated and `always-invalidated` IDs; revision or recovery
-count alone never requires the full suite.
+<Append after every candidate transition. Uncertain mapping invalidates the ID.>
 
 | Old candidate | New candidate | Changed paths | Preserved gate/reviewer IDs | Invalidated IDs and reasons |
-|---------------|---------------|---------------|-----------------------------|-----------------------------|
+|---|---|---|---|---|
 
-Initial implementation review covers the complete candidate diff. Later review
-covers the candidate delta plus this ledger transition and expands to the
-complete diff wherever the mapping or resulting behavior is uncertain.
+<Initial implementation review covers the complete candidate diff.>
 
-When the Checkpoint ID changes between worktree/diff, commit, PR, integration, preview, or deployment, append one Checkpoint lineage row with the stage, new identity, superseded identity, preserved evidence, and invalidated evidence. Preserve evidence only after proving the reviewed diff is unchanged; a material diff change invalidates its applicable checks and reviewer conclusions.
+## Operational handoff
 
-For stateful or deferred operations, add an Operational handoff with the target and checkpoint, owner, host or environment, working directory, complete commands or physical procedure, prerequisites, temporary runtime mutations, cleanup state and evidence, expected evidence, recovery, and drift invalidation. Name secret locations or credential types only, never values. Omit Operational handoff when no stateful or deferred operation exists.
-
-For every deferred acceptance, record the environment, exact procedure, expected evidence, rollback or recovery path, and what drift invalidates the result. Before an asynchronous handoff, the main agent records a resumable Checkpoint and exact Checkpoint ID; the executor never creates or integrates that checkpoint on its own.
-
-## Commands you will need
-
-| Purpose   | Command                  | Expected on success |
-|-----------|--------------------------|---------------------|
-| Install   | `pnpm install`           | exit 0              |
-| Typecheck | `pnpm typecheck`         | exit 0, no errors   |
-| Tests     | `pnpm test -- <filter>`  | all pass            |
-| Lint      | `pnpm lint`              | exit 0              |
-
-(Exact commands from this repo — verified during recon, not guessed.)
-
-## Suggested executor toolkit
-
-(Optional — include only when relevant skills/tools plausibly exist in the
-executor's environment. Skip the section otherwise.)
-
-- Skills the executor should invoke if available, and for what:
-  "use `vercel-react-best-practices` when writing the memoization in step 3".
-- Reference docs worth reading before starting, by path or URL.
+<Omit unless stateful or deferred work exists. Otherwise record target and
+checkpoint; owner; host/environment and working directory; prerequisites;
+complete commands or physical procedure; temporary mutations; cleanup state and
+evidence; expected evidence; recovery; drift invalidation; and secret locations
+or credential types without values. For each deferred acceptance, include its
+exact environment, procedure, result, rollback/recovery, and invalidating drift.
+An asynchronous handoff requires a resumable Checkpoint and exact ID.>
 
 ## Scope
 
-**Modification scope** (the only files you should modify):
-- `src/orders/api.ts`
-- `src/orders/api.test.ts` (create)
+**Modification scope** (exhaustive writable paths):
 
-**Evidence/drift paths** (read-only inputs used to verify facts and baseline drift):
-- `src/lib/result.ts`
+- `<path>` — <planned edit>
 
-**Out of scope** (do NOT touch, even though they look related):
-- `src/orders/legacy-api.ts` — deprecated path, scheduled for deletion;
-  changing it wastes effort and risks the v1 clients still pinned to it.
-- Any change to the public response shape — clients depend on it.
+**Evidence/drift paths** (read-only inputs):
+
+- `<path>` — <fact, convention, or drift checked>
+
+**Out of scope** (explicit exclusions):
+
+- `<path or behavior>` — <why excluded>
 
 ## Git workflow
 
-(Filled from recon — match the repo's observed conventions.)
-
-- Branch and worktree: created by `codex-improve-exec`; do not create another branch
-- Leave all executor changes uncommitted for the main agent to review
-- Do not commit, merge, push, open a PR, or remove the worktree.
+- Branch/worktree: created by `codex-improve-exec`; create no replacement.
+- Leave executor changes uncommitted for main-agent review.
+- The executor must not edit plan/index artifacts, invoke candidate/checkpoint/resume
+  operations, commit, merge, push, publish, deploy, integrate, or remove the worktree.
+- The main agent owns plan/index updates and any separately authorized lifecycle
+  actions. It may create a local checkpoint through the runner only after all
+  required reviews approve; that checkpoint does not authorize integration,
+  publication, deployment, or cleanup.
 
 ## Steps
 
-### Step 1: <imperative title>
+### Step 1: <Imperative title>
 
-What to do, precisely. Reference exact files/symbols. Include the target code
-shape when it's load-bearing (the pattern to produce, not necessarily every
-line).
+<Exact files/symbols, target behavior/code shape, and bounded action.>
 
-**Verify**: `<command>` → <expected output>
+**Verify**: `<exact command>` → <expected result>
 
-### Step 2: ...
+**Step evidence**: <`ponytail=lean` or `ponytail=simplified`; dispositions when required>
 
-(Each step small enough to verify independently. Order steps so the codebase
-is never broken between steps when possible — e.g. add new path, switch
-callers, then remove old path.)
+### Step 2: <Imperative title>
+
+<Continue in dependency order; each step is independently checkable.>
+
+**Verify**: `<exact command>` → <expected result>
+
+**Step evidence**: <`ponytail=lean` or `ponytail=simplified`; dispositions when required>
 
 ## Test plan
 
-- New tests to write, in which file, covering which cases (list them:
-  happy path, the specific bug/regression this plan fixes, named edge cases).
-- Which existing test to use as the structural pattern:
-  "model after `src/users/api.test.ts`".
-- Verification: `<test command>` → all pass, including N new tests.
+- **New/changed tests**: <exact file and happy path, regression, and named edge cases>
+- **Structural exemplar**: <exact existing test path/symbol>
+- **Commands**: `<exact command>` → <all tests pass, including count/cases when stable>
 
 ## Done criteria
 
-Machine-checkable. ALL must hold:
-
-- [ ] `pnpm typecheck` exits 0
-- [ ] `pnpm test` exits 0; new tests for <X> exist and pass
-- [ ] `grep -rn "<old pattern>" src/` returns no matches
-- [ ] No files outside Modification scope are modified (`git status`)
-- [ ] Plan artifacts and any repository-specific plan index remain unchanged by the executor
+- [ ] <Every implementation gate has current passing evidence.>
+- [ ] <Acceptance surface exhibits the required behavior.>
+- [ ] <Required tests exist and pass.>
+- [ ] <Only Modification scope paths changed; generated companions are accounted for.>
+- [ ] <Plan/index artifacts remain unchanged by the executor.>
 
 ## STOP conditions
 
-Stop and report back (do not improvise) if:
-
-- The code at the locations in "Current state" doesn't match the excerpts
-  (the codebase has drifted since this plan was written).
-- A step's verification fails twice after a reasonable fix attempt.
-- The fix appears to require touching an out-of-scope file.
-- You discover the assumption "<key assumption>" is false.
+- Current state or drift evidence contradicts the plan.
+- A named verification still fails after one reasonable in-scope correction.
+- Work requires an unapproved Engineering-contract change or path outside Modification scope.
+- <Plan-specific assumption, dependency, authority, or safety boundary fails.>
 
 ## Maintenance notes
 
-For the human/agent who owns this code after the change lands:
+- <Future interaction or intentionally deferred follow-up and why.>
+- <What implementation reviewers must scrutinize.>
+````
 
-- What future changes will interact with this (e.g. "if pagination is added
-  to this endpoint, the batching in step 2 must be revisited").
-- What a reviewer should scrutinize in the PR.
-- Any follow-up explicitly deferred out of this plan (and why).
-```
+## Optional index
 
----
-
-## Optional index at the repository-specific artifact location
-
-Written and maintained by the advisor after review:
+The advisor may maintain this concise index at the repository-specific artifact
+location after review:
 
 ```markdown
 # Implementation Plans
 
-Generated by the improve skill on <date>. Execute in the order below unless
-dependencies say otherwise. Each executor reads the plan fully before starting and
-honors its STOP conditions; the advisor updates status after review.
-
-## Execution order & status
+Execute in dependency order. Each executor reads its complete plan; the advisor
+updates lifecycle after review.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
-|------|-------|----------|--------|------------|--------|
-| 001  | ...   | P1       | S      | —          | TODO   |
-| 002  | ...   | P1       | M      | 001        | TODO   |
+|---|---|---|---|---|---|
+| 001 | ... | P1 | S | — | TODO |
 
-Status values: TODO | IN PROGRESS | IMPLEMENTED | ACCEPTANCE PENDING | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale — finding fixed independently or approach abandoned). Derive ACCEPTANCE PENDING only when implementation review is APPROVED, a deferred acceptance is ready, and Checkpoint is RESUMABLE or INTEGRATED with an exact Checkpoint ID.
+Status: TODO | IN PROGRESS | IMPLEMENTED | ACCEPTANCE PENDING | DONE | BLOCKED
+(reason) | REJECTED (rationale). `ACCEPTANCE PENDING` requires approved
+implementation, a ready deferred check, and a RESUMABLE or INTEGRATED checkpoint
+with exact ID.
 
-## Dependency notes
-
-- 002 requires 001 because <reason>.
-
-## Findings considered and rejected
-
-- <finding>: not worth doing because <one line>. (So nobody re-audits it.)
+Dependency notes and findings deliberately rejected: <concise entries as needed>.
 ```
 
-## Quality bar — check before finishing each plan
+## Final coverage check
 
-- Could a model that has never seen this repo execute this with only the plan file and the repo? If any step requires knowledge from the advisor session, inline that knowledge.
-- For every new limit, cap, dependency, abstraction, compatibility layer, or defensive mechanism, is provenance explicit from a user decision, observed repository fact/failure, repository rule, or authoritative external constraint?
-- Is every verification a command with an expected result, not a judgment ("make sure it works")?
-- Could each new mechanism be replaced by existing repository rules, standard shell, or built-in tooling without weakening requirements?
-- Does every step name exact files and symbols, not "the relevant module"?
-- Are the STOP conditions specific to this plan's actual risks, not boilerplate?
-- Would a reviewer reading only "Why this matters" + "Done criteria" understand what they're approving?
-- No secret values anywhere in the file — locations and credential types only.
-- "Planned at" SHA is filled in and the Modification scope plus evidence/drift paths in the drift check match the Scope section.
+Confirm the plan is zero-context executable; every decision, new mechanism, and
+boundary has provenance; every step and gate has an exact expected result; scope
+and drift lists match the drift command; STOP conditions name actual risks; the
+Planned-at SHA is filled; conditional sections are present exactly when
+triggered; and no secret value appears.

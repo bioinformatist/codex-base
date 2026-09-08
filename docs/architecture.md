@@ -24,6 +24,36 @@ and thin runner wrappers. `nix/home-manager.nix` owns the full Linux runtime:
 config overlay, MCP wrappers, global instructions, rules, packages, and direct
 unnamespaced skill links. It intentionally renders no Improve profile files.
 
+The managed global `AGENTS.md` stores persistent per-user Git, Nix, proxy,
+secret-handling, evidence, and working preferences. The portable plugin does
+not install it. Executor prompts retain runner-local scope, checks, STOP, and
+handoff constraints. Codex Base has no model-index or per-model global guidance
+files, and its ordinary runtime default remains Sol with medium reasoning.
+
+Formal Improve planning uses built-in Plan Mode only when the live session
+exposes native context management and structured questions. It produces one
+complete replacement in chat and creates no plan, questionnaire, handoff, or
+temporary file. A later authorized writable phase may persist that result.
+Implementation, audits, and routine lifecycle bookkeeping remain available in
+Default Mode without starting a new planning workflow.
+
+Prompt compatibility statements for Codex 0.153.4 are limited to the public
+templates in `models-manager/models.json` at revision
+`3d2ee51ca2d5db578f328aa75e20aa22c0197c9a`: Sol, Terra, and Luna share that
+public base/template content, while Astra differs. This boundary says nothing
+about undisclosed server-side instructions, and Codex Base does not copy those
+model prompts.
+
 Improve profile names remain stable labels in roles, manifests, metrics, and
 handoffs. Runners pin effective settings at CLI precedence and never look up a
 Codex profile.
+
+Improve `.16` adds one caller-time choice to the existing eligible Spark lane.
+A short-lived native app-server query selects Spark/high when available with
+quota, otherwise Luna/low, before one executor starts. Query errors terminate
+without execution; inference errors never cause replay. Each new call, including
+preflight resume, reevaluates availability after validating any inherited
+provenance. The existing role snapshot, execution record, metrics and
+profile/model/effort handoff identify the choice. There is no scheduler,
+persistent routing cache, account switch or new configuration-profile lookup.
+Older supported contracts keep fixed Spark, and all other roles are unchanged.

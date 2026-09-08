@@ -1,0 +1,6 @@
+interface:
+  display_name: "Wait, What?"
+  short_description: "Restate the last explanation plainly"
+  default_prompt: "Use $wait-what to restate the last explanation plainly in the current conversation language."
+policy:
+  allow_implicit_invocation: false

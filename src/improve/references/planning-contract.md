@@ -1,6 +1,21 @@
 # Improve Planning Contract
 
-Contract version: `1.0.0-codex.15`
+Contract version: `1.0.0-codex.16`
+
+Version `.16` inherits the `.15` environment, cache, protected-path, plan
+snapshot, candidate, status, checkpoint, recovery and closeout contracts below.
+Descriptions of those `.15` facilities also apply to `.16`. The only routing
+change is Spark-priority, defined under Executor routing. Existing `.15` and
+older supported artifacts keep their behavior and are not migrated.
+
+## Planning session prerequisites
+
+Before `plan`, `review-plan`, or material replanning, apply the actionable mode,
+capability, and no-write gate in `../SKILL.md` under **Formal Planning
+Prerequisites**. Routine authorized lifecycle, index, or dossier bookkeeping
+that preserves approved semantics does not trigger formal planning. The
+mode-aware artifact rules below remain normative whenever plan artifacts are
+created or replaced.
 
 ## Execution environment contract
 
@@ -58,9 +73,9 @@ beneath that configured XDG root. Revision and recovery reject a worktree
 outside it before invoking the launcher. This safely upgrades state created by
 the legacy runner before its private umask took effect.
 
-Artifacts declaring `.15` require this contract and fail closed. `.13` and
+Artifacts declaring `.15` or `.16` require this contract and fail closed. `.13` and
 `.14` artifacts remain executable and resumable with their existing behavior.
-Only `.14` and `.15` may use repeatable `--allow-protected-path .agents` and
+Only `.14`, `.15` and `.16` may use repeatable `--allow-protected-path .agents` and
 `--allow-protected-path .codex` options, placed after `--environment-json` and
 before the lane or operation. The caller must obtain user approval and restate
 the exact set for every initial, next, revision, or recovery invocation; the
@@ -94,15 +109,16 @@ change; it is not a transcript or a snapshot of every source consulted.
 
 ## Persist early
 
-After the user confirms a direction, create the plan skeleton before extended
-investigation or drafting. At minimum, persist the objective, initial semantic
-anchors, modification scope, evidence/drift paths, known engineering contract,
-artifact policy, dependencies, and open material decisions. Refine that same
-plan as evidence arrives.
+After the user confirms a direction, establish the plan skeleton before
+extended investigation or drafting. At minimum, capture the objective, initial
+semantic anchors, modification scope, evidence/drift paths, known engineering
+contract, artifact policy, dependencies, and open material decisions. In a
+writable phase, persist and refine that same artifact as evidence arrives. In
+Plan Mode, keep it in native context and render only complete replacement plans
+in chat.
 
-When the environment forbids writing plan files, the official rendered plan
-must be a complete replacement plan, never a delta that depends on an earlier
-rendering or conversation memory.
+Every official chat rendering is a complete replacement plan, never a delta
+that depends on an earlier rendering or conversation memory.
 
 ## Authority and semantic anchors
 
@@ -310,6 +326,29 @@ Likewise, `--next` inherits source lineage only from its checkpoint; mutable
 state lineage exists only through an explicit handoff in the later plan.
 
 ## Executor routing
+
+For `.16`, the existing `--spark` flag requests Spark-priority for an eligible
+bounded task. Before every initial, next, revision, recovery or resumed-preflight
+invocation, the runner queries native Codex account/model/rate-limit metadata.
+It selects Spark with high reasoning when Spark is picker-visible, supports
+high reasoning and has usable quota; otherwise it selects Luna with low
+reasoning (Luna-low). The entire metadata query is bounded to 30 seconds.
+The next independent call reevaluates availability; an active Luna call is
+never interrupted to switch back to Spark.
+
+One call launches one executor. A started model's native failure ends that call
+without replay or another model. Metadata transport, authentication and protocol
+errors stop before execution; they are not evidence of exhaustion. The runner
+does not query Luna quota, change providers or accounts, infer entitlement from
+subscription names, or promise unlimited usage. Standard, deep, scout and review
+roles are unchanged. Under `.15` and older supported contracts, `--spark`
+still selects fixed Spark and makes no metadata query.
+
+On preflight resume, validate the original immutable role/configuration,
+candidate, environment, scope and limits before making a fresh choice. Record
+the newly selected role in the new invocation's existing private state.
+Effective profile, model and reasoning effort appear in normal handoff output;
+profiles remain compatibility labels, not configuration lookup files.
 
 Every generated plan records `Executor lane: spark | standard | deep` and
 `Executor routing evidence` in its status block. The advisor makes this

@@ -17,7 +17,7 @@ can't quietly become permanent.
 Grep the repo for comment markers, skipping `node_modules`, `.git`, and build
 output:
 
-`grep -rnE '(#|//) ?ponytail:' .`  (add other comment prefixes if your stack uses them)
+`grep -rnE --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=build --exclude-dir=dist --exclude-dir=out --exclude-dir=target --exclude-dir=.next --exclude-dir=coverage '(#|//) ?ponytail:' .` (add other comment prefixes if the stack uses them)
 
 Each hit is one ledger row. The comment prefix keeps prose that merely mentions
 the convention out of the ledger.
@@ -39,6 +39,4 @@ End with `<N> markers, <M> with no trigger.` Nothing found: `No ponytail: debt. 
 
 ## Boundaries
 
-Reads and reports only, changes nothing. To persist it, ask and it writes the
-ledger to a file (e.g. `PONYTAIL-DEBT.md`). One-shot. "stop ponytail-debt" or
-"normal mode" to revert.
+Reads and reports only; never writes, edits, stages, or persists a ledger. One-shot. "stop ponytail-debt" or "normal mode" to revert.
