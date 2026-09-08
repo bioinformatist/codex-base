@@ -51,8 +51,8 @@
     {
       "name": "playwright-cli",
       "repository": "https://github.com/microsoft/playwright-cli",
-      "version": "0.1.17",
-      "revision": "v0.1.17",
+      "version": "0.1.19",
+      "revision": "v0.1.19",
       "license": "Apache-2.0",
       "includedPaths": ["skills/playwright-cli"],
       "patched": true

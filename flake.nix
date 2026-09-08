@@ -8,7 +8,7 @@
     shadcn-improve = { url = "github:shadcn/improve/03369ee6d7cafbfcecc4346539b05b3dc0a603bb"; flake = false; };
     stop-slop = { url = "github:hardikpandya/stop-slop/8da1f030185bdfe8471220585162991eaeb970e9"; flake = false; };
     ponytail = { url = "github:DietrichGebert/ponytail/v4.8.3"; flake = false; };
-    playwright-cli = { url = "github:microsoft/playwright-cli/v0.1.17"; flake = false; };
+    playwright-cli = { url = "github:microsoft/playwright-cli/v0.1.19"; flake = false; };
     codex-src = { url = "github:openai/codex/rust-v0.153.4"; flake = false; };
   };
   outputs = inputs@{ self, nixpkgs, ... }:

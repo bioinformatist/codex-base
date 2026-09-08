@@ -90,16 +90,16 @@
     "playwright-cli": {
       "flake": false,
       "locked": {
-        "lastModified": 1783624179,
-        "narHash": "sha256-tc/2Qck3mm6BqWTu2lvvfsM0/BHO/Z0ZvCdFZ7QQqKI=",
+        "lastModified": 1788277103,
+        "narHash": "sha256-pbv51ybubbjoIpKg0k7lfXfZ9Z+qdZI2lRhQeI+/mFA=",
         "owner": "microsoft",
         "repo": "playwright-cli",
-        "rev": "793cfb32572733cbcb401e6f28d05a7a914ce408",
+        "rev": "397ee39c83a651e1314cfb010b94e8a3aac11261",
         "type": "github"
       },
       "original": {
         "owner": "microsoft",
-        "ref": "v0.1.17",
+        "ref": "v0.1.19",
         "repo": "playwright-cli",
         "type": "github"
       }
