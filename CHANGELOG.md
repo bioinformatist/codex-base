@@ -4,6 +4,29 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
+## [0.1.1]
+
+### Fixed
+
+- Clarify task ownership for each Improve review role. Correctness and elegance
+  reviewers cover their assigned checks and use other roles' results as
+  supporting evidence. Contradictions between supplied evidence and code must
+  still be reported with their effect on the assigned check.
+- Reject malformed Improve contract declarations before environment preflight
+  or model invocation. Plain-text fields, unbolded bullet fields, and empty
+  versions now produce an input error showing the canonical format instead of
+  silently taking the legacy path for undeclared contracts.
+
+### Compatibility
+
+Legacy plans with genuinely absent declarations, valid existing contract
+versions, and `--resume` retain their behavior. Mid-line prose mentioning
+`Improve contract` is not treated as a field declaration. CLI arguments, report
+formats, model settings, execution budgets, and dependency versions are unchanged.
+
+[Fix details](https://github.com/bioinformatist/codex-base/pull/30) ·
+[Full comparison](https://github.com/bioinformatist/codex-base/compare/v0.1.0...v0.1.1)
+
 ## [0.1.0]
 
 ### Improve: before and after
@@ -35,4 +58,5 @@ Repository documentation and compatibility checks passed for the release candida
 
 [Compare the Improve changes](https://github.com/bioinformatist/codex-base/compare/52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e).
 
+[0.1.1]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.1
 [0.1.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.0
