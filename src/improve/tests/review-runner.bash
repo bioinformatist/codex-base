@@ -143,6 +143,28 @@ export CODEX_IMPROVE_ROLES_JSON='{
 fail() { echo "FAIL: $*" >&2; exit 1; }
 assert_eq() { [ "$1" = "$2" ] || fail "expected '$2', got '$1' ($3)"; }
 field() { sed -n "s/^$2=//p" "$1" | tail -n 1; }
+normalize_prompt_text() {
+  tr '\n' ' ' <"$1" | tr -s '[:space:]' ' '
+}
+assert_prompt_contains() {
+  local prompt="$1" expected="$2" label="$3"
+  grep -Fq -- "$expected" <<<"$prompt" || fail "$label"
+}
+assert_shared_review_prompt() {
+  local prompt="$1" label="$2"
+  assert_prompt_contains "$prompt" \
+    "Build coverage only for the implementation checks assigned to this role." \
+    "$label role-only coverage missing"
+  assert_prompt_contains "$prompt" \
+    "Shared background and completed results from other roles are supporting evidence, not additional tasks." \
+    "$label supporting-evidence boundary missing"
+  assert_prompt_contains "$prompt" \
+    "If supplied evidence contradicts checked code, report the concrete contradiction and its effect on the assigned check." \
+    "$label contradiction handling missing"
+  assert_prompt_contains "$prompt" \
+    "Return the formal verdict once every assigned check has a verdict and supporting evidence." \
+    "$label completion condition missing"
+}
 assert_review_settings() {
   local log="$1" label="$2"
   for value in gpt-5.6-sol read-only 'model_reasoning_effort="high"' \
@@ -307,8 +329,16 @@ if grep -Fx -- --ignore-user-config "$approve_dir/invocation" >/dev/null; then
 fi
 grep -Fx -- --output-schema "$approve_dir/invocation" >/dev/null || fail "output schema missing"
 assert_eq "$(grep -o TOP_SECRET_DOSSIER "$approve_dir/prompt" | wc -l)" 1 "dossier pass count"
-grep -F -- "Expected Improve candidate tree: $expected_tree" "$approve_dir/prompt" >/dev/null ||
-  fail "expected candidate tree missing from review prompt"
+correctness_prompt="$(normalize_prompt_text "$approve_dir/prompt")"
+assert_prompt_contains "$correctness_prompt" "Correctness role:" \
+  "correctness role marker missing"
+assert_shared_review_prompt "$correctness_prompt" correctness
+assert_prompt_contains "$correctness_prompt" \
+  "Expected Improve candidate tree: $expected_tree" \
+  "expected candidate tree missing from review prompt"
+if grep -Fq -- "Elegance role:" <<<"$correctness_prompt"; then
+  fail "correctness prompt includes elegance scope"
+fi
 assert_eq "$(field "$approve_dir/stdout" IMPROVE_REVIEW_ROLLOUT_BUDGET_EXHAUSTED)" 0 "approve budget flag"
 assert_eq "$(wc -l <"$approve_dir/count")" 1 "approve invocation count"
 jq -e '
@@ -328,6 +358,16 @@ assert_eq "$(field "$test_root/cases/revise/stdout" IMPROVE_REVIEW_PROFILE)" \
   improve-elegance-reviewer "elegance profile"
 ! grep -Fx -- '-p' "$test_root/cases/revise/invocation" >/dev/null || fail "elegance retained -p"
 assert_review_settings "$test_root/cases/revise/invocation" elegance
+elegance_prompt="$(normalize_prompt_text "$test_root/cases/revise/prompt")"
+assert_prompt_contains "$elegance_prompt" "Elegance role:" \
+  "elegance prompt role scope marker missing"
+assert_shared_review_prompt "$elegance_prompt" elegance
+assert_prompt_contains "$elegance_prompt" \
+  "Expected Improve candidate tree: $expected_tree" \
+  "expected candidate tree missing from elegance review prompt"
+if grep -Fq -- "Correctness role:" <<<"$elegance_prompt"; then
+  fail "elegance prompt includes correctness scope"
+fi
 grep -F -- "main agent's single Ponytail pass" "$test_root/cases/revise/prompt" >/dev/null ||
   fail "Ponytail handoff missing"
 ponytail_invocation="\$ponytail-review"

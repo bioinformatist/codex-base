@@ -24,6 +24,11 @@ fenced `json codex-improve-environment` block. The caller passes the same JSON
 as the first CLI option through `--environment-json`. The runner compares the
 normalized values and rejects a missing or unequal declaration before worktree
 creation or model invocation.
+The canonical declaration is `` - **Improve contract**: `1.0.0-codex.14` `` (or
+its `.15`/`.16` successors). Any line that matches an `Improve contract` field
+shape but is not in this exact canonical shape is rejected as a malformed
+declaration before preflight. Parser checks are line-based, so mid-line prose is
+not treated as a declaration.
 
 ```json codex-improve-environment
 {
@@ -91,8 +96,10 @@ manifest, and applies both checks.
 Artifacts declaring `.12` are unsupported and must be re-reviewed and restamped before
 execution. Artifacts declaring `.11`, or carrying no Improve contract
 declaration, keep their legacy-unchecked behavior unless they opt in with a
-matching environment block and CLI value. Any other declared contract version
-is unsupported. Legacy artifacts are not migrated.
+matching environment block and CLI value. A genuinely missing declaration remains
+legacy-compatible; malformed `Improve contract` field lines are rejected without
+migrating to legacy behavior. Any other declared contract version is
+unsupported. Legacy artifacts are not migrated.
 
 For a `.15` initial or `--next` invocation, the runner copies the exact plan
 bytes once to private execution state as `plan.md`, protects the copy with mode

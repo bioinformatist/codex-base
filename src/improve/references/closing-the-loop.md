@@ -710,7 +710,9 @@ does not ask the reviewer to rediscover the repository. Include:
 - the single Ponytail pass and the main agent's disposition of each suggestion
   when that lens applies;
 - the verified practice memo when external evidence applies;
-- the exact checks and questions assigned to this reviewer; and
+- for each triggered role, a separate complete dossier containing only the exact
+  checks and questions assigned to that reviewer, plus shared background and
+  completed other-role results as supporting evidence; and
 - the applicable host-injected repository instructions, clearly distinguished
   from ordinary repository evidence.
 
@@ -719,8 +721,13 @@ reviewer after interruption or compaction. Missing material evidence produces a
 `BLOCK` verdict; it never authorizes a broad repository audit.
 
 The reviewer builds a coverage matrix for every requested implementation check
-before new recon. Deferred acceptance is reported separately and cannot create
-a finding, failed coverage row, or review blocker merely because it has not run.
+assigned to this role before new recon. Shared background and completed results
+from other roles are supporting evidence, not additional tasks. If supplied
+evidence contradicts checked code, evaluate the concrete contradiction against
+the assigned check and explain its effect on coverage. Completion means every
+assigned check has a verdict and supporting evidence, then the review returns the
+formal result. Deferred acceptance is reported separately and cannot create a
+finding, failed coverage row, or review blocker merely because it has not run.
 The reviewer does not reload the Improve skill, planning contract, audit
 playbook, or Ponytail skill. It reads each changed artifact completely at most
 once. Any reread names one unresolved question first and targets only the range
