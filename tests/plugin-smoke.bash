@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+plugin_version="$(jq -er '.version | strings | select(length > 0)' "$repo/plugins/codex-base/.codex-plugin/plugin.json")"
 real_home="$HOME"
 snapshot() {
   if [ -e "$real_home/.codex" ]; then stat -c '%d:%i:%s:%Y:%Z:%a:%F' "$real_home/.codex"; else printf 'absent\n'; fi
@@ -26,23 +27,23 @@ jq -e --arg repo "$repo" '
   )
 ' "$root/marketplaces.json" >/dev/null
 codex plugin list --marketplace bioinformatist-codex --available --json >"$root/available.json"
-jq -e '
+jq -e --arg version "$plugin_version" '
   .installed == []
   and (.available | any(
     .name == "codex-base"
     and .pluginId == "codex-base@bioinformatist-codex"
     and .marketplaceName == "bioinformatist-codex"
-    and .version == "0.1.0"
+    and .version == $version
     and .installed == false
     and .enabled == false
   ))
 ' "$root/available.json" >/dev/null
 codex plugin add codex-base@bioinformatist-codex --json >"$root/plugin-add.json"
-jq -e '
+jq -e --arg version "$plugin_version" '
   .name == "codex-base"
   and .pluginId == "codex-base@bioinformatist-codex"
   and .marketplaceName == "bioinformatist-codex"
-  and .version == "0.1.0"
+  and .version == $version
   and (.installedPath | type == "string" and length > 0)
 ' "$root/plugin-add.json" >/dev/null
 installed_path="$(jq -r '.installedPath' "$root/plugin-add.json")"
@@ -78,13 +79,13 @@ jq -e '
   == ["https://mintlify.example.invalid/mcp"]
 ' "$root/mcp-overridden.json" >/dev/null
 codex plugin list --json >"$root/installed.json"
-jq -e '
+jq -e --arg version "$plugin_version" '
   .available == []
   and (.installed | any(
     .name == "codex-base"
     and .pluginId == "codex-base@bioinformatist-codex"
     and .marketplaceName == "bioinformatist-codex"
-    and .version == "0.1.0"
+    and .version == $version
     and .installed == true
     and .enabled == true
   ))
