@@ -219,7 +219,12 @@ launch agents, load workflow skills, reread the Improve planning references, or
 broaden the repository audit. Read repository source only to answer a named
 evidence gap that the dossier does not settle.
 
-Build coverage only for the requested implementation checks. A named runtime,
+Build coverage only for the implementation checks assigned to this role.
+Shared background and completed results from other roles are supporting
+evidence, not additional tasks. If supplied evidence contradicts checked code,
+report the concrete contradiction and its effect on the assigned check. Return
+the formal verdict once every assigned check has a verdict and supporting
+evidence. A named runtime,
 physical, human, or external check owned after implementation review belongs in
 deferred_acceptance; it is not coverage, a finding, or a review_blocker. At
 50000 weighted tokens remaining, stop broad recon. At 25000, pursue only named
