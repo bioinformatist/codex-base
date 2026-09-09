@@ -104,8 +104,15 @@ artifact_contract() {
         count="$((count + 1))"
         declared_contract="${line#'- **Improve contract**: `'}"
         declared_contract="${declared_contract%'`'}"
+        if [ -z "$declared_contract" ]; then
+          fail_input "malformed Improve contract declaration; use canonical shape: - **Improve contract**: \`1.0.0-codex.14\`"
+        fi
+        continue
         ;;
     esac
+    if [[ "$line" =~ ^[[:space:]]*(-[[:space:]]+)?(\*\*)?Improve\ contract(\*\*)?[[:space:]]*: ]]; then
+      fail_input "malformed Improve contract declaration; use canonical shape: - **Improve contract**: \`1.0.0-codex.14\`"
+    fi
   done <"$artifact"
   if [ "$count" -gt 1 ]; then
     fail_input "artifact must declare at most one Improve contract"

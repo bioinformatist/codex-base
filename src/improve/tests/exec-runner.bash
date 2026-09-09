@@ -1428,6 +1428,53 @@ invalid_environment_case oversized "$(
     '{version:1,launcher:[$value],probes:[{argv:["true"],timeoutSeconds:1}]}'
 )"
 
+malformed_contract_case() {
+  case_name="$1"
+  plan_path="$2"
+  start_case "$case_name"
+  run_runner "$plan_path"
+  assert_rejected_before_mutation "$case_name"
+  assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 0 "$case_name metadata query count"
+  grep -F -- "malformed Improve contract declaration" "$errors" >/dev/null ||
+    fail "$case_name malformed declaration reason"
+  # shellcheck disable=SC2016 # Markdown backticks are intentional literals.
+  grep -F -- '- **Improve contract**: `1.0.0-codex.14`' "$errors" >/dev/null ||
+    fail "$case_name malformed declaration shape"
+}
+
+malformed_contract_plain_paragraph_plan="$repo/plans/012-plain-paragraph-contract.md"
+# shellcheck disable=SC2016 # Markdown backticks are intentional literals.
+printf '%s\n' 'Improve contract: `1.0.0-codex.14`' >"$malformed_contract_plain_paragraph_plan"
+malformed_contract_case malformed_contract_plain_paragraph "$malformed_contract_plain_paragraph_plan"
+
+malformed_contract_unbolded_bullet_plan="$repo/plans/012-unbolded-bullet-contract.md"
+# shellcheck disable=SC2016 # Markdown backticks are intentional literals.
+printf '%s\n' '- Improve contract: `1.0.0-codex.14`' >"$malformed_contract_unbolded_bullet_plan"
+malformed_contract_case malformed_contract_unbolded_bullet "$malformed_contract_unbolded_bullet_plan"
+
+malformed_contract_empty_canonical_version_plan="$repo/plans/012-empty-canonical-contract.md"
+printf '%s\n' '- **Improve contract**: ``' >"$malformed_contract_empty_canonical_version_plan"
+malformed_contract_case malformed_contract_empty_canonical_version "$malformed_contract_empty_canonical_version_plan"
+
+malformed_contract_valid_plus_malformed_plan="$repo/plans/012-valid-plus-malformed-contract.md"
+{
+  # shellcheck disable=SC2016 # Markdown backticks are intentional literals.
+  printf '%s\n' '- **Improve contract**: `1.0.0-codex.14`'
+  # shellcheck disable=SC2016 # Markdown backticks are intentional literals.
+  printf '%s\n' 'Improve contract: `1.0.0-codex.14`'
+} >"$malformed_contract_valid_plus_malformed_plan"
+malformed_contract_case malformed_contract_valid_plus_malformed \
+  "$malformed_contract_valid_plus_malformed_plan"
+
+environment_contract_midline_plan="$repo/plans/012-midline-prose-contract.md"
+write_environment_artifact "$environment_contract_midline_plan" "$valid_environment_json"
+# shellcheck disable=SC2016 # Markdown backticks are intentional literals.
+printf '%s\n' 'This note mentions Improve contract: `1.0.0-codex.14` in mid-line prose.' \
+  >>"$environment_contract_midline_plan"
+start_case environment_contract_midline_prose
+run_runner --environment-json "$valid_environment_json" "$environment_contract_midline_plan"
+assert_transport_case 0 COMPLETE completed
+
 start_case environment_missing_block
 missing_block_plan="$repo/plans/012-missing-block.md"
 # shellcheck disable=SC2016 # Markdown backticks are intentional literals.
@@ -3064,6 +3111,15 @@ sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.15/' "$checkpoint_dossier"
 contract_16_dossier="$test_root/contract 16 dossier.md"
 write_environment_artifact "$contract_16_dossier" "$valid_environment_json"
 sed -i 's/1\.0\.0-codex\.14/1.0.0-codex.16/' "$contract_16_dossier"
+malformed_recovery_dossier="$test_root/malformed recovery dossier.md"
+{
+  printf '%s\n' 'TOP_SECRET_DOSSIER /private/repository/path'
+  # shellcheck disable=SC2016 # Markdown backticks are intentional literals.
+  printf '%s\n' 'Improve contract: `1.0.0-codex.16`'
+  printf '%s\n' '```json codex-improve-environment'
+  printf '%s\n' "$valid_environment_json"
+  printf '%s\n' '```'
+} >"$malformed_recovery_dossier"
 revision_status_before="$(git -C "$revision_worktree" status --short)"
 revision_tree="$(candidate_tree "$revision_worktree")"
 worktrees_before="$(git -C "$repo" worktree list --porcelain)"
@@ -3419,6 +3475,17 @@ assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 recovery metadata count"
 assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 recovery executor count"
 assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-spark \
   ".16 recovery Spark profile"
+
+start_contract_case contract_recovery_malformed_dossier complete
+run_runner --recover \
+  "$contract_worktree" "$contract_tree" "$malformed_recovery_dossier"
+assert_eq "$status" 2 "contract recovery malformed dossier status"
+assert_preflight_not_invoked contract_recovery_malformed_dossier
+grep -F -- "malformed Improve contract declaration" "$errors" >/dev/null ||
+  fail "contract recovery malformed dossier reason"
+assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 0 "contract recovery malformed dossier metadata query count"
+assert_eq "$(candidate_tree "$contract_worktree")" "$contract_tree" \
+  "contract recovery malformed dossier retained candidate"
 
 chmod 755 "$contract_worktree_root" "$contract_worktree"
 start_contract_case environment_recovery_upgrade_failure complete
