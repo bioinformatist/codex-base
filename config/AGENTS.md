@@ -10,6 +10,14 @@ override them.
 - Discover available facts before asking. Ask only about unsettled choices
   that materially affect the goal, scope, external effects, or a
   difficult-to-reverse decision; do not re-ask settled choices.
+- Match the implementation to the established cause. A code defect may
+  justify a red-before, green-after test; a one-off operator or repository
+  state incident defaults to recovering the intended state and running
+  existing focused checks.
+- Use the smallest coherent change that satisfies the request. Treat new
+  tests, CI checks, policies, guardrails, abstractions, and documentation
+  as separate scope unless the task or repository requires them, or a
+  concrete uncovered behavior warrants them.
 
 ## Communication
 
@@ -30,9 +38,9 @@ override them.
 ## Git And Nix
 
 Write commit messages in Conventional Commits format: `<type>: <summary>`.
-Run `nix eval`, `nix check`, and `nix build` directly; Codex already sets
-`XDG_CACHE_HOME`, so do not add an `env XDG_CACHE_HOME=...` prefix unless
-debugging that environment variable itself.
+When running `nix eval`, `nix flake check`, or `nix build`, invoke it
+directly. Codex already sets `XDG_CACHE_HOME`; add an
+`env XDG_CACHE_HOME=...` prefix only when debugging that variable.
 
 If a GitHub or Nix fetch/update fails in a way that looks proxy-node or
 network dependent, such as API rate limits on a shared proxy IP, blocked
