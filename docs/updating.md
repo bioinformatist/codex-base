@@ -32,6 +32,15 @@ Repository rules must keep `main` pull-request-only and require the strict
 `check` status, with zero approvals and no bypass. Record only these names in
 repository documentation, never credential values.
 
+CI runs on pull requests and can be dispatched manually; it does not rerun on
+branch, main or tag pushes. Before publishing a release or updating a downstream
+lock, verify that the landed Git tree matches the tree covered by the passing
+PR checks and that relevant build inputs are unchanged. Reuse that evidence;
+do not require a second full run solely because the merge has a new commit ID.
+If the evidence or tree identity is missing or differs, manually dispatch CI
+for the target ref and require both jobs to pass. See
+[the integration gate](../CONTRIBUTING.md#integration-gate).
+
 For a manual source update, begin from a clean checkout and run:
 
 ```console

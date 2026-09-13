@@ -86,10 +86,19 @@ passed checks.
 ### Integration gate
 
 Before merging, require the full Nix and standalone portability CI gates to
-pass for the exact candidate being integrated. CI runs both on pull requests
-and pushes. If CI cannot supply these results, run both locally before
-integration. A local full-suite rerun is not required solely to open a pull
+pass for the exact candidate being integrated. CI runs on pull requests; branch,
+main and tag pushes do not repeat it. New runs cancel superseded runs for the
+same PR. Manual runs are scoped separately by ref. If CI cannot supply these
+results, run both locally before integration. A local full-suite rerun is not required solely to open a pull
 request or hand off scoped work.
+
+Keep `main` protected by pull requests and strict, up-to-date required checks.
+Confirm both `check` and `plugin-portability` pass before merging. For a release
+or downstream handoff, reuse passing PR evidence when the landed Git tree
+matches the tested tree and relevant build inputs are unchanged. A different
+commit ID alone does not require another run. If the tested tree or evidence
+cannot be established, use the manual CI dispatch for the target ref and wait
+for both jobs; do not infer success from an earlier run.
 
 The full Nix gate is:
 
