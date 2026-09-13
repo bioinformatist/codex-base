@@ -127,6 +127,15 @@ in chat.
 Every official chat rendering is a complete replacement plan, never a delta
 that depends on an earlier rendering or conversation memory.
 
+## Bounded research steps
+
+For each bounded research step, name the unanswered questions, inherited
+evidence, and the conditions that complete or stop the inquiry. Begin with the
+supplied evidence and investigate the remaining questions; do not repeat broad
+background discovery by default. Keep this information in the existing plan
+sections and progress channels rather than creating a mandatory journal or
+another always-loaded document.
+
 ## Authority and semantic anchors
 
 Resolve conflicts in this order:

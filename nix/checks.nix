@@ -345,6 +345,7 @@ in {
   improve-exec = mkTest "improve-exec-tests" shellTools ''
     bash ${srcRoot}/tests/improve/spark-availability.bash ${srcRoot}/src/improve/scripts/codex-improve-spark-availability
     CODEX_IMPROVE_REAL_CODEX=${packages.codex}/bin/codex CODEX_IMPROVE_EXEC_SCHEMA=${srcRoot}/src/improve/references/executor-report.schema.json CODEX_IMPROVE_ROLES_FILE=${srcRoot}/src/improve/config/roles.json bash ${srcRoot}/tests/improve/exec-runner.bash ${srcRoot}/src/improve/scripts/codex-improve-exec
+    bash ${srcRoot}/tests/research-handoff-smoke.bash --self-test
     touch $out
   '';
   improve-review = mkTest "improve-review-tests" shellTools ''

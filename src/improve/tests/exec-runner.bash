@@ -95,6 +95,16 @@ emit_usage() {
   printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":2,"output_tokens":3}}'
 }
 
+emit_research_checkpoint() {
+  printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"Research checkpoint:\nQuestion: Which version is current?\nFinding: Version 2 is supported with high certainty. TOP_SECRET_RESEARCH\nEvidence: specification.txt:1\nNext: Check runtime proof."}}'
+}
+
+stopped_report() {
+  printf '%s\n' \
+    '{"status":"STOPPED","steps":["research stopped"],"stoppedBecause":"runtime proof is missing","filesChanged":[],"notes":[]}' \
+    >"$final_output"
+}
+
 complete_report() {
   printf '%s\n' \
     '{"status":"COMPLETE","steps":["all steps done; verification passed"],"stoppedBecause":null,"filesChanged":["scoped files"],"notes":["no deviations"]}' \
@@ -220,6 +230,35 @@ case "$FAKE_CODEX_MODE" in
   nonzero)
     emit_usage
     exit 17
+    ;;
+  research_budget_failure)
+    emit_research_checkpoint
+    printf '%s\n' '{"type":"error","message":"shared rollout token budget exhausted","request_id":"test"}'
+    exit 1
+    ;;
+  research_ordinary_failure)
+    emit_research_checkpoint
+    exit 17
+    ;;
+  research_missing_final)
+    emit_research_checkpoint
+    emit_usage
+    ;;
+  research_missing_usage)
+    emit_research_checkpoint
+    stopped_report
+    ;;
+  research_observed_zero)
+    emit_research_checkpoint
+    printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":0,"cached_input_tokens":0,"output_tokens":0}}'
+    stopped_report
+    ;;
+  research_missing_messages)
+    printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":0,"cached_input_tokens":0,"output_tokens":0}}'
+    stopped_report
+    ;;
+  research_json_complete_message)
+    printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"{\"status\":\"COMPLETE\",\"steps\":[\"not final\"]}"}}'
     ;;
   rollout_budget_exhausted)
     printf '%s\n' '{"type":"error","message":"shared rollout token budget exhausted","request_id":"test"}'
@@ -403,7 +442,7 @@ assert_private() {
 assert_no_private_content() {
   file="$1"
   if grep -F -e TOP_SECRET_PLAN -e TOP_SECRET_DOSSIER -e TOP_SECRET_DIFF \
-    -e TOP_SECRET_STDERR -e /private/repository/path "$file" >/dev/null; then
+    -e TOP_SECRET_STDERR -e TOP_SECRET_RESEARCH -e /private/repository/path "$file" >/dev/null; then
     fail "private execution content leaked into $file"
   fi
 }
@@ -429,6 +468,34 @@ assert_stepwise_checkpoint_prompt() {
     grep -F -- "$text" "$FAKE_PROMPT_LOG" >/dev/null ||
       fail "$1 executor boundary clause missing: $text"
   done
+}
+
+assert_research_checkpoint_prompt() {
+  assert_eq "$(grep -F -o 'For bounded research, preserve lightweight handoffs' "$FAKE_PROMPT_LOG" | wc -l)" 1 \
+    "$1 research checkpoint contract occurrence"
+  # The assertion intentionally matches literal Markdown backticks.
+  # shellcheck disable=SC2016
+  for text in \
+    'emit a message headed `Research checkpoint:` before moving to' \
+    'Question: the named question.' \
+    'Finding: the conclusion and its certainty.' \
+    'Evidence: an exact file, symbol, range, or artifact pointer.' \
+    'Next: the remaining question or the reason to stop.' \
+    'a correction names the finding it' \
+    'logging-only tool calls' \
+    'actual reason and never fabricate one' \
+    'not COMPLETE final reports' \
+    'final schema and transport remain unchanged' \
+    'Pure reads do not require a code-simplification checkpoint'; do
+    grep -F -- "$text" "$FAKE_PROMPT_LOG" >/dev/null ||
+      fail "$1 research checkpoint clause missing: $text"
+  done
+}
+
+assert_no_research_checkpoint_prompt() {
+  ! grep -F -- 'For bounded research, preserve lightweight handoffs' \
+    "$FAKE_PROMPT_LOG" >/dev/null ||
+    fail "$1 unexpectedly included the .16 research checkpoint contract"
 }
 
 repo="$test_root/repo with spaces"
@@ -1530,6 +1597,7 @@ start_case contract_15_fixed_spark_no_query complete
 export FAKE_METADATA_MODE=error
 run_runner --environment-json "$valid_environment_json" --spark "$contract_15_plan"
 assert_transport_case 0 COMPLETE completed
+assert_no_research_checkpoint_prompt ".15 initial"
 assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 0 ".15 Spark metadata query count"
 assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".15 Spark executor count"
 assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-spark \
@@ -1546,6 +1614,7 @@ assert_preflight_not_invoked environment_future_contract
 start_case contract_16_spark_priority complete
 run_runner --environment-json "$valid_environment_json" --spark "$contract_16_plan"
 assert_transport_case 0 COMPLETE completed
+assert_research_checkpoint_prompt ".16 initial"
 assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 Spark metadata query count"
 assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 Spark executor count"
 assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-spark ".16 Spark profile"
@@ -2950,6 +3019,44 @@ contract_15_transport_case closeout_invalid_event_log malformed_jsonl \
 contract_15_transport_case closeout_candidate_unavailable \
   malformed_final_unmerged_candidate invalid_final_output 0
 
+contract_16_research_case() {
+  local name="$1" mode="$2" expected_status="$3" expected_result="$4"
+  local expected_reason="$5" expected_usage="$6" expected_message="$7"
+  start_case "$name" "$mode"
+  run_runner --environment-json "$valid_environment_json" "$contract_16_plan"
+  assert_transport_case "$expected_status" "$expected_result" "$expected_reason"
+  artifact_dir="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
+  assert_eq "$(jq -r '.usage_observed' "$metric")" "$expected_usage" \
+    "$name usage observation"
+  message_count="$(jq -s '[.[] | select(.type == "item.completed" and
+    .item.type == "agent_message" and
+    (.item.text | startswith("Research checkpoint:")))] | length' \
+    "$artifact_dir/events.jsonl")"
+  assert_eq "$message_count" "$expected_message" "$name research message count"
+}
+
+contract_16_research_case research_budget_failure research_budget_failure \
+  1 INCONCLUSIVE rollout_budget_exhausted false 1
+assert_closeout_eligible 1
+contract_16_research_case research_ordinary_failure research_ordinary_failure \
+  1 INCONCLUSIVE codex_exit_17 false 1
+assert_closeout_eligible 0
+contract_16_research_case research_missing_final research_missing_final \
+  1 INCONCLUSIVE empty_final_output true 1
+assert_closeout_eligible 1
+contract_16_research_case research_missing_usage research_missing_usage \
+  0 STOPPED completed false 1
+jq -e '.token_usage == {"input_tokens":0,"cached_input_tokens":0,"output_tokens":0}' \
+  "$metric" >/dev/null || fail "missing usage placeholders"
+contract_16_research_case research_observed_zero research_observed_zero \
+  0 STOPPED completed true 1
+jq -e '.token_usage == {"input_tokens":0,"cached_input_tokens":0,"output_tokens":0}' \
+  "$metric" >/dev/null || fail "observed zero usage"
+contract_16_research_case research_missing_messages research_missing_messages \
+  0 STOPPED completed true 0
+contract_16_research_case research_json_complete_message \
+  research_json_complete_message 1 INCONCLUSIVE empty_final_output false 0
+
 start_case closeout_launcher_forged_timeout_marker nonzero
 export FAKE_LAUNCHER_FORGE_TIMEOUT_MARKER=1
 run_runner --environment-json "$valid_environment_json" "$contract_15_plan"
@@ -3315,6 +3422,7 @@ assert_eq "$(field "$output" IMPROVE_BRANCH)" codex/improve-contract-revision-te
   "revision branch"
 assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor "revision profile"
 assert_stepwise_checkpoint_prompt revision
+assert_no_research_checkpoint_prompt ".15 revision"
 
 start_contract_case contract_16_luna_revision complete
 export FAKE_METADATA_MODE=luna
@@ -3327,6 +3435,7 @@ assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-luna-low \
   ".16 revision Luna profile"
 assert_eq "$(field "$output" IMPROVE_CANDIDATE_TREE)" "$contract_tree" \
   ".16 revision preserved candidate identity"
+assert_research_checkpoint_prompt ".16 revision"
 
 start_case environment_revision_outside_xdg complete
 run_runner --environment-json "$valid_environment_json" --revise \
@@ -3466,6 +3575,7 @@ assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor "recovery profil
 assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TIMEOUT_SECONDS)" 4 "normal recovery timeout"
 assert_eq "$(field "$output" IMPROVE_EXEC_ACTIVE_TOKEN_LIMIT)" 120000 "Standard recovery token limit"
 assert_stepwise_checkpoint_prompt recovery
+assert_no_research_checkpoint_prompt ".15 recovery"
 
 start_contract_case contract_16_spark_recovery complete
 run_runner --environment-json "$valid_environment_json" --spark --recover \
@@ -3475,6 +3585,7 @@ assert_eq "$(wc -l <"$FAKE_METADATA_COUNT")" 1 ".16 recovery metadata count"
 assert_eq "$(wc -l <"$FAKE_COUNT_FILE")" 1 ".16 recovery executor count"
 assert_eq "$(field "$output" IMPROVE_PROFILE)" improve-executor-spark \
   ".16 recovery Spark profile"
+assert_research_checkpoint_prompt ".16 recovery"
 
 start_contract_case contract_recovery_malformed_dossier complete
 run_runner --recover \
