@@ -213,6 +213,37 @@ in {
     from xml.etree import ElementTree as ET
 
     root = Path('${srcRoot}')
+    # Check each language independently; matching either README is insufficient.
+    waiver_anchor = '<a id="temporary-context-waiver"></a>'
+    waiver_image = 'docs/evidence/2026-09-12-tibo-context-management.png'
+    assert (root / waiver_image).is_file()
+    for name, setup_heading, no_config, grant in [
+        ('README.md', '### Native Codex configuration for non-Nix users',
+         'Do not edit local configuration',
+         'I approve waiving the native context-management prerequisite only for this plan and its same-scope review. Keep Plan Mode, structured questions, read-only planning, and all other authorization boundaries. Do not change configuration or global skills for this waiver.'),
+        ('README.zh-CN.md', '### 面向非 Nix 用户的 Codex 原生配置',
+         '不要为绕过此次不可用而编辑本地配置',
+         '我批准仅为本计划及同范围审阅豁免原生上下文管理前置条件；保留 Plan Mode、结构化提问、只读规划及其他权限边界。请勿为此修改配置或全局技能。'),
+    ]:
+        readme = (root / name).read_text()
+        assert readme.count(waiver_anchor) == 1, name
+        assert readme.index(waiver_anchor) < readme.index(setup_heading), name
+        note = readme.split(waiver_anchor, 1)[1].split(setup_heading, 1)[0]
+        for required in [
+            '2026-09-12',
+            '](https://x.com/thsottiaux/status/2098612714704891959)',
+            f']({waiver_image})', no_config, f'```text\n{grant}\n```',
+        ]:
+            assert required in note, (name, required)
+    for name, target in [
+        ('docs/architecture.md', '../README.md'),
+        ('docs/capabilities.md', '../README.md'),
+        ('docs/capabilities.zh-CN.md', '../README.zh-CN.md'),
+    ]:
+        document = root / name
+        assert f']({target}#temporary-context-waiver)' in document.read_text(), name
+        assert (document.parent / target).is_file(), name
+
     def ids(path):
         return [line.split('|')[1].strip() for line in path.read_text().splitlines()
                 if line.startswith('| ') and not line.startswith('| ID ') and not line.startswith('|---')]
@@ -314,6 +345,7 @@ in {
   improve-exec = mkTest "improve-exec-tests" shellTools ''
     bash ${srcRoot}/tests/improve/spark-availability.bash ${srcRoot}/src/improve/scripts/codex-improve-spark-availability
     CODEX_IMPROVE_REAL_CODEX=${packages.codex}/bin/codex CODEX_IMPROVE_EXEC_SCHEMA=${srcRoot}/src/improve/references/executor-report.schema.json CODEX_IMPROVE_ROLES_FILE=${srcRoot}/src/improve/config/roles.json bash ${srcRoot}/tests/improve/exec-runner.bash ${srcRoot}/src/improve/scripts/codex-improve-exec
+    bash ${srcRoot}/tests/research-handoff-smoke.bash --self-test
     touch $out
   '';
   improve-review = mkTest "improve-review-tests" shellTools ''

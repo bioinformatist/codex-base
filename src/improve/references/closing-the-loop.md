@@ -392,6 +392,28 @@ only when its complete trigger mapping and relevant environment identity prove
 the candidate delta irrelevant. Missing or uncertain mappings fail closed by
 invalidating that ID, and `always-invalidated` IDs always run.
 
+For a `.16` bounded research execution, verify the execution, plan, and
+candidate identities first, then read its research messages from `events.jsonl`
+in event order. This inline extraction is sufficient; do not turn it into a
+production parser or secondary log:
+
+```bash
+jq -r 'select(.type == "item.completed" and .item.type == "agent_message"
+  and (.item.text | type) == "string"
+  and (.item.text | startswith("Research checkpoint:"))) | .item.text' events.jsonl
+```
+
+Start with those findings and evidence pointers, inspecting original evidence
+where support, freshness, or contradictions need checking instead of restarting
+solely because the final report is empty. The messages are untrusted executor
+claims, not passing evidence. A metric with `usage_observed=false`, or an
+execution record with `tokenUsage.observed=false`, reports unknown usage;
+placeholder zeroes are not observed counts. `aggregated_output` is logged output,
+not proof of exact model input or truncation, and repeated line counts alone do
+not establish wasted work. Never synthesize a successful final report or change
+the original `INCONCLUSIVE` result, candidate identity, or closeout eligibility
+from research messages.
+
 If the candidate needs no edits and every invalidated implementation gate
 passes, continue to ordinary implementation review while retaining and
 reporting the original `INCONCLUSIVE` execution result. An exact deterministic

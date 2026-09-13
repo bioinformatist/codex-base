@@ -77,6 +77,25 @@ The output should show `codex-base@bioinformatist-codex` installed and enabled, 
 Use $codex-base:stop-slop to tighten this disposable sentence without changing its facts.
 ```
 
+<a id="temporary-context-waiver"></a>
+
+### Temporary context-management waiver
+
+> [!WARNING]
+> **2026-09-12:** In [this announcement](https://x.com/thsottiaux/status/2098612714704891959), Tibo (@thsottiaux) reported disabling an opt-in context-management experiment that could cause early stops or replies to older messages. A [user-provided screenshot](docs/evidence/2026-09-12-tibo-context-management.png) is retained as a supporting archive.
+>
+> The announcement does not identify a configuration key or establish which accounts, subscriptions, or clients have access.
+
+If formal Improve planning lacks native context management, check the session's live tools and preserve existing configuration. Do not edit local configuration, repeatedly toggle features, modify skills, or rebuild the environment to work around this unavailability.
+
+To continue, the user must explicitly waive only the native context-management prerequisite for one named plan and its same-scope review. This is not an automatic or global waiver: Plan Mode, structured questions, read-only planning, and all other authorization boundaries remain required. For example:
+
+```text
+I approve waiving the native context-management prerequisite only for this plan and its same-scope review. Keep Plan Mode, structured questions, read-only planning, and all other authorization boundaries. Do not change configuration or global skills for this waiver.
+```
+
+A waiver neither restores the capability nor guarantees planning quality. Once the live capability is verified restored, new plans need no exception. Default Mode implementation, audits, and routine lifecycle bookkeeping are unaffected. The normal installation settings below are not a fix for this temporary unavailability.
+
 ### Native Codex configuration for non-Nix users
 
 Home Manager already supplies these defaults. For other installations, merge this fragment once into your persistent Codex config (`CODEX_HOME/config.toml`, default `~/.codex/config.toml`):
@@ -92,7 +111,7 @@ default_mode_request_user_input = true
 
 This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level, while the three feature toggles belong in `[features]`. If any of these keys already exist, update them in place. Replace an existing boolean `context_management` or `code_mode` entry with the dotted form shown above; do not keep both a boolean and table form or duplicate a TOML key.
 
-Start a new Codex session after saving the file. The fragment requests experimental context management, Code Mode, structured questions in Default Mode, and high reasoning effort in Plan Mode. Formal Improve planning still requires the session to expose native context management and structured questions: configured `true` values and a Plan Mode label do not prove that either capability is live. If one is missing, stop and reopen the task in a capable session. `default_mode_request_user_input` does not automatically run Grilling or another question workflow.
+Start a new Codex session after saving the file. The fragment requests experimental context management, Code Mode, structured questions in Default Mode, and high reasoning effort in Plan Mode. Formal Improve planning still requires the session to expose native context management and structured questions: configured `true` values and a Plan Mode label do not prove that either capability is live. If one is missing, stop and reopen the task in a capable session unless the user explicitly grants the [temporary per-plan waiver](#temporary-context-waiver) for missing context management. That exception does not cover missing structured questions. `default_mode_request_user_input` does not automatically run Grilling or another question workflow.
 
 The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers experimental context management, Code Mode, and Plan Mode effort. The Default Mode question flag is instead checked against the pinned Codex 0.153.4 [feature declaration](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core/tests/suite/request_user_input.rs). No wrapper or installer is required.
 

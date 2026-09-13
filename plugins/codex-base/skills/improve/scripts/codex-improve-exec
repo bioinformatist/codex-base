@@ -1390,6 +1390,27 @@ On successive rollout reminders, stop opening new scope, finish the required
 checks, then stop tool use and emit the structured final immediately.
 EOF
   fi
+  if [ "$improve_contract" = "1.0.0-codex.16" ]; then
+    cat <<'EOF'
+For bounded research, preserve lightweight handoffs in ordinary progress
+messages. After a research question is supported, rejected, or reaches an
+explicit limit, emit a message headed `Research checkpoint:` before moving to
+the next question. Include these fields:
+
+- Question: the named question.
+- Finding: the conclusion and its certainty.
+- Evidence: an exact file, symbol, range, or artifact pointer.
+- Next: the remaining question or the reason to stop.
+
+State only new or corrected information; a correction names the finding it
+supersedes. Do not add per-command entries, logging-only tool calls, raw source
+dumps, or unapproved files. Legitimate targeted rereads remain allowed after
+truncation, changed sources, or for one named unresolved question; state the
+actual reason and never fabricate one. These messages are intermediate evidence,
+not COMPLETE final reports. The final schema and transport remain unchanged.
+Pure reads do not require a code-simplification checkpoint.
+EOF
+  fi
 }
 
 prepare_artifacts() {

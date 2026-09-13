@@ -7,11 +7,10 @@ repository.
 - Treat `src/improve` as the editable Improve source. Generate
   `plugins/codex-base/skills` with `nix run .#sync-vendored-skills`; never edit
   generated skills directly.
-- Run `nix run .#sync-vendored-skills -- --check` before builds and run
-  `nix flake check --allow-import-from-derivation` before handoff.
-- When changing Improve runners or their Codex invocation, also run
-  `tests/plugin-portability.bash`; the Nix checks do not replace this non-Nix
-  plugin installation path.
+- Before implementation or handoff, read [Checks](CONTRIBUTING.md#checks)
+  for first-principles verification, impact-based local checks, evidence reuse,
+  and full integration gates. Instruction changes count as behavior changes;
+  a Markdown extension alone does not qualify for prose-only checks.
 - Preserve the pinned upstream revisions and inspect every generated diff.
 - Never add credentials, user names, host names, absolute home paths, or Nix
   store paths to distributable files.

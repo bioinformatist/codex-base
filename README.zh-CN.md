@@ -76,6 +76,25 @@ codex mcp list --json
 使用 $codex-base:stop-slop 精简下面这句临时文本，不要改变其中的事实。
 ```
 
+<a id="temporary-context-waiver"></a>
+
+### 原生上下文管理临时豁免
+
+> [!WARNING]
+> **2026-09-12：** Tibo（@thsottiaux）在[这则公告](https://x.com/thsottiaux/status/2098612714704891959)中表示，已关闭一项需要主动加入的上下文管理实验，该实验可能导致提前停止或回复较早的消息。仓库保留了一份[用户提供的截图](docs/evidence/2026-09-12-tibo-context-management.png)作为辅助存档。
+>
+> 公告没有点名具体配置项，也不能据此判断哪些账户、套餐或客户端具备该能力。
+
+如果正式 Improve 规划缺少原生上下文管理，请检查会话实际提供的工具，并保留已有配置。不要为绕过此次不可用而编辑本地配置、反复切换功能开关、修改技能或重建环境。
+
+如需继续，必须由用户明确授权，仅为某一指定计划及同范围审阅豁免原生上下文管理前置条件。这不是自动或全局豁免：Plan Mode、结构化提问、只读规划及其他权限边界仍须保留。例如：
+
+```text
+我批准仅为本计划及同范围审阅豁免原生上下文管理前置条件；保留 Plan Mode、结构化提问、只读规划及其他权限边界。请勿为此修改配置或全局技能。
+```
+
+豁免既不会恢复该能力，也不保证规划质量。确认会话实际恢复该能力后，新计划不再需要此例外。Default Mode 中的实现、审计和普通生命周期记录不受影响。下方常规安装配置不是此次暂时不可用的修复办法。
+
 ### 面向非 Nix 用户的 Codex 原生配置
 
 Home Manager 已经提供了这些默认值。其他安装方式只需将以下片段合并到持久配置文件中一次（`CODEX_HOME/config.toml`，默认 `~/.codex/config.toml`）：
@@ -91,7 +110,7 @@ default_mode_request_user_input = true
 
 这是合并片段，不应替换整个文件，也不是每次启动要带的参数；请保留其他无关配置。`plan_mode_reasoning_effort` 是顶层键，三个功能开关则属于 `[features]`。如果其中某个键已经存在，请直接修改原定义。若 `context_management` 或 `code_mode` 目前是布尔值，请用上面的点分形式替换它；不要同时保留布尔值和表，也不要重复定义同一个 TOML 键。
 
-保存后，请新建 Codex 会话。这个片段会请求实验性上下文管理、Code Mode、Default Mode 中的结构化提问，以及 Plan Mode 中的高推理强度。正式 Improve 规划仍要求当前会话实际提供原生上下文管理和结构化提问；配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用。如果缺少任何一项，请停止并换到具备这些能力的会话。`default_mode_request_user_input` 不会自动运行 Grilling 或其他提问工作流。
+保存后，请新建 Codex 会话。这个片段会请求实验性上下文管理、Code Mode、Default Mode 中的结构化提问，以及 Plan Mode 中的高推理强度。正式 Improve 规划仍要求当前会话实际提供原生上下文管理和结构化提问；配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用。如果缺少任何一项，请停止并换到具备这些能力的会话，除非用户已明确为缺失的上下文管理授予[单计划临时豁免](#temporary-context-waiver)。该例外不涵盖结构化提问缺失的情况。`default_mode_request_user_input` 不会自动运行 Grilling 或其他提问工作流。
 
 官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了实验性上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由当前固定的 Codex 0.153.4 [功能声明](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core/tests/suite/request_user_input.rs)验证。无需启动脚本或安装器。
 
