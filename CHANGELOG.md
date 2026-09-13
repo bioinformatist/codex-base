@@ -4,6 +4,48 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
+## [0.1.2]
+
+### Improve research handoffs
+
+- Preserve a compact `Research checkpoint:` in ordinary progress events after
+  a bounded question is resolved or reaches its limit. Each checkpoint names
+  the question, finding and certainty, evidence pointer, and next question or
+  stop reason so a later recovery can continue from useful evidence.
+- Treat checkpoint messages as untrusted claims that may guide selective
+  verification. They do not change the final report schema, turn an
+  `INCONCLUSIVE` execution into success, or make unobserved token usage zero.
+- Add 13 deterministic event-fixture cases for retention, terminal ordering,
+  missing fields, incorrect final status, fired fuses, source mutation,
+  unrelated worktrees, and usage reporting.
+
+### Planning and verification policy
+
+- Document a temporary, explicit per-plan waiver when native context management
+  is unavailable. The waiver retains Plan Mode, structured questions, read-only
+  planning, and every other authorization boundary; it does not change global
+  configuration or claim that the capability is available.
+- Select local checks by behavioral impact and reserve the full Nix and
+  standalone portability gates for the exact candidate before merge. Agent
+  instructions remain behavior changes even when stored in Markdown.
+
+### Runtime and compatibility
+
+- Update the pinned Codex and Code Mode Host binaries, and the matching Codex
+  source revision, from 0.153.4 to 0.154.0.
+- Research checkpoints apply only to `.16` execution contracts. Older contracts,
+  model routing, budgets, CLI arguments, final transport, plugin installation,
+  and Home Manager interfaces are unchanged.
+
+The dedicated live experiment ended before producing a research checkpoint, so
+this release does not claim measured reductions in commands, rereading, or token
+use. Engineering and fixture checks validate the contract and its failure
+boundaries; practical value remains subject to observation in ordinary work.
+
+[Improve and policy details](https://github.com/bioinformatist/codex-base/pull/33) ·
+[Codex 0.154.0 update](https://github.com/bioinformatist/codex-base/pull/32) ·
+[Full comparison](https://github.com/bioinformatist/codex-base/compare/v0.1.1...v0.1.2)
+
 ## [0.1.1]
 
 ### Fixed
@@ -58,5 +100,6 @@ Repository documentation and compatibility checks passed for the release candida
 
 [Compare the Improve changes](https://github.com/bioinformatist/codex-base/compare/52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e).
 
+[0.1.2]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.2
 [0.1.1]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.1
 [0.1.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.0
