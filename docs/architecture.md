@@ -34,6 +34,9 @@ Formal Improve planning uses built-in Plan Mode only when the live session
 exposes native context management and structured questions. It produces one
 complete replacement in chat and creates no plan, questionnaire, handoff, or
 temporary file. A later authorized writable phase may persist that result.
+For temporary native-context-management unavailability, a user may explicitly
+grant the [per-plan waiver](../README.md#temporary-context-waiver) for one named
+plan and its same-scope review. This does not change the global prerequisites.
 Implementation, audits, and routine lifecycle bookkeeping remain available in
 Default Mode without starting a new planning workflow.
 
