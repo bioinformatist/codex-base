@@ -7,6 +7,14 @@ description: Route requests for current library, framework, SDK, API, CLI, or cl
 
 Use this route for current product documentation unless a higher-authority product-specific documentation workflow applies.
 
+Before each lookup:
+
+- Ask for the missing documentation fact or closely related facts, rather than passing the whole implementation task to the provider.
+- Separate independent products or topics into focused queries. Combine them when the question concerns their interaction or a comparison.
+- Include the exact product and requested version; add the repository owner or technical context when names are ambiguous (for example, `mistral.rs` with Apple's Metal backend). Set the tool's `product` field when available.
+
+Follow this provider order for each lookup:
+
 1. Query `mintlify_index` once with focused product and requested-version terms.
 2. Accept the result only when it is nonempty, relevant, covers the requested version, and includes traceable source URLs.
 3. Otherwise use anonymous `context7` to resolve the exact library and version. Do not repeat an equivalent Mintlify query.
