@@ -53,11 +53,18 @@ The full Nix / Home Manager environment currently pins Codex 0.155.0 and Code Mo
 
 ## Quick start
 
-Plugins currently require a new Codex session after installation and are not available in the Codex IDE extension. Use the Codex CLI for this workflow.
+Use Codex CLI or Codex in the ChatGPT desktop app; the IDE extension does not support plugins. Codex Base remains a Codex-only workflow, not a Chat or Work workflow. Start a new Codex session or chat after installing the plugin. See the official [plugin guide](https://learn.chatgpt.com/docs/plugins).
+
+> [!NOTE]
+> If setup feels daunting but you want a full Nix / Home Manager environment similar to mine (the repository owner's), hand this README to Codex and ask it to help you set things up :)
+
+The prerequisites below apply to the machine where Codex executes tasks:
 
 - Linux users need Bash, GNU coreutils, Git, GNU sed, jq, and Codex on `PATH`.
 - Windows users can use portable skills from a compatible Codex CLI environment. For the complete Improve runners and Nix/Home Manager environment, use WSL2 and keep the repository in the Linux filesystem, such as `~/src`, not `/mnt/c`.
 - Native Windows Improve runners and Windows CI are not provided here.
+
+Run the installation commands on the machine where Codex executes tasks. For a desktop SSH project, that is the remote host, not the desktop client; its login shell must find `codex` on `PATH`. See the official [SSH setup](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host).
 
 ```console
 codex plugin marketplace add https://github.com/bioinformatist/codex-base
@@ -71,11 +78,21 @@ codex plugin list --marketplace bioinformatist-codex
 codex mcp list --json
 ```
 
-The output should show `codex-base@bioinformatist-codex` installed and enabled, with anonymous `mintlify_index` and `context7` MCP servers and no `context7_auth`. Then start a **new Codex session** and make a harmless functional check on disposable prose:
+For a plugin-only installation, the output should show `codex-base@bioinformatist-codex` installed and enabled, with anonymous `mintlify_index` and `context7` MCP servers and no `context7_auth`. Existing native configuration can override these defaults; Home Manager may also provide the optional authenticated adapter. Then start a **new Codex session or chat** and make a harmless functional check on disposable prose:
 
 ```text
 Use $codex-base:stop-slop to tighten this disposable sentence without changing its facts.
 ```
+
+### Reload after an update
+
+Update the installed plugin or activate the updated Nix/Home Manager configuration first; restarting alone does not fetch new files. Wait for affected tasks to finish, then:
+
+- **CLI:** exit and relaunch Codex.
+- **Local desktop:** fully quit and reopen the ChatGPT desktop app, then start a new Codex chat. Closing only the window is not the same as quitting. Update the app separately when needed: its [bundled Codex version can differ from the system CLI](https://learn.chatgpt.com/docs/reference/troubleshooting#feature-is-working-in-the-codex-cli-but-not-in-the-chatgpt-desktop-app).
+- **Desktop over SSH:** after updating the remote installation, use the host's restart action in **Settings → Connections → SSH**, as shown in the official [connection guide](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host). A new chat or a desktop-client restart alone does not prove that the remote backend restarted.
+
+For SSH, verify the running remote Codex App Server—the process executing tasks—not just `codex --version`, which reports a newly invoked binary. Resuming an existing chat preserves its history; it does not start with an empty context. See [update instructions](docs/updating.md#applying-an-update).
 
 <a id="temporary-context-waiver"></a>
 
@@ -111,9 +128,9 @@ default_mode_request_user_input = true
 
 This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level, while the three feature toggles belong in `[features]`. If any of these keys already exist, update them in place. Replace an existing boolean `context_management` or `code_mode` entry with the dotted form shown above; do not keep both a boolean and table form or duplicate a TOML key.
 
-Start a new Codex session after saving the file. The fragment requests experimental context management, Code Mode, structured questions in Default Mode, and high reasoning effort in Plan Mode. Formal Improve planning still requires the session to expose native context management and structured questions: configured `true` values and a Plan Mode label do not prove that either capability is live. If one is missing, stop and reopen the task in a capable session unless the user explicitly grants the [temporary per-plan waiver](#temporary-context-waiver) for missing context management. That exception does not cover missing structured questions. `default_mode_request_user_input` does not automatically run Grilling or another question workflow.
+After saving the file on the execution host, follow [Reload after an update](#reload-after-an-update). The fragment requests experimental context management, Code Mode, structured questions in Default Mode, and high reasoning effort in Plan Mode. Formal Improve planning still requires the session to expose native context management and structured questions: configured `true` values and a Plan Mode label do not prove that either capability is live. If one is missing, stop and reopen the task in a capable session unless the user explicitly grants the [temporary per-plan waiver](#temporary-context-waiver) for missing context management. That exception does not cover missing structured questions. `default_mode_request_user_input` does not automatically run Grilling or another question workflow.
 
-The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers experimental context management, Code Mode, and Plan Mode effort. The Default Mode question flag is instead checked against the pinned Codex 0.153.4 [feature declaration](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core/tests/suite/request_user_input.rs). No wrapper or installer is required.
+The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers experimental context management, Code Mode, and Plan Mode effort. The Default Mode question flag is instead supported by a verified Codex [feature declaration](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs). No wrapper or installer is required.
 
 > [!NOTE]
 > **Why these model defaults**
@@ -139,7 +156,7 @@ Use $codex-base:improve plan <request>.
 Codex namespace-qualifies plugin skills, so the portable plugin uses `$codex-base:improve`. The full Nix/Home Manager installation exposes `$improve plan <request>` without that prefix.
 
 > [!NOTE]
-> Enter built-in Plan Mode with `/plan` or Shift+Tab, then run `$improve plan ...` (or the portable plugin form `$codex-base:improve plan ...`). Improve first discovers available facts and asks only about material choices that remain unsettled. It renders the complete replacement plan in chat and writes no plan, questionnaire, handoff, or temporary file. Persist the plan only in a later authorized writable phase.
+> Enter built-in Plan Mode with `/plan` or Shift+Tab in the CLI; the desktop chat composer also supports [`/plan`](https://learn.chatgpt.com/docs/reference/slash-commands). Then run `$improve plan ...` (or the portable plugin form `$codex-base:improve plan ...`). Improve first discovers available facts and asks only about material choices that remain unsettled. It renders the complete replacement plan in chat and writes no plan, questionnaire, handoff, or temporary file. Persist the plan only in a later authorized writable phase.
 
 Default Mode implementation, audits, and ordinary lifecycle or dossier bookkeeping do not require a new formal-planning workflow. If formal planning is requested from Default Mode, switch to a capable Plan Mode session before continuing.
 

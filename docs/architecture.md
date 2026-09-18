@@ -24,6 +24,12 @@ and thin runner wrappers. `nix/home-manager.nix` owns the full Linux runtime:
 config overlay, MCP wrappers, global instructions, rules, packages, and direct
 unnamespaced skill links. It intentionally renders no Improve profile files.
 
+The desktop SSH client starts Codex App Server on the remote host. That process
+can serve multiple chats, so installing a new binary and starting a new chat
+does not necessarily replace it. Runtime updates and guidance reloads follow
+[the Quick start reload instructions](../README.md#reload-after-an-update);
+the desktop client and remote execution environment are separate installations.
+
 The managed global `AGENTS.md` stores persistent per-user Git, Nix, proxy,
 secret-handling, evidence, and working preferences. The portable plugin does
 not install it. Executor prompts retain runner-local scope, checks, STOP, and
@@ -40,12 +46,12 @@ plan and its same-scope review. This does not change the global prerequisites.
 Implementation, audits, and routine lifecycle bookkeeping remain available in
 Default Mode without starting a new planning workflow.
 
-Prompt compatibility statements for Codex 0.153.4 are limited to the public
+The historical prompt comparison for Codex 0.153.4 is limited to the public
 templates in `models-manager/models.json` at revision
 `3d2ee51ca2d5db578f328aa75e20aa22c0197c9a`: Sol, Terra, and Luna share that
-public base/template content, while Astra differs. This boundary says nothing
-about undisclosed server-side instructions, and Codex Base does not copy those
-model prompts.
+public base/template content, while Astra differs. It does not describe the
+current release pin or undisclosed server-side instructions, and Codex Base
+does not copy those model prompts.
 
 Improve profile names remain stable labels in roles, manifests, metrics, and
 handoffs. Runners pin effective settings at CLI precedence and never look up a
