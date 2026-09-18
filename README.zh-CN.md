@@ -52,11 +52,18 @@ Nix / Home Manager 完整环境当前固定 Codex 0.155.0 和 Code Mode Host。
 
 ## 快速开始
 
-目前安装插件后需要新建 Codex 会话，且 Codex IDE 扩展尚不支持插件。请用 Codex CLI 运行这套工作流。
+可以使用 Codex CLI，或 ChatGPT 桌面应用中的 Codex；IDE 扩展尚不支持插件。Codex Base 仍只面向 Codex，不支持 Chat 或 Work 工作流。安装插件后，请新建 Codex 会话或对话。参见官方[插件说明](https://learn.chatgpt.com/docs/plugins)。
+
+> [!NOTE]
+> 如果安装配置让你犯难，又想体验与我（本仓库 owner）近似的 Nix / Home Manager 完整环境，不妨把这份 README 交给 Codex，请它帮你配置（笑）。
+
+以下前置条件适用于 Codex 实际执行任务的机器：
 
 - Linux 用户需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq 和 Codex。
 - Windows 用户可在兼容的 Codex CLI 环境使用可移植技能。若要运行完整 Improve 执行器及 Nix / Home Manager 完整环境，请使用 WSL2，并把仓库放在 Linux 文件系统中（例如 `~/src`），不要放在 `/mnt/c` 下。
 - 本仓库不提供原生 Windows Improve 执行器或 Windows CI。
+
+请在 Codex 实际执行任务的机器上运行安装命令。桌面 SSH 项目对应的是远端主机，而不是桌面客户端；远端登录 shell 必须能从 `PATH` 找到 `codex`。参见官方 [SSH 配置说明](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host)。
 
 ```console
 codex plugin marketplace add https://github.com/bioinformatist/codex-base
@@ -70,11 +77,21 @@ codex plugin list --marketplace bioinformatist-codex
 codex mcp list --json
 ```
 
-输出应显示 `codex-base@bioinformatist-codex` 已安装且已启用，并列出匿名的 `mintlify_index` 和 `context7` MCP 服务，但不应有 `context7_auth`。然后新建一个 **Codex 会话**，对可丢弃文字做一次无副作用的功能验证：
+仅安装插件时，输出应显示 `codex-base@bioinformatist-codex` 已安装且已启用，并列出匿名的 `mintlify_index` 和 `context7` MCP 服务，但不应有 `context7_auth`。已有原生配置可以覆盖这些默认值；Home Manager 也可能提供可选的认证适配器。然后新建一个 **Codex 会话或对话**，对可丢弃文字做一次无副作用的功能验证：
 
 ```text
 使用 $codex-base:stop-slop 精简下面这句临时文本，不要改变其中的事实。
 ```
+
+### 更新后重新加载
+
+请先更新已安装的插件，或激活更新后的 Nix/Home Manager 配置；仅重启不会获取新文件。等相关任务执行完毕后：
+
+- **CLI：**退出并重新启动 Codex。
+- **本地桌面：**完全退出并重新打开 ChatGPT 桌面应用，然后新建 Codex 对话。只关闭窗口不等于退出应用。需要时还应单独更新应用，因为它[内置的 Codex 版本可能不同于系统 CLI](https://learn.chatgpt.com/docs/reference/troubleshooting#feature-is-working-in-the-codex-cli-but-not-in-the-chatgpt-desktop-app)。
+- **桌面通过 SSH 连接：**更新远端安装后，按官方[连接说明](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host)，在**设置 → Connections（连接）→ SSH** 中使用对应主机的重启操作。仅新建对话或重启桌面客户端，不能证明远端后端已重启。
+
+SSH 场景应核对正在运行的远端 Codex App Server，也就是实际执行任务的进程；不要只看 `codex --version`，它显示的是新调用程序的版本。继续旧对话会保留历史，不代表从空上下文开始。参见[更新说明](docs/updating.md#applying-an-update)。
 
 <a id="temporary-context-waiver"></a>
 
@@ -110,9 +127,9 @@ default_mode_request_user_input = true
 
 这是合并片段，不应替换整个文件，也不是每次启动要带的参数；请保留其他无关配置。`plan_mode_reasoning_effort` 是顶层键，三个功能开关则属于 `[features]`。如果其中某个键已经存在，请直接修改原定义。若 `context_management` 或 `code_mode` 目前是布尔值，请用上面的点分形式替换它；不要同时保留布尔值和表，也不要重复定义同一个 TOML 键。
 
-保存后，请新建 Codex 会话。这个片段会请求实验性上下文管理、Code Mode、Default Mode 中的结构化提问，以及 Plan Mode 中的高推理强度。正式 Improve 规划仍要求当前会话实际提供原生上下文管理和结构化提问；配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用。如果缺少任何一项，请停止并换到具备这些能力的会话，除非用户已明确为缺失的上下文管理授予[单计划临时豁免](#temporary-context-waiver)。该例外不涵盖结构化提问缺失的情况。`default_mode_request_user_input` 不会自动运行 Grilling 或其他提问工作流。
+在执行任务的主机上保存文件后，请按[更新后重新加载](#更新后重新加载)操作。这个片段会请求实验性上下文管理、Code Mode、Default Mode 中的结构化提问，以及 Plan Mode 中的高推理强度。正式 Improve 规划仍要求当前会话实际提供原生上下文管理和结构化提问；配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用。如果缺少任何一项，请停止并换到具备这些能力的会话，除非用户已明确为缺失的上下文管理授予[单计划临时豁免](#temporary-context-waiver)。该例外不涵盖结构化提问缺失的情况。`default_mode_request_user_input` 不会自动运行 Grilling 或其他提问工作流。
 
-官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了实验性上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由当前固定的 Codex 0.153.4 [功能声明](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core/tests/suite/request_user_input.rs)验证。无需启动脚本或安装器。
+官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了实验性上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由已核对的 Codex [功能声明](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs)支持。无需启动脚本或安装器。
 
 > [!NOTE]
 > **为什么采用这组模型默认值**
@@ -138,7 +155,7 @@ default_mode_request_user_input = true
 Codex 会用插件命名空间限定技能名称，因此可移植插件使用 `$codex-base:improve`。Nix / Home Manager 完整环境不带这个前缀，使用 `$improve plan <request>`。
 
 > [!NOTE]
-> 请先用 `/plan` 或 Shift+Tab 进入内置 Plan Mode，再运行 `$improve plan ...`（Codex 插件写法为 `$codex-base:improve plan ...`）。Improve 会先查清已有事实，只询问仍未确定且会实质影响任务的选择，然后在对话中给出完整的替换计划；此时不会写入计划、问卷、交接或临时文件。只有之后获准进入可写阶段，才持久化计划。
+> 请先用 `/plan` 或 Shift+Tab 进入内置 Plan Mode（CLI）；桌面对话输入框也支持 [`/plan`](https://learn.chatgpt.com/docs/reference/slash-commands)。然后运行 `$improve plan ...`（Codex 插件写法为 `$codex-base:improve plan ...`）。Improve 会先查清已有事实，只询问仍未确定且会实质影响任务的选择，然后在对话中给出完整的替换计划；此时不会写入计划、问卷、交接或临时文件。只有之后获准进入可写阶段，才持久化计划。
 
 Default Mode 中的实现、审计及普通生命周期或 dossier 记录不需要重新走正式规划流程。如果在 Default Mode 中要求正式规划，请先切换到具备所需能力的 Plan Mode 会话。
 

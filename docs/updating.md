@@ -1,5 +1,22 @@
 # Updating pinned inputs
 
+## Applying an update
+
+For a Git-backed plugin installation, refresh the configured marketplace on
+the execution host:
+
+```console
+codex plugin marketplace upgrade bioinformatist-codex
+```
+
+This refreshes the marketplace snapshot and installed plugin cache; it does
+not install or upgrade the Codex executable. Nix/Home Manager users instead
+update the consuming configuration's locked `codex-base` input, review its diff,
+and activate that configuration. Updating this repository or its lock alone
+does not update a user's installed environment.
+
+Then follow [Reload after an update](../README.md#reload-after-an-update).
+
 ## Vendored and root inputs
 
 Update one pinned input at a time. Read its license and complete relevant diff,
@@ -29,8 +46,8 @@ policy for vendored or root inputs.
 
 The workflow requires a repository-scoped secret named `MAINTENANCE_PAT`.
 Repository rules must keep `main` pull-request-only and require the strict
-`check` status, with zero approvals and no bypass. Record only these names in
-repository documentation, never credential values.
+`check` and `plugin-portability` statuses, with zero approvals and no bypass.
+Record only these names in repository documentation, never credential values.
 
 CI runs on pull requests and can be dispatched manually; it does not rerun on
 branch, main or tag pushes. Before publishing a release or updating a downstream
