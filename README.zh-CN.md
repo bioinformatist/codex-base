@@ -83,6 +83,43 @@ codex mcp list --json
 使用 $codex-base:stop-slop 精简下面这句临时文本，不要改变其中的事实。
 ```
 
+### 配置 Context7 认证
+
+插件提供的匿名 Context7 无需账户。认证属于可选的用户级配置；Codex Base
+不会内置共享密钥。
+
+仅安装插件时，如需保留匿名优先顺序，可另加一个 OAuth fallback：
+
+```console
+codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth
+codex mcp login context7_auth
+```
+
+这不会改变插件提供的 `context7` 端点。Context7 官方的
+[`npx ctx7 setup --codex`](https://context7.com/docs/clients/codex) 命令则会用
+同名 `context7` 写入原生认证配置，且可能补充智能体指引。原生配置会覆盖插件
+默认值，因此只有在希望把认证 Context7 作为主连接、而不是 fallback 时，才应
+使用该命令。
+
+使用 Nix/Home Manager 时，让模块指向运行时密钥文件：
+
+```nix
+programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;
+```
+
+不要把明文密钥写入 Nix 源码或 Nix store；应由 SOPS、agenix 等密钥管理器提供
+这个路径。Home Manager 会保留匿名 `context7`，并添加 `context7_auth`；后者的
+包装器会读取文件，再把 `CONTEXT7_API_KEY` 传给本地 MCP 服务。
+
+完成任一配置后，请按[更新后重新加载](#更新后重新加载)操作，并运行
+`codex mcp list --json`。服务已注册并不能证明凭据可用。一次性诊断时，可以
+要求 Codex 用 `context7_auth` 查询一项聚焦的公开文档；不要放入私有内容。
+Nix stdio 适配器显示 `auth_status: "unsupported"` 属于正常现象，因为其 API key
+认证不由 Codex 管理。
+
+匿名 Context7 弹出的认证提示会暂停当前工具调用；这不代表认证 fallback 已经
+执行。请先处理或关闭提示，让工具调用返回，路由才能继续。
+
 ### 更新后重新加载
 
 请先更新已安装的插件，或激活更新后的 Nix/Home Manager 配置；仅重启不会获取新文件。等相关任务执行完毕后：

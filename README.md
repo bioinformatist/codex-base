@@ -84,6 +84,48 @@ For a plugin-only installation, the output should show `codex-base@bioinformatis
 Use $codex-base:stop-slop to tighten this disposable sentence without changing its facts.
 ```
 
+### Configure Context7 authentication
+
+The plugin's anonymous Context7 endpoint needs no account. Authentication is
+optional and belongs to each user; Codex Base never bundles a shared key.
+
+For a plugin-only installation, keep anonymous-first routing and add a separate
+OAuth fallback:
+
+```console
+codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth
+codex mcp login context7_auth
+```
+
+This leaves the plugin-provided `context7` endpoint unchanged. Context7's
+official [`npx ctx7 setup --codex`](https://context7.com/docs/clients/codex)
+command instead creates native authenticated configuration under the same
+`context7` name and may add agent guidance. Native configuration overrides the
+plugin default, so use that command only when authenticated Context7 should be
+the primary connection rather than a fallback.
+
+With Nix/Home Manager, point the module at a runtime secret file:
+
+```nix
+programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;
+```
+
+Keep the plaintext key out of Nix source and the Nix store; manage that path
+with a secret manager such as SOPS or agenix. Home Manager retains anonymous
+`context7` and adds `context7_auth`, whose wrapper reads the file and passes
+`CONTEXT7_API_KEY` to the local MCP server.
+
+After either change, follow [Reload after an update](#reload-after-an-update)
+and run `codex mcp list --json`. Registration alone does not prove the credential
+works. For a one-time diagnostic, ask Codex to use `context7_auth` for a focused
+public documentation lookup; do not include private content. An
+`auth_status` value of `unsupported` is normal for the Nix stdio adapter because
+Codex does not manage its API-key authentication.
+
+An authentication prompt opened by anonymous Context7 pauses that tool call; it
+is not evidence that the authenticated fallback ran. Resolve or dismiss the
+prompt so the call can return and routing can continue.
+
 ### Reload after an update
 
 Update the installed plugin or activate the updated Nix/Home Manager configuration first; restarting alone does not fetch new files. Wait for affected tasks to finish, then:

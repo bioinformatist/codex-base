@@ -17,8 +17,8 @@ Follow this provider order for each lookup:
 
 1. Query `mintlify_index` once with focused product and requested-version terms.
 2. Accept the result only when it is nonempty, relevant, covers the requested version, and includes traceable source URLs.
-3. Otherwise use anonymous `context7` to resolve the exact library and version. Do not repeat an equivalent Mintlify query.
-4. Use `context7_auth` only when it is available and anonymous Context7 is rate-limited, unavailable, or still insufficient.
+3. Otherwise use `context7` to resolve the exact library and version. The plugin default is anonymous, but native same-name configuration may replace it with an authenticated connection. Do not repeat an equivalent Mintlify query.
+4. When `context7` is anonymous and rate-limited, unavailable, or still insufficient, use `context7_auth` if it is available.
 5. Then fall back to official primary documentation or source.
 6. Never send secrets, credentials, private code, full prompts, or non-public internal content to either provider.
-7. If a named tool is absent, advance to the next stage without automatically installing, authenticating, or retrying it.
+7. If a named tool is absent, advance to the next stage without automatically installing, authenticating, or retrying it. A host authentication prompt leaves the current call pending; after it is resolved or dismissed, apply the same acceptance test to the returned result and continue when it is insufficient.

@@ -175,6 +175,10 @@ in {
     grep -Fq 'docs/updating.md' ${srcRoot}/CONTRIBUTING.md
     grep -Fq 'anonymous Mintlify Index and Context7 HTTP endpoints' ${srcRoot}/README.md
     grep -Fq '匿名的 Mintlify Index 与 Context7 HTTP 端点' ${srcRoot}/README.zh-CN.md
+    grep -Fq 'codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth' ${srcRoot}/README.md
+    grep -Fq 'codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth' ${srcRoot}/README.zh-CN.md
+    grep -Fq 'programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;' ${srcRoot}/README.md
+    grep -Fq 'programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;' ${srcRoot}/README.zh-CN.md
     grep -Fq 'Enter built-in Plan Mode with `/plan` or Shift+Tab' ${srcRoot}/README.md
     grep -Fq '请先用 `/plan` 或 Shift+Tab 进入内置 Plan Mode' ${srcRoot}/README.zh-CN.md
     grep -Fq 'configured `true` values and a Plan Mode label do not prove that either capability is live' ${srcRoot}/README.md
@@ -264,9 +268,9 @@ in {
     architecture = (root / 'docs/architecture.md').read_text()
     assert 'not an automated benchmark or evidence of universal model obedience' in flat_scenarios
     headings = re.findall(r'^## (SC-\d{2}): .+$', scenarios, flags=re.M)
-    assert headings == [f'SC-{number:02d}' for number in range(1, 17)]
+    assert headings == [f'SC-{number:02d}' for number in range(1, 19)]
     blocks = re.split(r'^## SC-\d{2}: .+$', scenarios, flags=re.M)[1:]
-    assert len(blocks) == 16
+    assert len(blocks) == 18
     for block in blocks:
         assert block.count('**Input/context:**') == 1
         assert block.count('**Expected observable behavior:**') == 1
@@ -281,6 +285,8 @@ in {
         'user explicitly says, “Monitor this run until it finishes.”',
         'Keep the compatibility test',
         '使用中文在当前对话中改述',
+        'treat its result as the authenticated Context7 stage',
+        'Do not claim that the prompt itself used the authenticated fallback',
     ]:
         assert phrase in flat_scenarios
     credits = (root / 'docs/credits.md').read_text()
@@ -497,11 +503,11 @@ PY
         'unless a higher-authority product-specific documentation workflow applies.' \
         'Query `mintlify_index` once with focused product and requested-version terms.' \
         'Accept the result only when it is nonempty, relevant, covers the requested version, and includes traceable source URLs.' \
-        'Otherwise use anonymous `context7` to resolve the exact library and version. Do not repeat an equivalent Mintlify query.' \
-        'Use `context7_auth` only when it is available and anonymous Context7 is rate-limited, unavailable, or still insufficient.' \
+        'Otherwise use `context7` to resolve the exact library and version. The plugin default is anonymous, but native same-name configuration may replace it with an authenticated connection. Do not repeat an equivalent Mintlify query.' \
+        'When `context7` is anonymous and rate-limited, unavailable, or still insufficient, use `context7_auth` if it is available.' \
         'Then fall back to official primary documentation or source.' \
         'Never send secrets, credentials, private code, full prompts, or non-public internal content to either provider.' \
-        'If a named tool is absent, advance to the next stage without automatically installing, authenticating, or retrying it.'; do
+        'If a named tool is absent, advance to the next stage without automatically installing, authenticating, or retrying it. A host authentication prompt leaves the current call pending; after it is resolved or dismissed, apply the same acceptance test to the returned result and continue when it is insufficient.'; do
         grep -Fq "$clause" ${generatedSkills}/docs-routing/SKILL.md
       done
       grep -Fq 'Treat GitHub and Context7 tokens as per-user secrets.' ${srcRoot}/config/AGENTS.md
