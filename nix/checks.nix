@@ -175,10 +175,10 @@ in {
     grep -Fq 'docs/updating.md' ${srcRoot}/CONTRIBUTING.md
     grep -Fq 'anonymous Mintlify Index and Context7 HTTP endpoints' ${srcRoot}/README.md
     grep -Fq '匿名的 Mintlify Index 与 Context7 HTTP 端点' ${srcRoot}/README.zh-CN.md
-    grep -Fq 'codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth' ${srcRoot}/README.md
-    grep -Fq 'codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth' ${srcRoot}/README.zh-CN.md
-    grep -Fq 'programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;' ${srcRoot}/README.md
-    grep -Fq 'programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;' ${srcRoot}/README.zh-CN.md
+    grep -Fq 'codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth' ${srcRoot}/docs/configuration.md
+    grep -Fq 'codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth' ${srcRoot}/docs/configuration.zh-CN.md
+    grep -Fq 'programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;' ${srcRoot}/docs/configuration.md
+    grep -Fq 'programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;' ${srcRoot}/docs/configuration.zh-CN.md
     grep -Fq 'Enter built-in Plan Mode with `/plan` or Shift+Tab' ${srcRoot}/README.md
     grep -Fq '请先用 `/plan` 或 Shift+Tab 进入内置 Plan Mode' ${srcRoot}/README.zh-CN.md
     grep -Fq 'configured `true` values and a Plan Mode label do not prove that either capability is live' ${srcRoot}/README.md
@@ -217,26 +217,31 @@ in {
     from xml.etree import ElementTree as ET
 
     root = Path('${srcRoot}')
-    # Check each language independently; matching either README is insufficient.
+    # Check each language's README entry point and detailed configuration guide.
     waiver_anchor = '<a id="temporary-context-waiver"></a>'
     waiver_image = 'docs/evidence/2026-09-12-tibo-context-management.png'
     assert (root / waiver_image).is_file()
-    for name, setup_heading, no_config, grant in [
-        ('README.md', '### Native Codex configuration for non-Nix users',
+    for readme_name, name, no_config, grant in [
+        ('README.md', 'docs/configuration.md',
          'Do not edit local configuration',
          'I approve waiving the native context-management prerequisite only for this plan and its same-scope review. Keep Plan Mode, structured questions, read-only planning, and all other authorization boundaries. Do not change configuration or global skills for this waiver.'),
-        ('README.zh-CN.md', '### 面向非 Nix 用户的 Codex 原生配置',
+        ('README.zh-CN.md', 'docs/configuration.zh-CN.md',
          '不要为绕过此次不可用而编辑本地配置',
          '我批准仅为本计划及同范围审阅豁免原生上下文管理前置条件；保留 Plan Mode、结构化提问、只读规划及其他权限边界。请勿为此修改配置或全局技能。'),
     ]:
-        readme = (root / name).read_text()
-        assert readme.count(waiver_anchor) == 1, name
-        assert readme.index(waiver_anchor) < readme.index(setup_heading), name
-        note = readme.split(waiver_anchor, 1)[1].split(setup_heading, 1)[0]
+        readme = (root / readme_name).read_text()
+        guide = (root / name).read_text()
+        assert readme.count(waiver_anchor) == 1, readme_name
+        assert f']({name}#temporary-context-waiver)' in readme, readme_name
+        assert f']({name}#native-codex-configuration)' in readme, readme_name
+        assert f']({name}#context7-authentication)' in readme, readme_name
+        assert guide.count(waiver_anchor) == 1, name
+        note = guide.split(waiver_anchor, 1)[1]
         for required in [
             '2026-09-12',
             '](https://x.com/thsottiaux/status/2098612714704891959)',
-            f']({waiver_image})', no_config, f'```text\n{grant}\n```',
+            '](evidence/2026-09-12-tibo-context-management.png)',
+            no_config, f'```text\n{grant}\n```',
         ]:
             assert required in note, (name, required)
     for name, target in [
@@ -322,7 +327,7 @@ in {
       ("code_mode", "true"),
       ("default_mode_request_user_input", "true"),
     )
-    setups = [parse_setup(path) for path in [root / 'README.md', root / 'README.zh-CN.md']]
+    setups = [parse_setup(path) for path in [root / 'docs/configuration.md', root / 'docs/configuration.zh-CN.md']]
     assert setups[0][1] == setups[1][1], "English and Chinese setup data differs"
     for fragment, _ in setups:
       with tempfile.TemporaryDirectory() as td:
