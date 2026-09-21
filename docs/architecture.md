@@ -27,7 +27,7 @@ unnamespaced skill links. It intentionally renders no Improve profile files.
 The desktop SSH client starts Codex App Server on the remote host. That process
 can serve multiple chats, so installing a new binary and starting a new chat
 does not necessarily replace it. Runtime updates and guidance reloads follow
-[the Quick start reload instructions](../README.md#reload-after-an-update);
+[the reload instructions](../README.md#reload-after-an-update);
 the desktop client and remote execution environment are separate installations.
 
 The managed global `AGENTS.md` stores persistent per-user Git, Nix, proxy,
@@ -35,6 +35,22 @@ secret-handling, evidence, and working preferences. The portable plugin does
 not install it. Executor prompts retain runner-local scope, checks, STOP, and
 handoff constraints. Codex Base has no model-index or per-model global guidance
 files, and its ordinary runtime default remains Sol with medium reasoning.
+
+Native context-management eligibility is established when a task session is
+initialized from its starting model. In the desktop app, that task is a Codex
+chat under a project; entering Plan Mode or invoking Improve in an existing
+chat does not start another session. Codex Base therefore keeps Sol as its
+ordinary default while requiring a fresh Astra-started task for formal Improve
+planning that retains the native context-management prerequisite.
+
+In the CLI, ordinary `/model` selection changes the current chat and attempts
+to persist defaults. `/new` uses effective defaults plus explicit launch
+settings, rather than simply copying the current chat's model. Codex 0.155.1
+preserves a launch-model override across those `/new` chats. A user who keeps
+Sol as the persistent default can start a one-off Astra invocation with
+`codex -m gpt-6-astra`; Codex Base does not ship an Astra runtime profile.
+The [configuration guide](configuration.md#model-choice) records the scope
+distinctions and pinned source evidence.
 
 Formal Improve planning uses built-in Plan Mode only when the live session
 exposes native context management and structured questions. It produces one
@@ -57,6 +73,8 @@ Improve profile names remain stable labels in roles, manifests, metrics, and
 handoffs. Runners pin effective settings at CLI precedence and never look up a
 Codex profile.
 
+## Executor routing
+
 Improve `.16` adds one caller-time choice to the existing eligible Spark lane.
 A short-lived native app-server query selects Spark/high when available with
 quota, otherwise Luna/low, before one executor starts. Query errors terminate
@@ -65,4 +83,6 @@ preflight resume, reevaluates availability after validating any inherited
 provenance. The existing role snapshot, execution record, metrics and
 profile/model/effort handoff identify the choice. There is no scheduler,
 persistent routing cache, account switch or new configuration-profile lookup.
-Older supported contracts keep fixed Spark, and all other roles are unchanged.
+Older supported contracts (`.15` and earlier) keep fixed Spark, and standard,
+deep, scout, and review roles are unchanged. Luna usage is neither guaranteed
+nor unlimited; the runner does not precheck its quota or switch providers.
