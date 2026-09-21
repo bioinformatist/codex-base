@@ -4,7 +4,7 @@
 
 # Codex Base
 
-Codex Base brings engineering skills, documentation lookup, and a plan–implement–review workflow to Codex. It aims to reduce repeated context gathering, drift from settled decisions, and rework caused by over-engineering during long coding tasks.
+Codex Base combines adapted community skills with our team's workflow and environment integration for Codex. It aims to reduce repeated context gathering, drift from settled decisions, and rework caused by over-engineering during long coding tasks.
 
 > [!WARNING]
 > This is the agent harness—the instructions, tools, and workflows around Codex—that my team uses and shares publicly. It is not a product aimed at most users. AI and Codex evolve quickly; this repository will remain `unstable` and may require substantial additional configuration.
@@ -18,11 +18,15 @@ Codex Base brings engineering skills, documentation lookup, and a plan–impleme
 
 ## What we've done
 
-Our work is primarily based on [shadcn Improve](https://github.com/shadcn/improve). We have improved and extended its planning, execution, and review workflows for our team's use of Codex, and integrated supporting skills and environment configuration:
+Our Improve workflow builds on the audit and planning foundations from [shadcn's Improve](https://github.com/shadcn/improve). We adapt selected skills from [Matt Pocock](https://github.com/mattpocock/skills) for requirements clarification, debugging, testing, design, and agent guidance. We also adapt and integrate [Ponytail](https://github.com/DietrichGebert/ponytail) for over-engineering review, audits, and debt tracking; [stop-slop](https://github.com/hardikpandya/stop-slop) for prose editing; and the [Playwright CLI skill](https://github.com/microsoft/playwright-cli) for browser work.
+
+Our work focuses on adapting these foundations to Codex, extending and connecting the planning, execution, and review workflow, adding documentation routing, and maintaining the plugin and Nix/Home Manager environment. In this setup:
 
 - Formal planning resolves material choices and produces a complete plan in chat. An authorized implementation phase can then persist it and delegate bounded work.
 - Implementation consults current documentation; an isolated executor verifies and simplifies each changing step. Reviews and checkpoints identify the candidate they cover so work can be resumed and assessed.
 - Shared skills cover documentation lookup, debugging, testing, design, and prose review. The [capability catalog](docs/capabilities.md) lists their triggers and installation requirements.
+
+The [credits and licenses](docs/credits.md) describe the upstream contributions and our adaptations; [source records](vendor/sources.json) identify the included paths and pinned revisions.
 
 ![How direct editing and Codex Base handle a task as its context grows](docs/assets/codex-base-workflow.svg)
 

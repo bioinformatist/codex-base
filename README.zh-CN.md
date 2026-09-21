@@ -4,7 +4,7 @@
 
 # Codex Base
 
-Codex Base 为 Codex 提供工程技能、文档检索，以及规划、实现、审查的工作流。它希望减少长任务中反复梳理上下文、偏离既定决策和过度设计造成的返工。
+Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充工作流与环境集成。它希望减少长任务中反复梳理上下文、偏离既定决策和过度设计造成的返工。
 
 > [!WARNING]
 > 这是我把团队正在使用的 agent harness（围绕 Codex 组织的指令、工具和工作流基座）公开分享出来的工程，不是面向绝大多数用户的产品。AI 和 Codex 演进很快，本仓库会长期处于 `unstable` 状态，使用者可能还需要完成不少额外配置。
@@ -18,11 +18,15 @@ Codex Base 为 Codex 提供工程技能、文档检索，以及规划、实现�
 
 ## 我们做了什么
 
-我们的工作主要基于 [shadcn Improve](https://github.com/shadcn/improve)。结合团队使用 Codex 的实践，我们对它的规划、执行和审查流程做了一系列改进和增强，并整合了配套的工程技能与环境配置：
+我们的 Improve 工作流以 [shadcn Improve](https://github.com/shadcn/improve) 的审计与规划方法为基础，并选取、适配了 [Matt Pocock 的 skills](https://github.com/mattpocock/skills)，用于需求澄清、调试、测试、设计和 agent 指导。我们还适配并整合了用于过度设计审查、全库审计和技术债梳理的 [Ponytail](https://github.com/DietrichGebert/ponytail)、用于文字编辑的 [stop-slop](https://github.com/hardikpandya/stop-slop)，以及用于浏览器操作的 [Playwright CLI skill](https://github.com/microsoft/playwright-cli)。
+
+我们的工作侧重于将这些基础适配到 Codex，扩展并衔接规划、执行和审查流程，补充文档检索路由，以及维护插件和 Nix/Home Manager 环境。在这套集成中：
 
 - 正式规划先解决重要选择，在对话中给出完整计划；之后获准的实现阶段可以持久化计划，并委派边界明确的工作。
 - 实现前查证当前文档，隔离执行器验证并简化每个改动步骤；审查和检查点明确对应的候选版本，让工作可以续接和评估。
 - 共享技能覆盖文档检索、调试、测试、设计和文字审阅。[详细能力目录](docs/capabilities.zh-CN.md)列出了它们的触发方式和安装要求。
+
+[致谢与许可证](docs/credits.md)说明了上游贡献与我们的适配内容；[来源记录](vendor/sources.json)列出了纳入的路径和固定版本。
 
 ![直接修改与 Codex Base 如何处理逐渐变长的任务](docs/assets/codex-base-workflow.zh-CN.svg)
 
