@@ -4,6 +4,29 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
+## [0.1.3]
+
+### Fixed
+
+- Focus documentation lookups on missing facts, separate independent products
+  or topics while allowing comparisons and interaction questions, and identify
+  the product and requested version with disambiguating context. Use the tool's
+  `product` field when available. This applies to both the portable plugin and
+  Home Manager.
+- Keep changes proportional to the established cause in Home Manager's global
+  agent guidance. One-off operator or repository-state incidents favor recovery
+  and existing focused checks; additional tests, CI checks, policies,
+  abstractions, and documentation need a task requirement or concrete uncovered
+  behavior. Also correct the Nix check command to `nix flake check`.
+
+The documentation provider order, anonymous Context7 priority, authentication
+fallback, runtime pins, and Improve `.16` execution contract are unchanged.
+This release makes no measured claim about retrieval accuracy or token savings.
+
+[Documentation queries](https://github.com/bioinformatist/codex-base/pull/37) ·
+[Global agent guidance](https://github.com/bioinformatist/codex-base/pull/36) ·
+[Full comparison](https://github.com/bioinformatist/codex-base/compare/v0.1.2...v0.1.3)
+
 ## [0.1.2]
 
 ### Improve research handoffs
@@ -100,6 +123,7 @@ Repository documentation and compatibility checks passed for the release candida
 
 [Compare the Improve changes](https://github.com/bioinformatist/codex-base/compare/52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e).
 
+[0.1.3]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.3
 [0.1.2]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.2
 [0.1.1]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.1
 [0.1.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.0

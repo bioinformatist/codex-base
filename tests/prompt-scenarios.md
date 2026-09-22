@@ -175,3 +175,28 @@ shipping readiness.
 限定条件和不确定性，不创建文件。
 
 **Runtime observation:** NOT RUN
+
+## SC-17: Native authenticated Context7 replaces the anonymous default
+
+**Input/context:** Mintlify is insufficient. Native Codex configuration has
+replaced the plugin's same-name `context7` endpoint with an authenticated
+connection, and no separate `context7_auth` server is present.
+
+**Expected observable behavior:** Query `context7` once and treat its result as
+the authenticated Context7 stage. Do not require or invent a separate
+`context7_auth` call solely because the plugin default would have been
+anonymous.
+
+**Runtime observation:** NOT RUN
+
+## SC-18: Anonymous Context7 falls through after an authentication prompt
+
+**Input/context:** Mintlify is insufficient. Plugin-default anonymous
+`context7` opens a host authentication prompt. The prompt is dismissed, the
+tool returns no acceptable documentation, and `context7_auth` is available.
+
+**Expected observable behavior:** Do not claim that the prompt itself used the
+authenticated fallback. After the pending call returns, query `context7_auth`
+and apply the same relevance, version, and source checks to its result.
+
+**Runtime observation:** NOT RUN

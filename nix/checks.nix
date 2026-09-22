@@ -175,6 +175,10 @@ in {
     grep -Fq 'docs/updating.md' ${srcRoot}/CONTRIBUTING.md
     grep -Fq 'anonymous Mintlify Index and Context7 HTTP endpoints' ${srcRoot}/README.md
     grep -Fq '匿名的 Mintlify Index 与 Context7 HTTP 端点' ${srcRoot}/README.zh-CN.md
+    grep -Fq 'codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth' ${srcRoot}/docs/configuration.md
+    grep -Fq 'codex mcp add context7_auth --url https://mcp.context7.com/mcp/oauth' ${srcRoot}/docs/configuration.zh-CN.md
+    grep -Fq 'programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;' ${srcRoot}/docs/configuration.md
+    grep -Fq 'programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;' ${srcRoot}/docs/configuration.zh-CN.md
     grep -Fq 'Enter built-in Plan Mode with `/plan` or Shift+Tab' ${srcRoot}/README.md
     grep -Fq '请先用 `/plan` 或 Shift+Tab 进入内置 Plan Mode' ${srcRoot}/README.zh-CN.md
     grep -Fq 'configured `true` values and a Plan Mode label do not prove that either capability is live' ${srcRoot}/README.md
@@ -213,26 +217,31 @@ in {
     from xml.etree import ElementTree as ET
 
     root = Path('${srcRoot}')
-    # Check each language independently; matching either README is insufficient.
+    # Check each language's README entry point and detailed configuration guide.
     waiver_anchor = '<a id="temporary-context-waiver"></a>'
     waiver_image = 'docs/evidence/2026-09-12-tibo-context-management.png'
     assert (root / waiver_image).is_file()
-    for name, setup_heading, no_config, grant in [
-        ('README.md', '### Native Codex configuration for non-Nix users',
+    for readme_name, name, no_config, grant in [
+        ('README.md', 'docs/configuration.md',
          'Do not edit local configuration',
          'I approve waiving the native context-management prerequisite only for this plan and its same-scope review. Keep Plan Mode, structured questions, read-only planning, and all other authorization boundaries. Do not change configuration or global skills for this waiver.'),
-        ('README.zh-CN.md', '### 面向非 Nix 用户的 Codex 原生配置',
+        ('README.zh-CN.md', 'docs/configuration.zh-CN.md',
          '不要为绕过此次不可用而编辑本地配置',
          '我批准仅为本计划及同范围审阅豁免原生上下文管理前置条件；保留 Plan Mode、结构化提问、只读规划及其他权限边界。请勿为此修改配置或全局技能。'),
     ]:
-        readme = (root / name).read_text()
-        assert readme.count(waiver_anchor) == 1, name
-        assert readme.index(waiver_anchor) < readme.index(setup_heading), name
-        note = readme.split(waiver_anchor, 1)[1].split(setup_heading, 1)[0]
+        readme = (root / readme_name).read_text()
+        guide = (root / name).read_text()
+        assert readme.count(waiver_anchor) == 1, readme_name
+        assert f']({name}#temporary-context-waiver)' in readme, readme_name
+        assert f']({name}#native-codex-configuration)' in readme, readme_name
+        assert f']({name}#context7-authentication)' in readme, readme_name
+        assert guide.count(waiver_anchor) == 1, name
+        note = guide.split(waiver_anchor, 1)[1]
         for required in [
             '2026-09-12',
             '](https://x.com/thsottiaux/status/2098612714704891959)',
-            f']({waiver_image})', no_config, f'```text\n{grant}\n```',
+            '](evidence/2026-09-12-tibo-context-management.png)',
+            no_config, f'```text\n{grant}\n```',
         ]:
             assert required in note, (name, required)
     for name, target in [
@@ -264,9 +273,9 @@ in {
     architecture = (root / 'docs/architecture.md').read_text()
     assert 'not an automated benchmark or evidence of universal model obedience' in flat_scenarios
     headings = re.findall(r'^## (SC-\d{2}): .+$', scenarios, flags=re.M)
-    assert headings == [f'SC-{number:02d}' for number in range(1, 17)]
+    assert headings == [f'SC-{number:02d}' for number in range(1, 19)]
     blocks = re.split(r'^## SC-\d{2}: .+$', scenarios, flags=re.M)[1:]
-    assert len(blocks) == 16
+    assert len(blocks) == 18
     for block in blocks:
         assert block.count('**Input/context:**') == 1
         assert block.count('**Expected observable behavior:**') == 1
@@ -281,6 +290,8 @@ in {
         'user explicitly says, “Monitor this run until it finishes.”',
         'Keep the compatibility test',
         '使用中文在当前对话中改述',
+        'treat its result as the authenticated Context7 stage',
+        'Do not claim that the prompt itself used the authenticated fallback',
     ]:
         assert phrase in flat_scenarios
     credits = (root / 'docs/credits.md').read_text()
@@ -316,7 +327,7 @@ in {
       ("code_mode", "true"),
       ("default_mode_request_user_input", "true"),
     )
-    setups = [parse_setup(path) for path in [root / 'README.md', root / 'README.zh-CN.md']]
+    setups = [parse_setup(path) for path in [root / 'docs/configuration.md', root / 'docs/configuration.zh-CN.md']]
     assert setups[0][1] == setups[1][1], "English and Chinese setup data differs"
     for fragment, _ in setups:
       with tempfile.TemporaryDirectory() as td:
@@ -497,11 +508,11 @@ PY
         'unless a higher-authority product-specific documentation workflow applies.' \
         'Query `mintlify_index` once with focused product and requested-version terms.' \
         'Accept the result only when it is nonempty, relevant, covers the requested version, and includes traceable source URLs.' \
-        'Otherwise use anonymous `context7` to resolve the exact library and version. Do not repeat an equivalent Mintlify query.' \
-        'Use `context7_auth` only when it is available and anonymous Context7 is rate-limited, unavailable, or still insufficient.' \
+        'Otherwise use `context7` to resolve the exact library and version. The plugin default is anonymous, but native same-name configuration may replace it with an authenticated connection. Do not repeat an equivalent Mintlify query.' \
+        'When `context7` is anonymous and rate-limited, unavailable, or still insufficient, use `context7_auth` if it is available.' \
         'Then fall back to official primary documentation or source.' \
         'Never send secrets, credentials, private code, full prompts, or non-public internal content to either provider.' \
-        'If a named tool is absent, advance to the next stage without automatically installing, authenticating, or retrying it.'; do
+        'If a named tool is absent, advance to the next stage without automatically installing, authenticating, or retrying it. A host authentication prompt leaves the current call pending; after it is resolved or dismissed, apply the same acceptance test to the returned result and continue when it is insufficient.'; do
         grep -Fq "$clause" ${generatedSkills}/docs-routing/SKILL.md
       done
       grep -Fq 'Treat GitHub and Context7 tokens as per-user secrets.' ${srcRoot}/config/AGENTS.md

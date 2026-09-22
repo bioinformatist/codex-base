@@ -4,164 +4,178 @@
 
 # Codex Base
 
-Long coding tasks waste model usage when they repeatedly rebuild context, drift from settled intent, or rework over-engineered changes. Codex Base is designed to reduce that avoidable usage.
+Codex Base combines adapted community skills with our team's workflow and environment integration for Codex. It aims to reduce repeated context gathering, drift from settled decisions, and rework caused by over-engineering during long coding tasks.
+
+> [!WARNING]
+> This is the agent harness—the instructions, tools, and workflows around Codex—that my team uses and shares publicly. It is not a product aimed at most users. AI and Codex evolve quickly; this repository will remain `unstable` and may require substantial additional configuration.
+>
+> We share it so others can help improve the engineering behind the harness. We believe working together can help our teams adopt useful advances sooner, improve productivity, and build more advanced products. We warmly welcome valuable issues and PRs; please take time to understand the project's intent and respect its documented conventions.
 
 [![CI](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml/badge.svg)](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+[Quick start](#quick-start) · [First workflow](#first-workflow) · [Updates](#reload-after-an-update) · [Configuration reference](docs/configuration.md)
+
+## What we've done
+
+Our Improve workflow builds on the audit and planning foundations from [shadcn's Improve](https://github.com/shadcn/improve). We adapt selected skills from [Matt Pocock](https://github.com/mattpocock/skills) for requirements clarification, debugging, testing, design, and agent guidance. We also adapt and integrate [Ponytail](https://github.com/DietrichGebert/ponytail) for over-engineering review, audits, and debt tracking; [stop-slop](https://github.com/hardikpandya/stop-slop) for prose editing; and the [Playwright CLI skill](https://github.com/microsoft/playwright-cli) for browser work.
+
+Our work focuses on adapting these foundations to Codex, extending and connecting the planning, execution, and review workflow, adding documentation routing, and maintaining the plugin and Nix/Home Manager environment. In this setup:
+
+- Formal planning resolves material choices and produces a complete plan in chat. An authorized implementation phase can then persist it and delegate bounded work.
+- Implementation consults current documentation; an isolated executor verifies and simplifies each changing step. Reviews and checkpoints identify the candidate they cover so work can be resumed and assessed.
+- Shared skills cover documentation lookup, debugging, testing, design, and prose review. The [capability catalog](docs/capabilities.md) lists their triggers and installation requirements.
+
+The [credits and licenses](docs/credits.md) describe the upstream contributions and our adaptations; [source records](vendor/sources.json) identify the included paths and pinned revisions.
+
 ![How direct editing and Codex Base handle a task as its context grows](docs/assets/codex-base-workflow.svg)
 
-## How Codex Base addresses usage
+For bounded implementation work that qualifies for the lightweight executor, we prefer Spark when it is available and has quota, otherwise Luna with low reasoning. [Codex-Spark has its own usage limits](https://learn.chatgpt.com/docs/agent-configuration/speed); see [executor routing](docs/architecture.md#executor-routing) for compatibility and failure behavior.
 
-| Usage concern | Mechanism |
-|---|---|
-| Main-model capacity | Qualifying, tightly bounded implementation uses Spark-priority under Improve `.16`: Spark when available with quota, otherwise Luna with low reasoning. Each new call checks again; a started model is never replayed on another model. [Codex-Spark has its own usage limits](https://learn.chatgpt.com/docs/agent-configuration/speed). |
-| Avoidable work across the task | Formal planning captures settled decisions in one complete Plan Mode response; a later authorized writable phase can persist them. Documentation is checked before implementation, and every code-changing step is verified and simplified. This reduces repeated long-context reads, drift, over-engineering, and rework. |
-
-Planning and review also use capacity. A small, clear edit is usually better handled directly, and Codex Base does not promise fewer tokens, lower cost, or less usage for every task.
-
-Existing `.15` and older supported plans keep fixed Spark. Metadata query
-errors stop before execution rather than selecting Luna. Luna usage is not
-guaranteed or unlimited; the runner does not precheck its quota or switch
-accounts or providers. Standard, deep, scout and review roles are unchanged.
-
-## What Codex Base adds
-
-[shadcn Improve](https://github.com/shadcn/improve) supplies the audit playbook and plan-template foundations. Codex Base adds:
-
-- Formal planning produces a complete replacement plan in chat; a later authorized writable phase can persist the settled result.
-- An isolated executor verifies and simplifies each changing step.
-- Candidate-bound review and recovery, together with explicit checkpoints, keep work reviewable and resumable.
-
-## Choose an installation
-
-The columns below show what Codex Base provides or configures with each installation.
-
-| Installation | Codex plugin | Nix / Home Manager full environment |
-|---|---|---|
-| Bundled engineering skills | Namespaced, such as `$codex-base:improve` | Unnamespaced, such as `$improve` |
-| Improve runners | Bundled; Linux tools required | Packaged `codex-improve-*` commands |
-| Global guidance and GitHub MCP | No | Yes |
-| Mintlify / Context7 MCP servers and routing | Anonymous HTTP defaults and shared routing skill | Local anonymous Context7, optional authenticated Context7, and shared routing skill |
-| Codex, Code Mode Host, Node, Playwright CLI | No | Pinned packages |
-
-The [capability catalog](docs/capabilities.md) lists every trigger, responsibility, verification surface, and provenance. The plugin does not install Nix-only capabilities, commands, secrets, or global configuration.
-
-The portable plugin configures anonymous Mintlify Index and Context7 HTTP endpoints plus one Mintlify-first routing skill. The Nix/Home Manager environment links the same skill while retaining local anonymous Context7 and optional per-user authenticated Context7. Both providers are public third parties: send only focused public lookup terms, never secrets, private code, full prompts, or non-public internal content. Native Codex configuration takes precedence over same-name plugin defaults.
-
-The full Nix / Home Manager environment currently pins Codex 0.154.0 and Code Mode Host.
+Planning and review also consume usage, so small, clear edits are usually better handled directly. Codex Base does not promise fewer tokens or lower cost for every task.
 
 ## Quick start
 
-Plugins currently require a new Codex session after installation and are not available in the Codex IDE extension. Use the Codex CLI for this workflow.
+> [!NOTE]
+> If setup feels daunting but you want a full Nix / Home Manager environment similar to mine (the repository owner's), hand this README to Codex and ask it to help you set things up :)
 
-- Linux users need Bash, GNU coreutils, Git, GNU sed, jq, and Codex on `PATH`.
-- Windows users can use portable skills from a compatible Codex CLI environment. For the complete Improve runners and Nix/Home Manager environment, use WSL2 and keep the repository in the Linux filesystem, such as `~/src`, not `/mnt/c`.
-- Native Windows Improve runners and Windows CI are not provided here.
+### 1. Identify the execution host
+
+Use Codex CLI or Codex in the ChatGPT desktop app; the IDE extension does not support plugins. This repository supports Codex workflows, not general Chat or Work conversations. See the official [plugin guide](https://learn.chatgpt.com/docs/plugins).
+
+Install and configure Codex Base on the machine that executes the task:
+
+| Client | Execution host and Codex runtime |
+|---|---|
+| Codex CLI | The machine running `codex`; it uses the CLI installation on `PATH`. |
+| Local desktop chat | The desktop machine; the app uses its bundled Codex runtime, which can differ from the system CLI. |
+| Desktop over SSH | The selected remote host; the desktop client starts Codex App Server there. The remote login shell must find `codex` on `PATH`. |
+
+For SSH setup, follow the official [connection guide](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host). Installing on the desktop client alone does not configure the remote host.
+
+Linux execution needs Bash, GNU coreutils, Git, GNU sed, jq, and Codex on `PATH`. Windows users can use portable skills from a compatible Codex CLI environment; the complete Improve runners and Nix/Home Manager environment require Linux, such as WSL2. Keep WSL repositories in its Linux filesystem (for example `~/src`, not `/mnt/c`). Native Windows Improve runners and Windows CI are not provided here.
+
+<a id="choose-an-installation"></a>
+
+### 2. Choose an installation
+
+Choose the plugin to add the portable workflow to an existing Codex setup, or Home Manager to manage the full Linux environment.
+
+| Provided or configured | Codex plugin | Nix / Home Manager full environment |
+|---|---|---|
+| Engineering skills | Namespaced, such as `$codex-base:improve` | Unnamespaced, such as `$improve` |
+| Improve runners | Bundled; Linux tools required | Packaged `codex-improve-*` commands |
+| Global guidance and GitHub MCP | No | Yes |
+| Mintlify / Context7 documentation services | Anonymous HTTP defaults | HTTP Mintlify, local anonymous Context7, and optional per-user authentication |
+| Codex, Code Mode Host, Node, Playwright CLI | No | Pinned packages |
+
+#### Codex plugin
+
+Run on the execution host:
 
 ```console
 codex plugin marketplace add https://github.com/bioinformatist/codex-base
 codex plugin add codex-base@bioinformatist-codex
-```
-
-### Verify the installation
-
-```console
 codex plugin list --marketplace bioinformatist-codex
-codex mcp list --json
 ```
 
-The output should show `codex-base@bioinformatist-codex` installed and enabled, with anonymous `mintlify_index` and `context7` MCP servers and no `context7_auth`. Then start a **new Codex session** and make a harmless functional check on disposable prose:
+The output should show `codex-base@bioinformatist-codex` installed and enabled. The plugin does not install Codex, host packages, or global configuration.
 
-```text
-Use $codex-base:stop-slop to tighten this disposable sentence without changing its facts.
+#### Nix / Home Manager
+
+Add this input to your existing `flake.nix`:
+
+```nix
+inputs.codex-base = {
+  url = "github:bioinformatist/codex-base";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
 ```
 
-<a id="temporary-context-waiver"></a>
-
-### Temporary context-management waiver
-
-> [!WARNING]
-> **2026-09-12:** In [this announcement](https://x.com/thsottiaux/status/2098612714704891959), Tibo (@thsottiaux) reported disabling an opt-in context-management experiment that could cause early stops or replies to older messages. A [user-provided screenshot](docs/evidence/2026-09-12-tibo-context-management.png) is retained as a supporting archive.
->
-> The announcement does not identify a configuration key or establish which accounts, subscriptions, or clients have access.
-
-If formal Improve planning lacks native context management, check the session's live tools and preserve existing configuration. Do not edit local configuration, repeatedly toggle features, modify skills, or rebuild the environment to work around this unavailability.
-
-To continue, the user must explicitly waive only the native context-management prerequisite for one named plan and its same-scope review. This is not an automatic or global waiver: Plan Mode, structured questions, read-only planning, and all other authorization boundaries remain required. For example:
-
-```text
-I approve waiving the native context-management prerequisite only for this plan and its same-scope review. Keep Plan Mode, structured questions, read-only planning, and all other authorization boundaries. Do not change configuration or global skills for this waiver.
-```
-
-A waiver neither restores the capability nor guarantees planning quality. Once the live capability is verified restored, new plans need no exception. Default Mode implementation, audits, and routine lifecycle bookkeeping are unaffected. The normal installation settings below are not a fix for this temporary unavailability.
-
-### Native Codex configuration for non-Nix users
-
-Home Manager already supplies these defaults. For other installations, merge this fragment once into your persistent Codex config (`CODEX_HOME/config.toml`, default `~/.codex/config.toml`):
-
-```toml
-plan_mode_reasoning_effort = "high"
-
-[features]
-context_management.experimental_mode = true
-code_mode.enabled = true
-default_mode_request_user_input = true
-```
-
-This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level, while the three feature toggles belong in `[features]`. If any of these keys already exist, update them in place. Replace an existing boolean `context_management` or `code_mode` entry with the dotted form shown above; do not keep both a boolean and table form or duplicate a TOML key.
-
-Start a new Codex session after saving the file. The fragment requests experimental context management, Code Mode, structured questions in Default Mode, and high reasoning effort in Plan Mode. Formal Improve planning still requires the session to expose native context management and structured questions: configured `true` values and a Plan Mode label do not prove that either capability is live. If one is missing, stop and reopen the task in a capable session unless the user explicitly grants the [temporary per-plan waiver](#temporary-context-waiver) for missing context management. That exception does not cover missing structured questions. `default_mode_request_user_input` does not automatically run Grilling or another question workflow.
-
-The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers experimental context management, Code Mode, and Plan Mode effort. The Default Mode question flag is instead checked against the pinned Codex 0.153.4 [feature declaration](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core/tests/suite/request_user_input.rs). No wrapper or installer is required.
-
-> [!NOTE]
-> **Why these model defaults**
->
-> - **Default Mode — `gpt-5.6-sol` with `medium` reasoning:** [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) is OpenAI's flagship model for complex professional work, and `medium` is its default reasoning setting. This is a balanced baseline for routine implementation, audits, research, and maintenance: it retains flagship capability without imposing the latency and token use of higher reasoning on every turn.
-> - **Plan Mode — `gpt-5.6-sol` with `high` reasoning:** formal planning must synthesize repository evidence, constraints, tradeoffs, and acceptance criteria before writable work begins. Reusing Sol keeps the model baseline consistent; raising only the reasoning effort gives this decision-heavy phase more room to deliberate. The extra latency and token use are accepted here to reduce downstream drift and rework, not because `high` is inherently better.
-> - **When Plan Mode should use Astra:** [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) is OpenAI's most capable model for the hardest end-to-end work. Select it for a Plan Mode thread when planning must resolve high-impact, difficult-to-reverse product or architecture choices, integrate large or conflicting evidence across systems, or stay coherent through an unusually long and uncertain investigation. Do not switch merely because Plan Mode is active or a plan is lengthy; Sol/high remains the default for well-bounded planning.
-
-> [!WARNING]
-> `context_management.experimental_mode` is experimental, works only on the supported OpenAI backend, and requires an eligible ChatGPT Plus, Pro, or Pro Lite session; plan names alone do not guarantee eligibility.
-> `code_mode.enabled` needs the matching Code Mode companion host.
-> The Nix/Home Manager environment installs that host; a standalone CLI may not.
-> Enabling these settings does not guarantee better results.
-
-To roll back, preserve unrelated configuration, restore `plan_mode_reasoning_effort` to its previous value (`"medium"` is the managed Plan baseline), and explicitly set `context_management.experimental_mode`, `code_mode.enabled`, and `default_mode_request_user_input` to `false`. Do not only delete the keys: a merging overlay or source revert does not remove values already persisted in `config.toml`. Home Manager users must also reverse the managed overlay before activation, or activation will set the managed values again.
-
-## First workflow
-
-```text
-Use $codex-base:improve plan <request>.
-```
-
-Codex namespace-qualifies plugin skills, so the portable plugin uses `$codex-base:improve`. The full Nix/Home Manager installation exposes `$improve plan <request>` without that prefix.
-
-> [!NOTE]
-> Enter built-in Plan Mode with `/plan` or Shift+Tab, then run `$improve plan ...` (or the portable plugin form `$codex-base:improve plan ...`). Improve first discovers available facts and asks only about material choices that remain unsettled. It renders the complete replacement plan in chat and writes no plan, questionnaire, handoff, or temporary file. Persist the plan only in a later authorized writable phase.
-
-Default Mode implementation, audits, and ordinary lifecycle or dossier bookkeeping do not require a new formal-planning workflow. If formal planning is requested from Default Mode, switch to a capable Plan Mode session before continuing.
-
-To install the full Nix/Home Manager environment, add the flake input and import the module:
+In your Home Manager module, with `inputs` in scope:
 
 ```nix
 {
-  inputs.codex-base = {
-    url = "github:bioinformatist/codex-base";
-    inputs.nixpkgs.follows = "nixpkgs";
-  };
   imports = [ inputs.codex-base.homeManagerModules.default ];
   programs.codexBase.enable = true;
 }
 ```
 
+Activate the consuming Home Manager or NixOS configuration using your usual deployment procedure. This route provides the skills, runners, and managed configuration; a separate plugin installation is unnecessary.
+
+The full Nix / Home Manager environment currently pins Codex 0.155.1 and Code Mode Host.
+
+### 3. Configure and verify
+
+Home Manager supplies the runtime defaults. For a plugin-only installation, follow [Native Codex configuration](docs/configuration.md#native-codex-configuration) to request the planning capabilities and configure Code Mode if its companion host is available. Then follow [Reload after an update](#reload-after-an-update).
+
+Both installations provide Mintlify and Context7 for public documentation lookup. The plugin uses anonymous Mintlify Index and Context7 HTTP endpoints; Home Manager uses HTTP Mintlify and local Context7. Start with these anonymous defaults. Optional user-owned authentication and its verification are covered in [Context7 authentication](docs/configuration.md#context7-authentication). Native Codex configuration overrides same-name plugin defaults. Send only focused public lookup terms to these third-party services, never secrets, private code, full prompts, or non-public internal content.
+
+On the execution host, check the registered services:
+
+```console
+codex mcp list --json
+```
+
+A plugin-only installation with no native overrides should list `mintlify_index` and `context7`, with no `context7_auth`. Registration does not prove that a service or credential works.
+
+Start a new Codex task and try a harmless skill invocation:
+
+```text
+Use $codex-base:stop-slop to tighten this sentence without changing its facts: "At this point in time, the test suite contains three tests."
+```
+
+With Home Manager, use `$stop-slop` without the plugin prefix. This checks skill discovery; formal planning has the additional requirements below.
+
+## First workflow
+
+These instructions apply to **both installation methods**. A Codex task means one chat: a CLI conversation or, on desktop, a Codex chat under a project in the app sidebar. Entering Plan Mode or invoking `$improve` within it does not create another task.
+
+### Start with the right model
+
+The managed default is `gpt-5.6-sol` with `medium` reasoning; Plan Mode raises reasoning to `high`. Those defaults suit routine work. Formal Improve planning additionally requires native Context Manager, which maintains notes and retrieves earlier task history across context windows, and structured questions. Context-management eligibility is decided when the task starts, so opt in and start that task with **`gpt-6-astra`**. This is necessary, not sufficient: service rollout, sign-in method, account eligibility, and client support still determine whether the capability is available. See the official [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management).
+
+| Client | Start an Astra task |
+|---|---|
+| CLI, including a Home Manager installation | Launch `codex -m gpt-6-astra` from the repository. |
+| Local desktop or desktop over SSH | Select Astra as the starting model for a new Codex chat, before sending its first request. If the runtime or configuration changed, reload the relevant backend first. |
+
+Changing an existing Sol chat to Astra does not redo task initialization. CLI `/new` uses effective defaults and explicit launch settings, which may differ from the current chat's model; `/model` can also save a new default. Starting with `codex -m gpt-6-astra` explicitly selects Astra and preserves it for subsequent `/new` chats in that invocation. See [model selection and CLI scope](docs/configuration.md#model-choice) for the verified 0.155.1 behavior.
+
+<a id="temporary-context-waiver"></a>
+
+Before formal planning, verify the live tools: configured `true` values and a Plan Mode label do not prove that either capability is live. An Astra-started task does not prove that native context management is live either. If it is absent, do not repeatedly restart, rebuild, or toggle the same setting; use a session where the service actually exposes it, or ask the user to grant a [temporary per-plan waiver](docs/configuration.md#temporary-context-waiver). Structured questions and the other planning requirements still apply.
+
+### Plan, then authorize implementation
+
+Enter built-in Plan Mode with `/plan` or Shift+Tab in the CLI; the desktop composer also supports [`/plan`](https://learn.chatgpt.com/docs/reference/slash-commands). Then invoke Improve using the name for your installation:
+
+| Installation | Prompt |
+|---|---|
+| Plugin | `$codex-base:improve plan <request>` |
+| Home Manager | `$improve plan <request>` |
+
+Improve discovers facts, asks about material unresolved choices, and presents the complete replacement plan in chat. Planning creates no plan, questionnaire, handoff, or temporary files. Once you accept the plan, authorize implementation in Default Mode; that later writable phase can persist the plan and execute it.
+
+Default Mode implementation, audits, and routine lifecycle bookkeeping do not require a new formal-planning workflow. Use individual skills directly when a task does not need formal planning; see the [capability catalog](docs/capabilities.md).
+
+## Reload after an update
+
+First [update the installed plugin or activate the consuming Nix configuration](docs/updating.md#applying-an-update); restarting alone does not fetch new files. Wait for affected tasks to finish, then reload the runtime that executes them:
+
+| Client | Reload procedure |
+|---|---|
+| CLI | Exit and relaunch Codex. |
+| Local desktop | Fully quit and reopen the ChatGPT desktop app, then start a new Codex chat. Closing only the window does not quit the app. Update the app separately when needed: its [bundled Codex can differ from the system CLI](https://learn.chatgpt.com/docs/reference/troubleshooting#feature-is-working-in-the-codex-cli-but-not-in-the-chatgpt-desktop-app). |
+| Desktop over SSH | After updating the remote installation, restart the host's backend through **Settings → Connections → SSH**, following the official [connection guide](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host), then start a new chat. |
+
+For SSH, verify the running remote Codex App Server; `codex --version` only reports a newly invoked binary. Restarting the desktop client or creating a new chat does not prove that remote process restarted. Resuming an existing chat preserves its history.
+
 ## Learn and contribute
 
+- [Configuration, authentication, and troubleshooting](docs/configuration.md)
 - [Detailed capability catalog](docs/capabilities.md)
+- [Contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and [updating](docs/updating.md)
 - [Credits and upstream licenses](docs/credits.md)
-- [Contributing](CONTRIBUTING.md)
-- [Architecture](docs/architecture.md) and [updating](docs/updating.md)
-- [Plugin versus Nix choice](#choose-an-installation)
 - [Changelog](CHANGELOG.md)
 - [MIT License](LICENSE)

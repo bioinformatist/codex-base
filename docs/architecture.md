@@ -24,11 +24,35 @@ and thin runner wrappers. `nix/home-manager.nix` owns the full Linux runtime:
 config overlay, MCP wrappers, global instructions, rules, packages, and direct
 unnamespaced skill links. It intentionally renders no Improve profile files.
 
+The desktop SSH client starts Codex App Server on the remote host. That process
+can serve multiple chats, so installing a new binary and starting a new chat
+does not necessarily replace it. Runtime updates and guidance reloads follow
+[the reload instructions](../README.md#reload-after-an-update);
+the desktop client and remote execution environment are separate installations.
+
 The managed global `AGENTS.md` stores persistent per-user Git, Nix, proxy,
 secret-handling, evidence, and working preferences. The portable plugin does
 not install it. Executor prompts retain runner-local scope, checks, STOP, and
 handoff constraints. Codex Base has no model-index or per-model global guidance
 files, and its ordinary runtime default remains Sol with medium reasoning.
+
+Native context-management eligibility is established when a task session is
+initialized from its starting model, service-provided model metadata, and the
+signed-in account. In the desktop app, that task is a Codex chat under a
+project; entering Plan Mode or invoking Improve in an existing chat does not
+start another session. Codex Base therefore keeps Sol as its ordinary default.
+When the service exposes the experiment, formal Improve planning that retains
+the native context-management prerequisite needs a fresh Astra-started task;
+that model choice cannot override a server-disabled capability.
+
+In the CLI, ordinary `/model` selection changes the current chat and attempts
+to persist defaults. `/new` uses effective defaults plus explicit launch
+settings, rather than simply copying the current chat's model. Codex 0.155.1
+preserves a launch-model override across those `/new` chats. A user who keeps
+Sol as the persistent default can start a one-off Astra invocation with
+`codex -m gpt-6-astra`; Codex Base does not ship an Astra runtime profile.
+The [configuration guide](configuration.md#model-choice) records the scope
+distinctions and pinned source evidence.
 
 Formal Improve planning uses built-in Plan Mode only when the live session
 exposes native context management and structured questions. It produces one
@@ -40,16 +64,18 @@ plan and its same-scope review. This does not change the global prerequisites.
 Implementation, audits, and routine lifecycle bookkeeping remain available in
 Default Mode without starting a new planning workflow.
 
-Prompt compatibility statements for Codex 0.153.4 are limited to the public
+The historical prompt comparison for Codex 0.153.4 is limited to the public
 templates in `models-manager/models.json` at revision
 `3d2ee51ca2d5db578f328aa75e20aa22c0197c9a`: Sol, Terra, and Luna share that
-public base/template content, while Astra differs. This boundary says nothing
-about undisclosed server-side instructions, and Codex Base does not copy those
-model prompts.
+public base/template content, while Astra differs. It does not describe the
+current release pin or undisclosed server-side instructions, and Codex Base
+does not copy those model prompts.
 
 Improve profile names remain stable labels in roles, manifests, metrics, and
 handoffs. Runners pin effective settings at CLI precedence and never look up a
 Codex profile.
+
+## Executor routing
 
 Improve `.16` adds one caller-time choice to the existing eligible Spark lane.
 A short-lived native app-server query selects Spark/high when available with
@@ -59,4 +85,6 @@ preflight resume, reevaluates availability after validating any inherited
 provenance. The existing role snapshot, execution record, metrics and
 profile/model/effort handoff identify the choice. There is no scheduler,
 persistent routing cache, account switch or new configuration-profile lookup.
-Older supported contracts keep fixed Spark, and all other roles are unchanged.
+Older supported contracts (`.15` and earlier) keep fixed Spark, and standard,
+deep, scout, and review roles are unchanged. Luna usage is neither guaranteed
+nor unlimited; the runner does not precheck its quota or switch providers.
