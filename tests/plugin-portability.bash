@@ -55,6 +55,9 @@ improve="$plugin_root/skills/improve"
 
 for relative in \
   .mcp.json \
+  skills/adhx/SKILL.md \
+  skills/adhx/agents/openai.yaml \
+  skills/adhx/LICENSE \
   skills/docs-routing/SKILL.md \
   skills/docs-routing/agents/openai.yaml; do
   [[ -f "$plugin_root/$relative" ]] || fail "installed plugin is missing $relative"

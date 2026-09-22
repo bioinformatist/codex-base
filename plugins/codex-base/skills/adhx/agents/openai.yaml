@@ -1,0 +1,6 @@
+interface:
+  display_name: "ADHX"
+  short_description: "Read public X posts as structured evidence"
+  default_prompt: "Use $adhx when an X post URL is relevant to this question."
+policy:
+  allow_implicit_invocation: true

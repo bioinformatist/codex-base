@@ -7,6 +7,7 @@ without duplicating mutable pins.
 
 | Source ID | Upstream | Included or adapted surface | License | Status in Codex Base |
 |---|---|---|---|---|
+| adhx | [ADHX](https://github.com/itsmemeworks/adhx) | Public X post reader skill and endpoint guidance | [MIT](../plugins/codex-base/licenses/adhx-MIT.txt) | Adapted for bounded discovery, selective evidence, safety, and failure handling |
 | mattpocock-skills | [Matt Pocock's skills](https://github.com/mattpocock/skills) | Engineering and productivity skills including Grilling, Handoff, TDD, domain and module design, debugging, conflict resolution, questionnaires, and agent guidance | [MIT](../plugins/codex-base/licenses/mattpocock-skills-MIT.txt) | Adapted for Codex invocation, safety, and repository conventions |
 | shadcn-improve | [shadcn Improve](https://github.com/shadcn/improve) | Audit playbook and plan-template foundations used by the Codex Base Improve workflow | [MIT](../plugins/codex-base/licenses/shadcn-improve-MIT.txt) | Adapted and substantially extended for durable planning, isolated execution, recovery, and review |
 | stop-slop | [stop-slop](https://github.com/hardikpandya/stop-slop) | Prose-editing references used by the bundled stop-slop skill | [MIT](../plugins/codex-base/licenses/stop-slop-MIT.txt) | Adapted for Codex triggers and preservation rules |

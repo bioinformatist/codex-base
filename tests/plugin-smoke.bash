@@ -51,6 +51,9 @@ test -f "$installed_path/assets/codex-base.svg"
 test -f "$installed_path/.mcp.json"
 test -f "$installed_path/skills/docs-routing/SKILL.md"
 test -f "$installed_path/skills/docs-routing/agents/openai.yaml"
+test -f "$installed_path/skills/adhx/SKILL.md"
+test -f "$installed_path/skills/adhx/agents/openai.yaml"
+test -f "$installed_path/skills/adhx/LICENSE"
 jq -e '.interface.composerIcon == "./assets/codex-base.svg"
   and .interface.logo == "./assets/codex-base.svg"' \
   "$installed_path/.codex-plugin/plugin.json" >/dev/null

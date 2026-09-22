@@ -2,6 +2,14 @@
   "version": 1,
   "sources": [
     {
+      "name": "adhx",
+      "repository": "https://github.com/itsmemeworks/adhx",
+      "revision": "2dafb9c221398372d08f8dc75e857e801089f6b1",
+      "license": "MIT",
+      "includedPaths": ["skills/adhx", "LICENSE"],
+      "patched": true
+    },
+    {
       "name": "mattpocock-skills",
       "repository": "https://github.com/mattpocock/skills",
       "revision": "6654f6b60cd9d5be8b54c6fafe44346dabeb3b76",
