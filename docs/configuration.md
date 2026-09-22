@@ -26,13 +26,13 @@ default_mode_request_user_input = true
 | Setting | Purpose and dependency |
 |---|---|
 | `plan_mode_reasoning_effort` | Gives Plan Mode more reasoning effort; it does not change the model. |
-| `context_management.experimental_mode` | Requests experimental native context management. Actual availability depends on the backend, account, starting model, and live session. Follow the shared [task-start instructions](../README.md#first-workflow). |
+| `context_management.experimental_mode` | Requests experimental native context management. It cannot override service rollout or the server-provided capability for the signed-in account and model. Authentication, starting model, client, and live session must also be eligible. Follow the shared [task-start instructions](../README.md#first-workflow). |
 | `code_mode.enabled` | Requests Code Mode, which requires the matching Code Mode companion host. Home Manager installs that host; a standalone CLI may not have it. Set this to `false` if the host is unavailable. |
 | `default_mode_request_user_input` | Makes structured questions available in Default Mode. It does not automatically invoke Grilling or another question workflow. |
 
 This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level; the three feature toggles belong in `[features]`. Update existing keys in place. Replace existing boolean `context_management` or `code_mode` entries with the dotted form above; do not keep both a boolean and table form or duplicate a TOML key.
 
-After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend; consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. Missing native context management during formal planning is handled through the [per-plan waiver](#temporary-context-waiver), not repeated configuration changes.
+After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend, and the service can still withhold the capability from the starting model. Consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. Missing native context management during formal planning is handled through the [per-plan waiver](#temporary-context-waiver), not repeated configuration changes.
 
 The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers context management, Code Mode, and Plan Mode effort. The Default Mode question flag is supported by the verified Codex [feature declaration](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs).
 
@@ -44,7 +44,7 @@ These choices apply independently of the installation method. Home Manager manag
 |---|---|---|
 | Routine implementation, audits, research, and maintenance | `gpt-5.6-sol`, `medium` | Balances capability, latency, and token use. |
 | Bounded planning without a native context-management requirement | `gpt-5.6-sol`, `high` | Allows more reasoning for constraints and tradeoffs while retaining the same model. Formal Improve planning still needs its prerequisite met or explicitly waived. |
-| Formal Improve planning with native context management | Start a new `gpt-6-astra` task, then enter Plan Mode | The starting-model eligibility check makes switching an existing Sol task insufficient. |
+| Formal Improve planning with native context management | If the service exposes the experiment, start a new `gpt-6-astra` task, then enter Plan Mode | A fresh Astra task is necessary because eligibility uses the starting model, but it cannot override a server-disabled capability. |
 | Difficult product or architecture choices, conflicting evidence, or unusually long investigations | `gpt-6-astra` | Its stronger reasoning can justify the extra cost even apart from the context-management requirement. |
 
 See the official [Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) and [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) model pages. Higher effort or a stronger model is not automatically necessary for every plan.
@@ -57,7 +57,7 @@ In the pinned Codex 0.155.1 implementation, the scope matters:
 - `/new` reads effective server defaults while preserving explicit launch-model and profile settings. It does not simply copy the previous chat's model. See [new-session configuration](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/app/new_session.rs) and its [tests](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/app/tests/new_session_tests.rs).
 - Therefore `/model` → Astra → `/new` can start with Astra if the new default was saved and is effective. It can start with Sol if Sol remains the effective default or launch override. Inspect `/status`, `/debug-config`, and any configuration-save warning before drawing conclusions about a particular installation.
 
-Context management has a separate [initialization check](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/core/src/session/token_budget.rs): its starting-model requirement is why a new Astra task matters, regardless of how that starting model was selected.
+Context management has a separate [initialization check](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/core/src/session/token_budget.rs). Codex 0.155.1 requires the local opt-in, `supports_experimental_context = true` in the starting model's server-provided metadata, the supported OpenAI backend, and eligible ChatGPT authentication. A new Astra task satisfies only the starting-model timing requirement; if the service marks that model as unsupported for the signed-in identity, local configuration cannot force activation.
 
 ## Context7 authentication
 

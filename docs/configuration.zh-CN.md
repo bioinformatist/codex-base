@@ -28,13 +28,13 @@ default_mode_request_user_input = true
 | 配置项 | 用途与依赖 |
 |---|---|
 | `plan_mode_reasoning_effort` | 提高 Plan Mode 的推理强度，不改变模型。 |
-| `context_management.experimental_mode` | 请求启用实验性原生上下文管理；实际可用性取决于后端、账户、启动模型及当前会话。请按共用的[任务启动说明](../README.zh-CN.md#首次工作流)操作。 |
+| `context_management.experimental_mode` | 请求启用实验性原生上下文管理；它不能覆盖服务端 rollout，也不能覆盖服务端为当前账户和模型下发的能力状态。认证方式、启动模型、客户端及当前会话也必须符合资格。请按共用的[任务启动说明](../README.zh-CN.md#首次工作流)操作。 |
 | `code_mode.enabled` | 请求启用 Code Mode，需要匹配的 Code Mode companion host。Home Manager 会安装它，独立 CLI 不一定具备；缺少 host 时应设为 `false`。 |
 | `default_mode_request_user_input` | 让 Default Mode 可以使用结构化提问，不会自动调用 Grilling 或其他提问工作流。 |
 
 这是合并片段，不应替换整个文件，也不是每次启动要带的参数。请保留无关配置。`plan_mode_reasoning_effort` 是顶层键，三个功能开关属于 `[features]`。已有键应就地修改；若 `context_management` 或 `code_mode` 目前为布尔值，请用上面的点分形式替换，不要同时保留布尔值和表，也不要重复定义 TOML 键。
 
-保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话；当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式规划缺少原生上下文管理时，应使用[单计划临时豁免](#temporary-context-waiver)流程，而非反复改配置。
+保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话，服务端仍可不向启动模型开放该能力。当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式规划缺少原生上下文管理时，应使用[单计划临时豁免](#temporary-context-waiver)流程，而非反复改配置。
 
 官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由已核对的 Codex [功能声明](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs)支持。
 
@@ -48,7 +48,7 @@ default_mode_request_user_input = true
 |---|---|---|
 | 日常实现、审计、调研和维护 | `gpt-5.6-sol`、`medium` | 平衡能力、延迟和 token 消耗。 |
 | 不要求原生上下文管理的有界规划 | `gpt-5.6-sol`、`high` | 保持模型不变，为约束和取舍留出更多推理空间；正式 Improve 规划仍须满足前置条件，或取得明确豁免。 |
-| 使用原生上下文管理的正式 Improve 规划 | 以 `gpt-6-astra` 新建任务，再进入 Plan Mode | 资格检查依赖启动模型，在已有 Sol 任务中切换模型不够。 |
+| 使用原生上下文管理的正式 Improve 规划 | 服务端已开放该实验时，以 `gpt-6-astra` 新建任务，再进入 Plan Mode | 资格检查依赖启动模型，因此必须新建 Astra 任务；但这不能覆盖服务端关闭的能力。 |
 | 困难的产品或架构选择、冲突证据或异常漫长的调查 | `gpt-6-astra` | 即使不考虑上下文管理要求，更强的推理能力也可能值得额外成本。 |
 
 参见官方 [Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) 和 [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) 模型说明。每项规划并非都需要更高推理强度或更强的模型。
@@ -61,7 +61,7 @@ CLI 和桌面启动步骤见 [README](../README.zh-CN.md#首次工作流)。CLI 
 - `/new` 读取服务端的有效默认配置，同时保留显式启动模型和 profile 设置，不会直接复制上一条对话的模型。参见[新会话配置](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/app/new_session.rs)及其[测试](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/app/tests/new_session_tests.rs)。
 - 因此，`/model` → Astra → `/new` 可以在新默认值保存并生效后使用 Astra；如果有效默认值或启动覆盖值仍是 Sol，也可能继续使用 Sol。判断某个环境时，应检查 `/status`、`/debug-config` 和配置保存警告。
 
-上下文管理另有[初始化检查](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/core/src/session/token_budget.rs)：它要求合适的启动模型，所以无论通过哪种方式选模型，都需要以 Astra 启动新任务。
+上下文管理另有[初始化检查](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/core/src/session/token_budget.rs)。Codex 0.155.1 同时要求本地选择加入、启动模型的服务端元数据包含 `supports_experimental_context = true`、受支持的 OpenAI 后端以及符合资格的 ChatGPT 认证。新建 Astra 任务只满足启动模型的时机要求；如果服务端把该登录身份下的模型标记为不支持，本地配置无法强制激活。
 
 <a id="context7-authentication"></a>
 
