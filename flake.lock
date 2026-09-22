@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "adhx": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789484643,
+        "narHash": "sha256-5Pv7LpWA5QPe221c9ZnRvBRzcZ1zUYyBUGIlq9s1JAA=",
+        "owner": "itsmemeworks",
+        "repo": "adhx",
+        "rev": "2dafb9c221398372d08f8dc75e857e801089f6b1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "itsmemeworks",
+        "repo": "adhx",
+        "rev": "2dafb9c221398372d08f8dc75e857e801089f6b1",
+        "type": "github"
+      }
+    },
     "codex-src": {
       "flake": false,
       "locked": {
@@ -123,6 +140,7 @@
     },
     "root": {
       "inputs": {
+        "adhx": "adhx",
         "codex-src": "codex-src",
         "home-manager": "home-manager",
         "mattpocock-skills": "mattpocock-skills",

@@ -139,12 +139,13 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    home.packages = [ packages.codex toolPkgs.mcp-nixos pkgs.nodejs_24 packages.playwright-cli packages.codex-doctor ]
+    home.packages = [ packages.codex toolPkgs.mcp-nixos pkgs.nodejs_24 pkgs.curl packages.playwright-cli packages.codex-doctor ]
       ++ lib.optionals cfg.improve.enable [ packages.codex-improve-exec packages.codex-improve-review packages.codex-improve-scout ];
     home.file = lib.mkMerge [
       {
         ".agents/skills/docs-routing" = linkSkill "docs-routing";
         ".agents/skills/playwright-cli" = linkSkill "playwright-cli";
+        ".agents/skills/adhx" = linkSkill "adhx";
         ".agents/skills/stop-slop" = lib.mkIf cfg.stopSlop.enable (linkSkill "stop-slop");
         ".agents/skills/ponytail-review" = lib.mkIf (cfg.ponytail.enable || cfg.improve.enable) (linkSkill "ponytail-review");
         ".agents/skills/ponytail-audit" = lib.mkIf cfg.ponytail.enable (linkSkill "ponytail-audit");

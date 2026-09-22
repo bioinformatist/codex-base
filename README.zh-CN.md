@@ -20,11 +20,12 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 我们的 Improve 工作流以 [shadcn Improve](https://github.com/shadcn/improve) 的审计与规划方法为基础，并选取、适配了 [Matt Pocock 的 skills](https://github.com/mattpocock/skills)，用于需求澄清、调试、测试、设计和 agent 指导。我们还适配并整合了用于过度设计审查、全库审计和技术债梳理的 [Ponytail](https://github.com/DietrichGebert/ponytail)、用于文字编辑的 [stop-slop](https://github.com/hardikpandya/stop-slop)，以及用于浏览器操作的 [Playwright CLI skill](https://github.com/microsoft/playwright-cli)。
 
-我们的工作侧重于将这些基础适配到 Codex，扩展并衔接规划、执行和审查流程，补充文档检索路由，以及维护插件和 Nix/Home Manager 环境。在这套集成中：
+我们的工作侧重于将这些基础适配到 Codex，扩展并衔接规划、执行和审查流程，补充文档检索与有边界的公开 X 内容研究能力，以及维护插件和 Nix/Home Manager 环境。在这套集成中：
 
 - 正式规划先解决重要选择，在对话中给出完整计划；之后获准的实现阶段可以持久化计划，并委派边界明确的工作。
 - 实现前查证当前文档，隔离执行器验证并简化每个改动步骤；审查和检查点明确对应的候选版本，让工作可以续接和评估。
 - 共享技能覆盖文档检索、调试、测试、设计和文字审阅。[详细能力目录](docs/capabilities.zh-CN.md)列出了它们的触发方式和安装要求。
+- ADHX 可读取用户提供或有边界的网页研究发现的相关公开 X 帖子 URL；它不能搜索 X，长文 Article 内容也可能不完整。
 
 [致谢与许可证](docs/credits.md)说明了上游贡献与我们的适配内容；[来源记录](vendor/sources.json)列出了纳入的路径和固定版本。
 

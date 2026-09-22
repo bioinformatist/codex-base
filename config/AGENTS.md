@@ -5,35 +5,29 @@ override them.
 
 ## Working Style
 
-- Clarify material ambiguity before implementation. For minor ambiguity,
-  state the assumption and proceed.
-- Discover available facts before asking. Ask only about unsettled choices
-  that materially affect the goal, scope, external effects, or a
-  difficult-to-reverse decision; do not re-ask settled choices.
-- Match the implementation to the established cause. A code defect may
-  justify a red-before, green-after test; a one-off operator or repository
-  state incident defaults to recovering the intended state and running
-  existing focused checks.
-- Use the smallest coherent change that satisfies the request. Treat new
-  tests, CI checks, policies, guardrails, abstractions, and documentation
-  as separate scope unless the task or repository requires them, or a
-  concrete uncovered behavior warrants them.
+- Discover available facts before asking. Clarify only unsettled choices that
+  materially affect the goal, scope, external effects, or a
+  difficult-to-reverse decision. For minor ambiguity, state the assumption
+  and proceed; do not re-ask settled choices.
+- Match implementation to the established cause. Code defects may warrant a
+  red-before, green-after test; for one-off operator or repository-state
+  incidents, recover the intended state and run existing focused checks.
+- Use the smallest coherent change. Treat new tests, CI checks, policies,
+  guardrails, abstractions, and documentation as separate scope unless the
+  task requires them or concrete uncovered behavior warrants them.
 
 ## Communication
 
 - On first use, briefly define uncommon names, terms, model variants, and
   project-specific concepts needed to understand the conclusion.
 - For a recommendation or solution, include the relevant context,
-  mechanism, main tradeoff, and concrete verification or next action.
-- Do not make the user ask follow-up questions merely to discover what a
-  proposed component is or why it is needed.
-- When publishing an issue or pull request from an evidence-rich
-  investigation, carry forward the material facts a reviewer needs to
-  evaluate the claim, such as affected and tested versions, reproduction
-  conditions and quantitative results, ruled-out alternatives, root
-  cause, compatibility boundaries, and validation. Omit irrelevant
-  investigation detail, but do not collapse the evidence into a generic
-  summary or checklist.
+  mechanism, main tradeoff, and concrete verification or next action so the
+  user need not ask what a proposed component is or why it is needed.
+- In issues or pull requests from evidence-rich investigations, retain the
+  facts reviewers need: affected and tested versions, reproduction conditions
+  and results, ruled-out alternatives, root cause, compatibility boundaries,
+  and validation. Omit irrelevant detail, but not evidence needed to evaluate
+  the claim.
 
 ## Git And Nix
 
@@ -55,15 +49,21 @@ Chromium, GCC, or xgcc for normal development, try a recent cache-hit lock
 before redesigning the shell. Do not implement dynamic nixpkgs fallback in
 `flake.nix`; keep lock selection explicit.
 
+For the default GitHub CI handoff, once remote CI is the only remaining step,
+query status at most once, report the exact head and link plus remaining
+acceptance, and return control. Pending is not passed. Do not watch, poll, or
+schedule follow-up unless the user explicitly requested monitoring.
+
 ## Capability Routing
 
 Use installed skills for reusable workflows; keep workflow details in
 skill descriptions and `SKILL.md`, not in this global file.
 
+For technical research, proactively seek relevant first-party X posts when
+recent changes, conflicting evidence, or missing firsthand context could
+materially affect the decision. Keep searches tied to a concrete question;
+stop when it is answered or no useful leads emerge. Validate technical
+conclusions against official docs, source, or reproducible evidence.
+
 Treat GitHub and Context7 tokens as per-user secrets. Never route one
 user's token or API key to another user's Codex configuration.
-
-For the default GitHub CI handoff, once remote CI is the only remaining step,
-query status at most once, report the exact head and link plus remaining
-acceptance, and return control. Pending is not passed. Do not watch, poll, or
-schedule follow-up unless the user explicitly requested monitoring.
