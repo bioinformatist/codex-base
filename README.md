@@ -133,7 +133,7 @@ These instructions apply to **both installation methods**. A Codex task means on
 
 ### Start with the right model
 
-The managed default is `gpt-5.6-sol` with `medium` reasoning; Plan Mode raises reasoning to `high`. Those defaults suit routine work. Formal Improve planning additionally requires native Context Manager, which maintains notes and retrieves earlier task history across context windows, and structured questions. The current context-management eligibility check happens when the task starts, so start that task with **`gpt-6-astra`**. The [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) also requires a new task after opting in.
+The managed default is `gpt-5.6-sol` with `medium` reasoning; Plan Mode raises reasoning to `high`. Those defaults suit routine work. Formal Improve planning additionally requires native Context Manager, which maintains notes and retrieves earlier task history across context windows, and structured questions. Context-management eligibility is decided when the task starts, so opt in and start that task with **`gpt-6-astra`**. This is necessary, not sufficient: service rollout, sign-in method, account eligibility, and client support still determine whether the capability is available. See the official [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management).
 
 | Client | Start an Astra task |
 |---|---|
@@ -144,7 +144,7 @@ Changing an existing Sol chat to Astra does not redo task initialization. CLI `/
 
 <a id="temporary-context-waiver"></a>
 
-Before formal planning, verify the live tools: configured `true` values and a Plan Mode label do not prove that either capability is live. If either is missing, use a capable session. For missing native context management only, the user may explicitly grant a [temporary per-plan waiver](docs/configuration.md#temporary-context-waiver); structured questions and the other planning requirements still apply.
+Before formal planning, verify the live tools: configured `true` values and a Plan Mode label do not prove that either capability is live. An Astra-started task does not prove that native context management is live either. If it is absent, do not repeatedly restart, rebuild, or toggle the same setting; use a session where the service actually exposes it, or ask the user to grant a [temporary per-plan waiver](docs/configuration.md#temporary-context-waiver). Structured questions and the other planning requirements still apply.
 
 ### Plan, then authorize implementation
 

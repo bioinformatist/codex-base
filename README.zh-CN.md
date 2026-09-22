@@ -133,7 +133,7 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 ### 以合适的模型启动任务
 
-托管默认值是 `gpt-5.6-sol`、`medium` 推理强度，进入 Plan Mode 后提高为 `high`，适用于日常工作。正式 Improve 规划还要求原生 Context Manager（通过笔记和检索跨上下文窗口延续任务历史的功能）及结构化提问能力。当前的上下文管理资格在任务启动时判定，因此这类任务应从 **`gpt-6-astra`** 启动。官方[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)也要求在启用实验后新建任务。
+托管默认值是 `gpt-5.6-sol`、`medium` 推理强度，进入 Plan Mode 后提高为 `high`，适用于日常工作。正式 Improve 规划还要求原生 Context Manager（通过笔记和检索跨上下文窗口延续任务历史的功能）及结构化提问能力。上下文管理资格在任务启动时判定，因此应先启用实验，再从 **`gpt-6-astra`** 启动这类任务。这只是必要条件，并不保证能力可用：服务端 rollout、登录方式、账户资格和客户端支持仍会参与判定。详见官方[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。
 
 | 客户端 | 如何启动 Astra 任务 |
 |---|---|
@@ -144,7 +144,7 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 <a id="temporary-context-waiver"></a>
 
-正式规划前应核对会话实际提供的工具：配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用。缺少任何一项时，应使用具备所需能力的会话；如果仅缺少原生上下文管理，用户可以明确授予[单计划临时豁免](docs/configuration.zh-CN.md#temporary-context-waiver)，结构化提问和其他规划要求仍须满足。
+正式规划前应核对会话实际提供的工具：配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用；以 Astra 启动任务同样不能证明原生上下文管理已经可用。缺少该能力时，不要反复重启、重建或切换同一配置；应改用服务端实际开放该能力的会话，或请用户明确授予[单计划临时豁免](docs/configuration.zh-CN.md#temporary-context-waiver)。结构化提问和其他规划要求仍须满足。
 
 ### 先规划，再授权实现
 

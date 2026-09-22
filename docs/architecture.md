@@ -37,11 +37,13 @@ handoff constraints. Codex Base has no model-index or per-model global guidance
 files, and its ordinary runtime default remains Sol with medium reasoning.
 
 Native context-management eligibility is established when a task session is
-initialized from its starting model. In the desktop app, that task is a Codex
-chat under a project; entering Plan Mode or invoking Improve in an existing
-chat does not start another session. Codex Base therefore keeps Sol as its
-ordinary default while requiring a fresh Astra-started task for formal Improve
-planning that retains the native context-management prerequisite.
+initialized from its starting model, service-provided model metadata, and the
+signed-in account. In the desktop app, that task is a Codex chat under a
+project; entering Plan Mode or invoking Improve in an existing chat does not
+start another session. Codex Base therefore keeps Sol as its ordinary default.
+When the service exposes the experiment, formal Improve planning that retains
+the native context-management prerequisite needs a fresh Astra-started task;
+that model choice cannot override a server-disabled capability.
 
 In the CLI, ordinary `/model` selection changes the current chat and attempts
 to persist defaults. `/new` uses effective defaults plus explicit launch
