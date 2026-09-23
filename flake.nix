@@ -9,7 +9,7 @@
     stop-slop = { url = "github:hardikpandya/stop-slop/8da1f030185bdfe8471220585162991eaeb970e9"; flake = false; };
     ponytail = { url = "github:DietrichGebert/ponytail/v4.8.3"; flake = false; };
     playwright-cli = { url = "github:microsoft/playwright-cli/v0.1.19"; flake = false; };
-    codex-src = { url = "github:openai/codex/rust-v0.156.0"; flake = false; };
+    codex-src = { url = "github:openai/codex/rust-v0.156.1"; flake = false; };
     adhx = { url = "github:itsmemeworks/adhx/2dafb9c221398372d08f8dc75e857e801089f6b1"; flake = false; };
   };
   outputs = inputs@{ self, nixpkgs, ... }:

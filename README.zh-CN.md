@@ -104,7 +104,7 @@ inputs.codex-base = {
 
 按你平时的部署流程激活使用该模块的 Home Manager 或 NixOS 配置。这条路径会提供技能、执行器和托管配置，无需再单独安装插件。
 
-Nix / Home Manager 完整环境当前固定 Codex 0.156.0 和 Code Mode Host。
+Nix / Home Manager 完整环境当前固定 Codex 0.156.1 和 Code Mode Host。
 
 ### 3. 配置并验证
 
