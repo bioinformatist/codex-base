@@ -9,7 +9,7 @@ fail() {
   exit 1
 }
 
-for command in bash base64 cmp curl git jq od sed sha256sum tar timeout; do
+for command in bash base64 cmp curl git jq od python3 sed sha256sum tar timeout xz; do
   command -v "$command" >/dev/null || fail "$command is required"
 done
 
@@ -24,9 +24,14 @@ assignment() {
 
 codex_version="$(assignment codexVersion)"
 codex_sri="$(assignment codexHash)"
+worktrunk_version="$(assignment worktrunkVersion)"
+worktrunk_sri="$(assignment worktrunkHash)"
 [[ "$codex_sri" == sha256-* ]] || fail "codexHash is not an SRI SHA-256 digest"
+[[ "$worktrunk_sri" == sha256-* ]] || fail "worktrunkHash is not an SRI SHA-256 digest"
 codex_hex="$({ printf '%s' "${codex_sri#sha256-}" | base64 --decode; } | od -An -tx1 | tr -d ' \n')"
+worktrunk_hex="$({ printf '%s' "${worktrunk_sri#sha256-}" | base64 --decode; } | od -An -tx1 | tr -d ' \n')"
 [[ "$codex_hex" =~ ^[[:xdigit:]]{64}$ ]] || fail "cannot decode codexHash"
+[[ "$worktrunk_hex" =~ ^[[:xdigit:]]{64}$ ]] || fail "cannot decode worktrunkHash"
 
 root="$(mktemp -d)"
 trap 'rm -rf -- "$root"' EXIT
@@ -42,11 +47,24 @@ tar -xzf "$asset" -C "$root/bin"
 mv "$root/bin/codex-x86_64-unknown-linux-musl" "$root/bin/codex"
 chmod +x "$root/bin/codex"
 
+worktrunk_asset="$root/worktrunk.tar.xz"
+curl --fail --location --retry 3 --retry-all-errors --silent --show-error \
+  --output "$worktrunk_asset" \
+  "https://github.com/max-sixty/worktrunk/releases/download/v${worktrunk_version}/worktrunk-x86_64-unknown-linux-musl.tar.xz"
+printf '%s  %s\n' "$worktrunk_hex" "$worktrunk_asset" | sha256sum --check --status \
+  || fail "downloaded Worktrunk asset does not match worktrunkHash"
+tar -xJf "$worktrunk_asset" --strip-components=1 -C "$root/bin" \
+  worktrunk-x86_64-unknown-linux-musl/wt \
+  worktrunk-x86_64-unknown-linux-musl/git-wt
+chmod +x "$root/bin/wt" "$root/bin/git-wt"
+
 export PATH="$root/bin:$PATH"
 export HOME="$root/home"
 export CODEX_HOME="$root/codex"
 [[ "$(codex --version)" == "codex-cli $codex_version" ]] \
   || fail "downloaded Codex version does not match codexVersion"
+[[ "$(wt --version)" == "wt v$worktrunk_version" ]] \
+  || fail "downloaded Worktrunk version does not match worktrunkVersion"
 
 codex plugin marketplace add "$repo" --json >"$root/marketplace-add.json"
 codex plugin add codex-base@bioinformatist-codex --json >"$root/plugin-add.json"
@@ -59,7 +77,10 @@ for relative in \
   skills/adhx/agents/openai.yaml \
   skills/adhx/LICENSE \
   skills/docs-routing/SKILL.md \
-  skills/docs-routing/agents/openai.yaml; do
+  skills/docs-routing/agents/openai.yaml \
+  skills/worktrunk/SKILL.md \
+  skills/worktrunk/agents/openai.yaml \
+  skills/worktrunk/LICENSE; do
   [[ -f "$plugin_root/$relative" ]] || fail "installed plugin is missing $relative"
 done
 
@@ -103,10 +124,10 @@ for relative in \
   config/roles.json \
   references/executor-report.schema.json \
   references/review-verdict.schema.json \
-  scripts/codex-improve-exec \
-  scripts/codex-improve-spark-availability \
-  scripts/codex-improve-review \
-  scripts/codex-improve-scout; do
+  runtime/contracts.py \
+  runtime/transport.py \
+  runtime/git_worktree.py \
+  scripts/codex-improve; do
   [[ -f "$improve/$relative" ]] || fail "installed plugin is missing skills/improve/$relative"
 done
 
@@ -118,14 +139,7 @@ for profile in \
     || fail "installed plugin contains legacy profile $profile.config.toml"
 done
 
-bash "$repo/tests/improve/compatibility.bash"
-bash "$repo/tests/improve/spark-availability.bash" \
-  "$improve/scripts/codex-improve-spark-availability"
-CODEX_IMPROVE_REAL_CODEX="$root/bin/codex" \
-  CODEX_IMPROVE_EXEC_SCHEMA="$improve/references/executor-report.schema.json" \
-  bash "$repo/tests/improve/exec-runner.bash" "$improve/scripts/codex-improve-exec"
-CODEX_IMPROVE_REVIEW_SCHEMA="$improve/references/review-verdict.schema.json" \
-  bash "$repo/tests/improve/review-runner.bash" "$improve/scripts/codex-improve-review"
-bash "$repo/tests/improve/scout-runner.bash" "$improve/scripts/codex-improve-scout"
+python3 -B "$improve/scripts/codex-improve" --help >/dev/null
+CODEX_IMPROVE_SKILL_ROOT="$improve" python3 -B "$repo/tests/improve/test_runtime.py"
 
 printf 'non-Nix plugin portability passed with Codex %s\n' "$codex_version"

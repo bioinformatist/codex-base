@@ -36,12 +36,6 @@ jobs:
 
       - uses: DeterminateSystems/nix-installer-action@v17
 
-      - name: Configure Git identity
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
       - name: Update Codex release pins
         env:
           GH_TOKEN: ${{ github.token }}
@@ -90,29 +84,27 @@ jobs:
           nix run .#sync-vendored-skills -- --check
           nix flake check --allow-import-from-derivation
 
-      - name: Commit and update maintenance branch
+      - name: Create or update maintenance pull request
+        id: cpr
         if: steps.changes.outputs.changed == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1
+        with:
+          token: ${{ secrets.MAINTENANCE_PAT }}
+          add-paths: |
+            README.md
+            README.zh-CN.md
+            flake.nix
+            flake.lock
+            nix/packages.nix
+          commit-message: "chore(maint): update codex"
+          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          branch: maint/codex
+          base: main
+          title: "chore(maint): update codex"
+          body: "Update Codex, Code Mode Host, the matching source lock, and release documentation."
 
-          git add README.md README.zh-CN.md flake.nix flake.lock nix/packages.nix
-          git commit -m "chore(maint): update codex"
-
-          remote_ref="refs/heads/$MAINTENANCE_BRANCH"
-          if git ls-remote --exit-code --heads origin "$remote_ref" >/dev/null 2>&1; then
-            git fetch origin "$remote_ref:refs/remotes/origin/$MAINTENANCE_BRANCH"
-            remote_oid="$(git rev-parse "refs/remotes/origin/$MAINTENANCE_BRANCH")"
-            git push \
-              --force-with-lease="$remote_ref:$remote_oid" \
-              origin "HEAD:$remote_ref"
-          else
-            git push \
-              --force-with-lease="$remote_ref:" \
-              origin "HEAD:$remote_ref"
-          fi
-
-      - name: Create or update pull request
+      - name: Ready and auto squash maintenance pull request
         if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.MAINTENANCE_PAT }}
@@ -120,32 +112,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          pr_number="$(
-            gh pr list \
-              --repo "$GITHUB_REPOSITORY" \
-              --state open \
-              --base main \
-              --head "$MAINTENANCE_BRANCH" \
-              --json number \
-              --jq '.[0].number // empty'
-          )"
-
-          if [[ -z "$pr_number" ]]; then
-            pr_url="$(
-              gh pr create \
-                --repo "$GITHUB_REPOSITORY" \
-                --base main \
-                --head "$MAINTENANCE_BRANCH" \
-                --title "chore(maint): update codex" \
-                --body "Update Codex, Code Mode Host, the matching source lock, and release documentation."
-            )"
-            pr_number="$(gh pr view "$pr_url" --repo "$GITHUB_REPOSITORY" --json number --jq .number)"
-          else
-            gh pr edit "$pr_number" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "chore(maint): update codex" \
-              --body "Update Codex, Code Mode Host, the matching source lock, and release documentation."
-          fi
+          pr_number="${{ steps.cpr.outputs.pull-request-number }}"
+          [[ -n "$pr_number" ]] || { echo "create-pull-request did not return a PR number" >&2; exit 1; }
 
           if [[ "$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]; then
             gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY"

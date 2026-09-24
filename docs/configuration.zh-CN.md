@@ -42,26 +42,7 @@ default_mode_request_user_input = true
 
 ## 模型选择
 
-这些选择与安装方式无关。Home Manager 会托管 Sol 默认值；只安装插件不会改动用户的模型配置。
-
-| 工作 | 模型与推理强度 | 理由 |
-|---|---|---|
-| 日常实现、审计、调研和维护 | `gpt-5.6-sol`、`medium` | 平衡能力、延迟和 token 消耗。 |
-| 不要求原生上下文管理的有界规划 | `gpt-5.6-sol`、`high` | 保持模型不变，为约束和取舍留出更多推理空间；正式 Improve 规划仍须满足前置条件，或取得明确豁免。 |
-| 使用原生上下文管理的正式 Improve 规划 | 服务端已开放该实验时，以 `gpt-6-astra` 新建任务，再进入 Plan Mode | 资格检查依赖启动模型，因此必须新建 Astra 任务；但这不能覆盖服务端关闭的能力。 |
-| 困难的产品或架构选择、冲突证据或异常漫长的调查 | `gpt-6-astra` | 即使不考虑上下文管理要求，更强的推理能力也可能值得额外成本。 |
-
-参见官方 [Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) 和 [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) 模型说明。每项规划并非都需要更高推理强度或更强的模型。
-
-CLI 和桌面启动步骤见 [README](../README.zh-CN.md#首次工作流)。CLI 用户若保留 Sol 默认值，`codex -m gpt-6-astra` 是最简单的一次性选择；也可以将 Astra 设为持久默认值，或在启动时选择自行配置的 Astra profile，Codex Base 不提供此 profile。命令用法见官方 [CLI 参考](https://learn.chatgpt.com/docs/developer-commands?surface=cli)。
-
-在锁定的 Codex 0.155.1 实现中，需要区分设置的作用域：
-
-- 普通 `/model` 选择会更新当前对话，并尝试保存模型和推理强度默认值。Plan Mode 推理范围提示中的“仅用于 Plan Mode”则只保存 Plan 推理覆盖值，不保存模型默认值。参见[选择处理逻辑](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/chatwidget/model_popups.rs)。
-- `/new` 读取服务端的有效默认配置，同时保留显式启动模型和 profile 设置，不会直接复制上一条对话的模型。参见[新会话配置](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/app/new_session.rs)及其[测试](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/app/tests/new_session_tests.rs)。
-- 因此，`/model` → Astra → `/new` 可以在新默认值保存并生效后使用 Astra；如果有效默认值或启动覆盖值仍是 Sol，也可能继续使用 Sol。判断某个环境时，应检查 `/status`、`/debug-config` 和配置保存警告。
-
-上下文管理另有[初始化检查](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/core/src/session/token_budget.rs)。Codex 0.155.1 同时要求本地选择加入、启动模型的服务端元数据包含 `supports_experimental_context = true`、受支持的 OpenAI 后端以及符合资格的 ChatGPT 认证。新建 Astra 任务只满足启动模型的时机要求；如果服务端把该登录身份下的模型标记为不支持，本地配置无法强制激活。
+Home Manager 默认使用 `gpt-6-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改用户的模型设置。正式 Improve 规划取决于当前会话实际具备上下文管理和结构化提问能力，而不是某个模型名称。困难规划可以显式选择 Astra；模型名称或配置开关都不能证明能力可用。Improve 执行通道另有独立的角色设置，见[执行器路由](architecture.md#executor-routing)。
 
 <a id="context7-authentication"></a>
 

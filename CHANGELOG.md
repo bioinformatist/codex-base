@@ -4,6 +4,25 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
+## [0.2.0] — Unreleased
+
+### Improve execution
+
+- Replace the older Improve runner commands with one `codex-improve`
+  coordinator and a `.17` plan contract. Plans provide their launcher and
+  probes; approved work uses economy, standard, or deep roles, with exact
+  candidate capture, bounded recovery, review, and local checkpoints.
+- Package Worktrunk for isolated worktree lifecycle and retain Git for exact
+  candidate and checkpoint identity. Add runtime, packaging, and portability
+  checks for the new layout.
+- Replace manual pull-request wiring in the existing four-hour and manual Codex
+  pin maintenance workflow with a pinned Action that opens or updates its
+  fixed-branch pull request. Its credential and repository-rule setup remain
+  post-integration work.
+
+This entry describes the current source candidate; version 0.2.0 has not been
+published.
+
 ## [0.1.3]
 
 ### Fixed

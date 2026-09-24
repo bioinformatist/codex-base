@@ -1,6 +1,6 @@
 {
   "name": "codex-base",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Portable Codex engineering workflows and skills with anonymous documentation routing through MCP defaults.",
   "author": {
     "name": "bioinformatist",

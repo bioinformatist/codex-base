@@ -36,7 +36,7 @@ already has another purpose, numbered in recommended execution order.
 ## Status
 
 - **Status**: TODO
-- **Improve contract**: `1.0.0-codex.16`
+- **Improve contract**: `1.0.0-codex.17`
 - **Implementation review**: PENDING | APPROVED | REVISE | BLOCKED
 - **Checkpoint**: NONE | RESUMABLE | INTEGRATED
 - **External acceptance**: NOT REQUIRED | PENDING | PASSED | FAILED
@@ -44,7 +44,7 @@ already has another purpose, numbered in recommended execution order.
 - **Priority**: P1 | P2 | P3
 - **Effort**: S | M | L
 - **Risk**: LOW | MED | HIGH
-- **Executor lane**: spark | standard | deep
+- **Executor lane**: economy | standard | deep
 - **Executor routing evidence**: <why this lane satisfies the routing contract>
 - **Recovery seams**: none | <one to three dependency-ordered seams with paths, gates, and candidate lane>
 - **Depends on**: none | <plan identifier; inline any code-only exception's exact approved checkpoint or landing commit and observable prerequisite>
@@ -103,15 +103,15 @@ section until identity changes; then append one row per transition.>
 
 ## Execution environment
 
-<Replace placeholders with the exact reviewed literal argv values. Empty probes
-require `probeOmissionReason`; nonempty probes omit it.>
+<Replace placeholders with the exact reviewed literal argv values. Probes may
+be empty; the environment block accepts no omission-reason field.>
 
 ```json codex-improve-environment
 {
   "version": 1,
-  "launcher": [],
+  "launcher": ["env"],
   "probes": [],
-  "probeOmissionReason": "<why no project-specific probe is required>"
+  "cache": {"xdgScope": "execution"}
 }
 ```
 
@@ -119,8 +119,8 @@ require `probeOmissionReason`; nonempty probes omit it.>
 `"cache":{"xdgScope":"worktree"}` only with evidence that expensive state
 must survive revision/recovery in this registered worktree; record the rationale
 in Semantic anchors and add a clean-state gate. Cache hits are never evidence.
-The main agent passes this JSON unchanged through `--environment-json`. Do not
-include secrets or environment-variable values.>
+The coordinator reads this block directly from the plan. Do not include secrets
+or environment-variable values.>
 
 ## Execution isolation
 
@@ -205,7 +205,7 @@ An asynchronous handoff requires a resumable Checkpoint and exact ID.>
 
 ## Git workflow
 
-- Branch/worktree: created by `codex-improve-exec`; create no replacement.
+- Branch/worktree: created by `codex-improve execute`; create no replacement.
 - Leave executor changes uncommitted for main-agent review.
 - The executor must not edit plan/index artifacts, invoke candidate/checkpoint/resume
   operations, commit, merge, push, publish, deploy, integrate, or remove the worktree.

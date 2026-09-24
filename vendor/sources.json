@@ -2,6 +2,15 @@
   "version": 1,
   "sources": [
     {
+      "name": "worktrunk",
+      "repository": "https://github.com/max-sixty/worktrunk",
+      "version": "0.79.0",
+      "revision": "5ba6f148e8505c20794f2d8bc706aa4f26335c95",
+      "license": "MIT OR Apache-2.0",
+      "includedPaths": ["wt", "git-wt", "skills/worktrunk/SKILL.md", "LICENSE"],
+      "patched": true
+    },
+    {
       "name": "adhx",
       "repository": "https://github.com/itsmemeworks/adhx",
       "revision": "2dafb9c221398372d08f8dc75e857e801089f6b1",

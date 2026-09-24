@@ -14,7 +14,7 @@ repository.
 - Preserve the pinned upstream revisions and inspect every generated diff.
 - Never add credentials, user names, host names, absolute home paths, or Nix
   store paths to distributable files.
-- Keep Improve profile strings as compatibility identifiers, but do not add
-  runtime profile files or profile lookup.
+- Keep Improve role settings in `src/improve/config/roles.json`; the .17
+  coordinator snapshots the selected role and does not load Codex profiles.
 - Do not publish, deploy, install into a real home, or update downstream
   configurations without separate authorization.

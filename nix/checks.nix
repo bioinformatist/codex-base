@@ -78,7 +78,7 @@ in {
       ${srcRoot}/.github/PULL_REQUEST_TEMPLATE.md ${srcRoot}/docs \
       ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json \
       ${srcRoot}/plugins/codex-base/assets ${srcRoot}/vendor
-    test "$(find ${srcRoot}/plugins/codex-base/licenses -type f | wc -l)" -eq 6
+    test "$(find ${srcRoot}/plugins/codex-base/licenses -type f | wc -l)" -eq 7
     touch $out
   '';
   mattpocock-skills = mkTest "mattpocock-skills-contract" shellTools ''
@@ -133,14 +133,26 @@ in {
     touch $out
   '';
   shellcheck = mkTest "all-shell-scripts" shellTools ''
-    while IFS= read -r file; do bash -n "$file"; shellcheck "$file"; done < <(find ${srcRoot}/scripts ${srcRoot}/src ${srcRoot}/tests -type f \( -name '*.bash' -o -name '*.sh' -o -perm -0100 \))
+    while IFS= read -r file; do
+      case "$file" in
+        *.bash|*.sh) ;;
+        *)
+          IFS= read -r first_line < "$file" || true
+          case "$first_line" in
+            '#!'*bash*|'#!'*/sh*) ;;
+            *) continue ;;
+          esac ;;
+      esac
+      bash -n "$file"
+      shellcheck "$file"
+    done < <(find ${srcRoot}/scripts ${srcRoot}/src ${srcRoot}/tests -type f \( -name '*.bash' -o -name '*.sh' -o -perm -0100 \))
     touch $out
   '';
   codex-release-consistency = mkTest "codex-release-consistency" shellTools ''
     bash ${srcRoot}/scripts/check-codex-release
     touch $out
   '';
-  codex-release-updater = mkTest "codex-release-updater-tests" shellTools ''
+  codex-release-updater = mkTest "codex-release-updater-tests" (shellTools ++ [ python ]) ''
     bash ${srcRoot}/tests/codex-release-updater.bash
     touch $out
   '';
@@ -150,7 +162,7 @@ in {
     test "$(grep -Fxc '      - uses: actions/checkout@v4' "$workflow")" -eq 1
     grep -F -A 5 '      - uses: actions/checkout@v4' "$workflow" \
       | grep -Fqx '          ref: main'
-    test "$(grep -Fxc '          git add README.md README.zh-CN.md flake.nix flake.lock nix/packages.nix' "$workflow")" -eq 1
+    grep -Fq 'peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1' "$workflow"
     touch $out
   '';
   typos = mkTest "public-docs-typos" [ pkgs.typos ] ''
@@ -197,7 +209,12 @@ in {
     test "$(grep -Fxoc '# Changelog' ${srcRoot}/CHANGELOG.md)" -eq 1
     release_version="$(jq -r '.version' ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json)"
     test "$(grep -Foc "## [$release_version]" ${srcRoot}/CHANGELOG.md)" -eq 1
-    test "$(grep -Fxoc "[$release_version]: https://github.com/bioinformatist/codex-base/releases/tag/v$release_version" ${srcRoot}/CHANGELOG.md)" -eq 1
+    if grep -Fxq "## [$release_version] — Unreleased" ${srcRoot}/CHANGELOG.md; then
+      ! grep -Fxq "[$release_version]: https://github.com/bioinformatist/codex-base/releases/tag/v$release_version" ${srcRoot}/CHANGELOG.md
+    else
+      grep -Fxq "## [$release_version]" ${srcRoot}/CHANGELOG.md
+      grep -Fxq "[$release_version]: https://github.com/bioinformatist/codex-base/releases/tag/v$release_version" ${srcRoot}/CHANGELOG.md
+    fi
     grep -Fq '52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e' ${srcRoot}/CHANGELOG.md
     grep -Fq '`src/docs-routing` is the canonical first-party documentation-routing skill.' ${srcRoot}/docs/architecture.md
     grep -Fq 'Adapted for Codex invocation, preservation, and reporting rules' ${srcRoot}/docs/credits.md
@@ -280,9 +297,9 @@ in {
     architecture = (root / 'docs/architecture.md').read_text()
     assert 'not an automated benchmark or evidence of universal model obedience' in flat_scenarios
     headings = re.findall(r'^## (SC-\d{2}): .+$', scenarios, flags=re.M)
-    assert headings == [f'SC-{number:02d}' for number in range(1, 24)]
+    assert headings == [f'SC-{number:02d}' for number in range(1, 28)]
     blocks = re.split(r'^## SC-\d{2}: .+$', scenarios, flags=re.M)[1:]
-    assert len(blocks) == 23
+    assert len(blocks) == 27
     for block in blocks:
         assert block.count('**Input/context:**') == 1
         assert block.count('**Expected observable behavior:**') == 1
@@ -365,37 +382,28 @@ in {
     PY
     touch $out
   '';
-  improve-exec = mkTest "improve-exec-tests" shellTools ''
-    bash ${srcRoot}/tests/improve/spark-availability.bash ${srcRoot}/src/improve/scripts/codex-improve-spark-availability
-    CODEX_IMPROVE_REAL_CODEX=${packages.codex}/bin/codex CODEX_IMPROVE_EXEC_SCHEMA=${srcRoot}/src/improve/references/executor-report.schema.json CODEX_IMPROVE_ROLES_FILE=${srcRoot}/src/improve/config/roles.json bash ${srcRoot}/tests/improve/exec-runner.bash ${srcRoot}/src/improve/scripts/codex-improve-exec
-    bash ${srcRoot}/tests/research-handoff-smoke.bash --self-test
+  improve-runtime = mkTest "improve-runtime-tests" (shellTools ++ [ python packages.worktrunk ]) ''
+    python3 -B ${srcRoot}/tests/improve/test_runtime.py
+    CODEX_IMPROVE_SKILL_ROOT=${generatedSkills}/improve python3 -B ${srcRoot}/tests/improve/test_runtime.py
     touch $out
   '';
-  improve-review = mkTest "improve-review-tests" shellTools ''
-    CODEX_IMPROVE_REVIEW_SCHEMA=${srcRoot}/src/improve/references/review-verdict.schema.json CODEX_IMPROVE_ROLES_FILE=${srcRoot}/src/improve/config/roles.json bash ${srcRoot}/tests/improve/review-runner.bash ${srcRoot}/src/improve/scripts/codex-improve-review
-    touch $out
-  '';
-  improve-scout = mkTest "improve-scout-tests" shellTools ''
-    bash ${srcRoot}/tests/improve/scout-runner.bash ${srcRoot}/src/improve/scripts/codex-improve-scout
-    touch $out
-  '';
-  improve-compatibility = mkTest "improve-compatibility" shellTools ''
-    bash ${srcRoot}/tests/improve/compatibility.bash
-    touch $out
-  '';
-  runner-packages = mkTest "runner-package-resources" shellTools ''
-    grep -F "${generatedSkills}/improve/scripts/codex-improve-exec" ${packages.codex-improve-exec}/bin/codex-improve-exec >/dev/null
-    grep -F "${generatedSkills}/improve/scripts/codex-improve-review" ${packages.codex-improve-review}/bin/codex-improve-review >/dev/null
-    grep -F "${generatedSkills}/improve/scripts/codex-improve-scout" ${packages.codex-improve-scout}/bin/codex-improve-scout >/dev/null
+  improve-package = mkTest "improve-package-resources" (shellTools ++ [ packages.codex-improve ]) ''
+    grep -F "${generatedSkills}/improve/scripts/codex-improve" ${packages.codex-improve}/bin/codex-improve >/dev/null
+    ${packages.codex-improve}/bin/codex-improve --help >/dev/null
     test -r ${generatedSkills}/improve/config/roles.json
+    test -r ${generatedSkills}/improve/runtime/contracts.py
+    test -r ${generatedSkills}/improve/runtime/transport.py
+    test -r ${generatedSkills}/improve/runtime/git_worktree.py
     test -r ${generatedSkills}/improve/references/executor-report.schema.json
     test -r ${generatedSkills}/improve/references/review-verdict.schema.json
-    test -x ${generatedSkills}/improve/scripts/codex-improve-spark-availability
+    test -r ${generatedSkills}/worktrunk/LICENSE
+    test -r ${generatedSkills}/worktrunk/agents/openai.yaml
     touch $out
   '';
   codex-layout = packages.codex;
   home-manager =
     assert builtins.hasAttr ".agents/skills/improve" files;
+    assert builtins.hasAttr ".agents/skills/worktrunk" files;
     assert builtins.hasAttr ".agents/skills/adhx" files;
     assert builtins.hasAttr ".agents/skills/docs-routing" files;
     assert builtins.hasAttr ".agents/skills/writing-for-agents" files;
@@ -405,6 +413,7 @@ in {
     assert builtins.hasAttr ".codex/rules/baseline.rules" files;
     assert builtins.all (path: !(builtins.hasAttr path files)) legacy;
     assert !(builtins.hasAttr ".agents/skills/improve" filesOff);
+    assert !(builtins.hasAttr ".agents/skills/worktrunk" filesOff);
     assert builtins.hasAttr ".agents/skills/docs-routing" filesOff;
     assert builtins.hasAttr ".agents/skills/adhx" filesOff;
     assert !(builtins.hasAttr ".agents/skills/stop-slop" filesOff);
@@ -420,9 +429,8 @@ in {
     assert hmOff.config.programs.codexBase.context7ApiKeyFile == null;
     assert builtins.elem packages.codex hm.config.home.packages;
     assert builtins.elem pkgs.curl hm.config.home.packages;
-    assert builtins.elem packages.codex-improve-exec hm.config.home.packages;
-    assert builtins.elem packages.codex-improve-review hm.config.home.packages;
-    assert builtins.elem packages.codex-improve-scout hm.config.home.packages;
+    assert builtins.elem packages.codex-improve hm.config.home.packages;
+    assert builtins.elem packages.worktrunk hm.config.home.packages;
     assert pkgs.lib.hasInfix ''configFile="$HOME/.codex/config.toml"'' activation;
     assert pkgs.lib.hasInfix ''if [ -L "$configFile" ]; then rm -f "$configFile"; fi'' activation;
     mkTest "home-manager-contract" (shellTools ++ [ python ]) ''
@@ -473,7 +481,7 @@ def run_merge(target: Path) -> dict:
     return tomllib.loads(target.read_text())
 
 def assert_managed(merged: dict) -> None:
-    assert merged["model"] == "gpt-5.6-sol"
+    assert merged["model"] == "gpt-6-sol"
     assert merged["model_reasoning_effort"] == "medium"
     assert merged["model_verbosity"] == "medium"
     assert merged["plan_mode_reasoning_effort"] == "high"
@@ -538,7 +546,7 @@ PY
       done <${hmClosure}/store-paths
       touch $out
     '';
-  plugin-smoke = mkTest "plugin-smoke" [ packages.codex pkgs.bash pkgs.coreutils pkgs.jq ] ''
+  plugin-smoke = mkTest "plugin-smoke" [ packages.codex packages.worktrunk python pkgs.bash pkgs.coreutils pkgs.jq ] ''
     HOME="$TMPDIR/real-home" mkdir -p "$TMPDIR/real-home"
     HOME="$TMPDIR/real-home" bash ${srcRoot}/tests/plugin-smoke.bash
     touch $out

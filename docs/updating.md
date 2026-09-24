@@ -32,8 +32,8 @@ nix flake check --allow-import-from-derivation
 ```
 
 Root input updates require manual semantic review; Renovate must not auto-merge
-them. Improve role values, schemas, protected-path behavior, and compatibility
-fixtures are one compatibility boundary and must change together.
+them. Improve role values, schemas, protected-path behavior, and runtime
+fixtures are one contract boundary and must change together.
 
 ## Codex releases
 
