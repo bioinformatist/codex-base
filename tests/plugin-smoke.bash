@@ -12,6 +12,7 @@ root="$(mktemp -d)"
 trap 'rm -rf -- "$root"' EXIT
 mkdir -p "$root/home" "$root/codex"
 export HOME="$root/home" CODEX_HOME="$root/codex"
+printf '%s\n' 'model = "gpt-6-astra"' >"$CODEX_HOME/config.toml"
 codex plugin marketplace add "$repo" --json >"$root/marketplace-add.json"
 jq -e --arg repo "$repo" '
   .marketplaceName == "bioinformatist-codex"
@@ -54,6 +55,21 @@ test -f "$installed_path/skills/docs-routing/agents/openai.yaml"
 test -f "$installed_path/skills/adhx/SKILL.md"
 test -f "$installed_path/skills/adhx/agents/openai.yaml"
 test -f "$installed_path/skills/adhx/LICENSE"
+for relative in \
+  skills/worktrunk/SKILL.md \
+  skills/worktrunk/agents/openai.yaml \
+  skills/worktrunk/LICENSE \
+  skills/improve/scripts/codex-improve \
+  skills/improve/runtime/contracts.py \
+  skills/improve/runtime/transport.py \
+  skills/improve/runtime/git_worktree.py \
+  skills/improve/config/roles.json \
+  skills/improve/references/executor-report.schema.json \
+  skills/improve/references/review-verdict.schema.json; do
+  test -f "$installed_path/$relative"
+done
+test "$(sed -n 's/^model = "\([^"]*\)"$/\1/p' "$CODEX_HOME/config.toml")" = gpt-6-astra
+python3 -B "$installed_path/skills/improve/scripts/codex-improve" --help >/dev/null
 jq -e '.interface.composerIcon == "./assets/codex-base.svg"
   and .interface.logo == "./assets/codex-base.svg"' \
   "$installed_path/.codex-plugin/plugin.json" >/dev/null

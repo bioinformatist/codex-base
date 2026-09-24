@@ -36,7 +36,7 @@ let
     trust_level = "trusted"
   '') trustedProjects;
   managedConfig = pkgs.writeText "codex-base-config.toml" ''
-    model = "gpt-5.6-sol"
+    model = "gpt-6-sol"
     model_reasoning_effort = "medium"
     model_verbosity = "medium"
     plan_mode_reasoning_effort = "high"
@@ -140,7 +140,7 @@ in {
 
   config = lib.mkIf cfg.enable {
     home.packages = [ packages.codex toolPkgs.mcp-nixos pkgs.nodejs_24 pkgs.curl packages.playwright-cli packages.codex-doctor ]
-      ++ lib.optionals cfg.improve.enable [ packages.codex-improve-exec packages.codex-improve-review packages.codex-improve-scout ];
+      ++ lib.optionals cfg.improve.enable [ packages.codex-improve packages.worktrunk ];
     home.file = lib.mkMerge [
       {
         ".agents/skills/docs-routing" = linkSkill "docs-routing";
@@ -151,6 +151,7 @@ in {
         ".agents/skills/ponytail-audit" = lib.mkIf cfg.ponytail.enable (linkSkill "ponytail-audit");
         ".agents/skills/ponytail-debt" = lib.mkIf cfg.ponytail.enable (linkSkill "ponytail-debt");
         ".agents/skills/improve" = lib.mkIf cfg.improve.enable (linkSkill "improve");
+        ".agents/skills/worktrunk" = lib.mkIf cfg.improve.enable (linkSkill "worktrunk");
         ".codex/AGENTS.md".source = ../config/AGENTS.md;
         ".codex/rules/baseline.rules".source = ../config/baseline.rules;
       }

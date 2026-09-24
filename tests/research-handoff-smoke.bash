@@ -1,210 +1,131 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage() { echo "usage: research-handoff-smoke.bash --self-test|--live" >&2; exit 2; }
+usage() { echo 'usage: research-handoff-smoke.bash --self-test|--live' >&2; exit 2; }
 [ "$#" -eq 1 ] || usage
 case "$1" in --self-test|--live) mode="$1" ;; *) usage ;; esac
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-roles_source="$repo_root/src/improve/config/roles.json"
-executor="$repo_root/src/improve/scripts/codex-improve-exec"
-environment_json='{"version":1,"launcher":[],"probes":[],"probeOmissionReason":"The smoke uses the locked development environment."}'
+executor="$repo_root/src/improve/scripts/codex-improve"
 umask 077
 if [ "$mode" = --live ]; then
-  state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
-  retained_parent="$state_home/codex-improve/research-handoff-smoke"
+  retained_parent="${XDG_STATE_HOME:-$HOME/.local/state}/codex-improve/research-handoff-smoke"
   mkdir -p "$retained_parent"
-  retained_root="$(mktemp -d "$retained_parent/live.XXXXXX")"
+  root="$(mktemp -d "$retained_parent/live.XXXXXX")"
 else
-  retained_root="$(mktemp -d "${TMPDIR:-/tmp}/research-handoff-smoke.XXXXXX")"
+  root="$(mktemp -d "${TMPDIR:-/tmp}/research-handoff-smoke.XXXXXX")"
 fi
-roles_file="$retained_root/roles.json"
-summary="$retained_root/summary.txt"
-last_case_root=""
-
-report_evidence() {
-  printf 'RESEARCH_HANDOFF_SMOKE_ROOT=%s\n' "$retained_root"
-  printf 'RESEARCH_HANDOFF_SMOKE_ROLES=%s\n' "$roles_file"
-  printf 'RESEARCH_HANDOFF_SMOKE_SUMMARY=%s\n' "$summary"
-  if [ -n "$last_case_root" ]; then
-    printf 'RESEARCH_HANDOFF_SMOKE_RESULT=%s\n' "$last_case_root/result.txt"
-    printf 'RESEARCH_HANDOFF_SMOKE_STDERR=%s\n' "$last_case_root/stderr.txt"
-    printf 'RESEARCH_HANDOFF_SMOKE_PREFINAL=%s\n' "$last_case_root/pre-final-events.jsonl"
-    printf 'RESEARCH_HANDOFF_SMOKE_MESSAGES=%s\n' "$last_case_root/research-messages.json"
-    if [ -s "$last_case_root/result.txt" ]; then
-      printf 'RESEARCH_HANDOFF_SMOKE_ARTIFACT=%s\n' \
-        "$(field "$last_case_root/result.txt" IMPROVE_EXEC_ARTIFACT_DIR)"
-      printf 'RESEARCH_HANDOFF_SMOKE_EVENTS=%s\n' \
-        "$(field "$last_case_root/result.txt" IMPROVE_EXEC_EVENT_LOG)"
-      printf 'RESEARCH_HANDOFF_SMOKE_FINAL=%s\n' \
-        "$(field "$last_case_root/result.txt" IMPROVE_EXEC_FINAL_OUTPUT)"
-      printf 'RESEARCH_HANDOFF_SMOKE_METRICS=%s\n' \
-        "$(field "$last_case_root/result.txt" IMPROVE_EXEC_METRICS)"
-    fi
-  fi
-}
-trap report_evidence EXIT
-
-jq -c '.standard |= (.tokenLimit = 12000 | .initialTimeout = 120
-  | .reminders = [4000, 2000, 1000] | .networkAccess = false)' \
-  "$roles_source" >"$roles_file"
+printf 'RESEARCH_HANDOFF_SMOKE_ROOT=%s\n' "$root"
 
 setup_fixture() {
   local case_root="$1" fixture="$1/fixture"
   mkdir -p "$fixture" "$case_root/state"
   git -c init.defaultBranch=main init -q "$fixture"
   git -C "$fixture" config user.email smoke@example.invalid
-  git -C "$fixture" config user.name "Research Handoff Smoke"
-  printf '%s\n' 'Current specification version: 2' >"$fixture/specification.txt"
-  printf '%s\n' 'Retired draft version: 1' >"$fixture/retired-draft.txt"
-  {
-    printf '%s\n' '# Bounded research smoke'
-    # The fixture intentionally contains literal Markdown backticks.
-    # shellcheck disable=SC2016
-    printf '%s\n' '- **Improve contract**: `1.0.0-codex.16`'
-    printf '%s\n' '```json codex-improve-environment' "$environment_json" '```'
-    printf '%s\n' 'Determine the current version from the current specification and emit a Research checkpoint.'
-    printf '%s\n' 'Then check whether runtime-acceptance.proof exists. Do not create it, search externally, or change source.'
-    printf '%s\n' 'If proof is absent, report it as unknown and return STOPPED with a concrete reason.'
-  } >"$fixture/plan.md"
+  git -C "$fixture" config user.name 'Research Handoff Smoke'
+  printf 'Current specification version: 2\n' >"$fixture/specification.txt"
+  printf 'Retired draft version: 1\n' >"$fixture/retired-draft.txt"
+  cat >"$fixture/plan.md" <<'PLAN'
+# Bounded research smoke
+- **Improve contract**: `1.0.0-codex.17`
+```json codex-improve-environment
+{"version":1,"launcher":["env"],"probes":[]}
+```
+Determine the current version from specification.txt and emit a Research checkpoint.
+Then check whether runtime-acceptance.proof exists. Do not create it, search externally, or change source.
+If proof is absent, report it as unknown and return STOPPED with a concrete reason.
+PLAN
   git -C "$fixture" add .
   git -C "$fixture" commit -qm 'test: add bounded research fixture'
 }
 
-write_fake_executor() {
-  local fake_executor="$1"
-  cat >"$fake_executor" <<'FAKE_EXECUTOR'
+write_fake_codex() {
+  mkdir -p "$root/bin"
+  cat >"$root/bin/codex" <<'FAKE_CODEX'
 #!/usr/bin/env bash
 set -euo pipefail
-: "${SMOKE_ARTIFACT:?}" "${SMOKE_CASE:?}" "${SMOKE_EXPECTED_ENVIRONMENT:?}"
-: "${SMOKE_EXPECTED_WORKTREE:?}" "${SMOKE_INVOCATIONS:?}" "${SMOKE_PRODUCTION_ROLES:?}"
-: "${SMOKE_RETURNED_WORKTREE:?}" "${SMOKE_UNRELATED_WORKTREE:?}"
-printf x >>"$SMOKE_INVOCATIONS"
-[ "$#" -eq 3 ] && [ "$1" = --environment-json ]
-[ "$2" = "$SMOKE_EXPECTED_ENVIRONMENT" ] && [ "$3" = plan.md ]
-[ "$PWD" = "$SMOKE_EXPECTED_WORKTREE" ]
-jq -e --slurpfile production "$SMOKE_PRODUCTION_ROLES" '
-  .standard.model == "gpt-5.6-sol"
-  and .standard.reasoningEffort == "medium"
-  and .standard.tokenLimit == 12000
-  and .standard.initialTimeout == 120
-  and .standard.reminders == [4000, 2000, 1000]
-  and .standard.networkAccess == false
-  and (del(.standard) == ($production[0] | del(.standard)))
-  and ((.standard | del(.tokenLimit, .initialTimeout, .reminders, .networkAccess))
-    == ($production[0].standard
-      | del(.tokenLimit, .initialTimeout, .reminders, .networkAccess)))
-' \
-  <<<"$CODEX_IMPROVE_ROLES_JSON" >/dev/null
-grep -Fx 'Current specification version: 2' specification.txt >/dev/null
-grep -Fx 'Retired draft version: 1' retired-draft.txt >/dev/null
-[ ! -e runtime-acceptance.proof ]
-
-git -C "$PWD" worktree add --detach -q "$SMOKE_RETURNED_WORKTREE" HEAD
-reported_worktree="$SMOKE_RETURNED_WORKTREE"
-if [ "$SMOKE_CASE" = unrelated-worktree ]; then
-  git -c init.defaultBranch=main init -q "$SMOKE_UNRELATED_WORKTREE"
-  reported_worktree="$SMOKE_UNRELATED_WORKTREE"
-fi
-
-mkdir -p "$SMOKE_ARTIFACT"
-events="$SMOKE_ARTIFACT/events.jsonl"
-final="$SMOKE_ARTIFACT/final.json"
-metrics="$SMOKE_ARTIFACT/metrics.jsonl"
-rendered="$SMOKE_ARTIFACT/final.txt"
-: >"$events"
-checkpoint=$'Research checkpoint:\nQuestion: Which source identifies the current specification?\nFinding: The specification is current; the draft is explicitly retired.\nEvidence: specification.txt:1; retired-draft.txt:1\nNext: Determine whether runtime-acceptance.proof exists.'
+final=''
+previous=''
+for arg in "$@"; do
+  if [ "$previous" = --output-last-message ]; then final="$arg"; fi
+  previous="$arg"
+done
+[ -n "$final" ]
+[ -f specification.txt ] && [ ! -e runtime-acceptance.proof ]
+[[ " $* " == *' --model gpt-6-sol '* ]]
+checkpoint=$'Research checkpoint:\nQuestion: Which source identifies the current specification?\nFinding: Version 2 is current; version 1 is retired.\nEvidence: specification.txt:1; retired-draft.txt:1\nNext: Check whether runtime-acceptance.proof exists.'
 bullet_checkpoint=$'Research checkpoint:\n- Question: What is current?\n- Finding: Version 2 is current; version 1 is retired.\n- Evidence: specification.txt:1\n- Next: Check runtime-acceptance.proof.'
 formatted_checkpoint=$'Research checkpoint:\n- **Question:** What is current?\n- **Finding:** Version 2 is current; version 1 is retired.\n- **Evidence:** `specification.txt`\n- `Next:` Check **`runtime-acceptance.proof`**.'
-missing_field_checkpoint=$'Research checkpoint:\n- Question: What is current?\n- Evidence: specification.txt\n- Next: Check runtime-acceptance.proof.'
-stopped='{"status":"STOPPED","steps":["Reviewed the current and retired sources; runtime acceptance remains unknown."],"stoppedBecause":"runtime-acceptance.proof is absent, so acceptance is unknown","filesChanged":[],"notes":[]}'
-complete='{"status":"COMPLETE","steps":["Claimed acceptance without its proof"],"stoppedBecause":null,"filesChanged":[],"notes":[]}'
-json_looking='{"status":"COMPLETE","steps":["intermediate hypothesis only"],"stoppedBecause":null,"filesChanged":[],"notes":[]}'
-
-agent_message() {
-  jq -cn --arg text "$1" \
-    '{type:"item.completed",item:{type:"agent_message",text:$text}}' >>"$events"
+missing_field=$'Research checkpoint:\nQuestion: What is current?\nEvidence: specification.txt:1\nNext: Check runtime-acceptance.proof.'
+stopped='{"status":"STOPPED","steps":["Checked the current specification; runtime acceptance is unknown."],"stoppedBecause":"runtime-acceptance.proof is absent","filesChanged":[],"notes":[]}'
+complete='{"status":"COMPLETE","steps":["Claimed acceptance without proof"],"stoppedBecause":null,"filesChanged":[],"notes":[]}'
+message() { jq -cn --arg text "$1" '{type:"item.completed",item:{type:"agent_message",text:$text}}'; }
+case "$SMOKE_CASE" in
+  valid-missing-usage|valid-observed-zero|valid-positive-usage|valid-bullets|valid-formatted-file-only|missing-field|final-report-only|post-terminal-checkpoint|post-final-message-checkpoint|contradictory-report) ;;
+  *) exit 64 ;;
+esac
+if [ "$SMOKE_CASE" = missing-field ]; then
+  message "$missing_field"
+elif [ "$SMOKE_CASE" = valid-bullets ]; then
+  message "$bullet_checkpoint"
+elif [ "$SMOKE_CASE" = valid-formatted-file-only ]; then
+  message "$formatted_checkpoint"
+elif [ "$SMOKE_CASE" = valid-positive-usage ]; then
+  message "$complete"
+  message "$checkpoint"
+elif [ "$SMOKE_CASE" != final-report-only ] && [ "$SMOKE_CASE" != post-terminal-checkpoint ] && [ "$SMOKE_CASE" != post-final-message-checkpoint ]; then
+  message "$checkpoint"
+fi
+if [ "$SMOKE_CASE" = post-final-message-checkpoint ] || [ "$SMOKE_CASE" = final-report-only ]; then
+  message "$stopped"
+fi
+if [ "$SMOKE_CASE" = post-final-message-checkpoint ]; then message "$checkpoint"; fi
+if [ "$SMOKE_CASE" = valid-missing-usage ]; then
+  printf '%s\n' '{"type":"turn.completed"}'
+elif [ "$SMOKE_CASE" = valid-positive-usage ]; then
+  printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":20,"cached_input_tokens":5,"output_tokens":3}}'
+else
+  printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":0,"cached_input_tokens":0,"output_tokens":0}}'
+fi
+if [ "$SMOKE_CASE" = post-terminal-checkpoint ]; then message "$checkpoint"; fi
+if [ "$SMOKE_CASE" = contradictory-report ]; then
+  printf '%s\n' "$complete" >"$final"
+else
+  printf '%s\n' "$stopped" >"$final"
+fi
+FAKE_CODEX
+  chmod 700 "$root/bin/codex"
 }
-turn_completed() {
-  if [ "$1" = observed-zero ]; then
-    printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":0,"cached_input_tokens":0,"output_tokens":0}}' >>"$events"
+
+run_attempt() {
+  local case_root="$1" name="$2" fixture="$1/fixture"
+  local smoke_case="$name"
+  setup_fixture "$case_root"
+  if [ "$mode" = --self-test ]; then
+    case "$name" in unrelated-worktree|wrong-candidate|missing-events|source-mutation) smoke_case=valid-observed-zero ;; esac
+    (cd "$fixture" && XDG_STATE_HOME="$case_root/state" SMOKE_CASE="$smoke_case" \
+      PATH="$root/bin:$PATH" python3 -B "$executor" execute plan.md "$fixture") \
+      >"$case_root/result.json" 2>"$case_root/stderr.txt"
   else
-    printf '%s\n' '{"type":"turn.completed"}' >>"$events"
+    (cd "$fixture" && XDG_STATE_HOME="$case_root/state" \
+      python3 -B "$executor" execute plan.md "$fixture") \
+      >"$case_root/result.json" 2>"$case_root/stderr.txt"
   fi
 }
 
-report="$stopped"
-case "$SMOKE_CASE" in
-  valid-missing-usage)
-    agent_message "$json_looking"; agent_message "$checkpoint"
-    agent_message "$stopped"; turn_completed missing ;;
-  valid-observed-zero)
-    agent_message "$checkpoint"; agent_message "$stopped"
-    turn_completed observed-zero ;;
-  valid-bullets)
-    agent_message "$bullet_checkpoint"; agent_message "$stopped"
-    turn_completed observed-zero ;;
-  valid-formatted-file-only)
-    agent_message "$formatted_checkpoint"; agent_message "$stopped"
-    turn_completed observed-zero ;;
-  post-terminal-checkpoint)
-    agent_message "$stopped"; turn_completed observed-zero
-    agent_message "$checkpoint" ;;
-  final-report-only)
-    agent_message "$stopped"; turn_completed observed-zero ;;
-  missing-messages) turn_completed observed-zero ;;
-  wrong-final-status)
-    report="$complete"; agent_message "$checkpoint"
-    agent_message "$complete"; turn_completed observed-zero ;;
-  fired-fuse|source-mutation)
-    agent_message "$checkpoint"; agent_message "$stopped"
-    turn_completed observed-zero ;;
-  missing-field|unrelated-worktree)
-    if [ "$SMOKE_CASE" = missing-field ]; then
-      agent_message "$missing_field_checkpoint"
-    else
-      agent_message "$checkpoint"
-    fi
-    agent_message "$stopped"; turn_completed observed-zero ;;
-  *) exit 64 ;;
-esac
-printf '%s\n' "$report" >"$final"
-printf '%s\n' "$report" >"$rendered"
-
-usage_observed=true
-[ "$SMOKE_CASE" != valid-missing-usage ] || usage_observed=false
-absolute_timeout=false
-[ "$SMOKE_CASE" != fired-fuse ] || absolute_timeout=true
-jq -cn --arg execution_id "self-test-$SMOKE_CASE" \
-  --argjson usage_observed "$usage_observed" \
-  --argjson absolute_timeout "$absolute_timeout" \
-  '{execution_id:$execution_id,usage_observed:$usage_observed,
-    token_usage:{input_tokens:0,cached_input_tokens:0,output_tokens:0},
-    active_timeout_seconds:120,active_token_limit:12000,
-    fuse_flags:{absolute_timeout:$absolute_timeout,event_log_limit:false,
-      wrapper_signal:false,rollout_budget_exhausted:false}}' >"$metrics"
-[ "$SMOKE_CASE" != source-mutation ] || \
-  printf '%s\n' 'transiently changed' >>"$SMOKE_RETURNED_WORKTREE/specification.txt"
-
-result=STOPPED
-[ "$SMOKE_CASE" != wrong-final-status ] || result=COMPLETE
-printf 'IMPROVE_MODE=initial\nIMPROVE_WORKTREE=%s\nIMPROVE_BRANCH=main\n' "$reported_worktree"
-printf 'IMPROVE_BASE=fixture-base\nIMPROVE_PROFILE=improve-executor\n'
-printf 'IMPROVE_MODEL=gpt-5.6-sol\nIMPROVE_REASONING_EFFORT=medium\n'
-printf 'IMPROVE_CONTRACT=1.0.0-codex.16\nIMPROVE_EXECUTION_ID=self-test-%s\n' "$SMOKE_CASE"
-printf 'IMPROVE_EXEC_RESULT=%s\nIMPROVE_EXEC_EXIT_REASON=completed\n' "$result"
-printf 'IMPROVE_EXEC_ACTIVE_TIMEOUT_SECONDS=120\nIMPROVE_EXEC_ACTIVE_TOKEN_LIMIT=12000\n'
-printf 'IMPROVE_EXEC_ARTIFACT_DIR=%s\nIMPROVE_EXEC_EVENT_LOG=%s\n' "$SMOKE_ARTIFACT" "$events"
-printf 'IMPROVE_EXEC_FINAL_OUTPUT=%s\nIMPROVE_EXEC_METRICS=%s\n' "$rendered" "$metrics"
-printf 'IMPROVE_CANDIDATE_AVAILABLE=1\nIMPROVE_CANDIDATE_HEAD=fixture-head\n'
-printf 'IMPROVE_CANDIDATE_TREE=fixture-tree\n'
-FAKE_EXECUTOR
-  chmod 700 "$fake_executor"
-}
-
-field() {
-  local output="$1" name="$2"
-  sed -n "s/^$name=//p" "$output" | tail -n 1
+tamper_attempt() {
+  local case_root="$1" name="$2" result="$1/result.json"
+  case "$name" in
+    unrelated-worktree)
+      jq --arg path "$case_root/fixture" '.worktree = $path' "$result" >"$result.tmp"
+      mv "$result.tmp" "$result" ;;
+    wrong-candidate)
+      jq '.candidate_tree = "0000000000000000000000000000000000000000"' "$result" >"$result.tmp"
+      mv "$result.tmp" "$result" ;;
+    missing-events) rm "$(jq -r '.artifacts.events' "$result")" ;;
+    source-mutation)
+      printf 'unreviewed mutation\n' >>"$(jq -r '.worktree' "$result")/specification.txt" ;;
+  esac
 }
 
 derive_prefinal() {
@@ -225,179 +146,82 @@ derive_prefinal() {
 }
 
 validate_attempt() {
-  local case_root="$1" output="$1/result.txt" fixture="$1/fixture"
-  local artifact execution_id events final rendered metrics metric worktree
-  local fixture_common fixture_root worktree_common worktree_root
-  local prefinal="$1/pre-final-events.jsonl" messages="$1/research-messages.json"
-  worktree="$(field "$output" IMPROVE_WORKTREE)"
-  [ -n "$worktree" ] && [ -d "$worktree" ] || return 1
-  worktree_root="$(git -C "$worktree" rev-parse --show-toplevel)" || return 1
-  worktree_root="$(cd -- "$worktree_root" && pwd -P)" || return 1
-  [ "$worktree_root" = "$(cd -- "$worktree" && pwd -P)" ] || return 1
-  fixture_root="$(git -C "$fixture" rev-parse --show-toplevel)" || return 1
-  fixture_root="$(cd -- "$fixture_root" && pwd -P)" || return 1
-  [ "$worktree_root" != "$fixture_root" ] || return 1
-  fixture_common="$(git -C "$fixture" rev-parse --path-format=absolute \
-    --git-common-dir)" || return 1
-  worktree_common="$(git -C "$worktree" rev-parse --path-format=absolute \
-    --git-common-dir)" || return 1
-  [ "$(cd -- "$fixture_common" && pwd -P)" = \
-    "$(cd -- "$worktree_common" && pwd -P)" ] || return 1
-  git -C "$fixture" worktree list --porcelain \
-    | grep -Fx "worktree $worktree_root" >/dev/null || return 1
-  [ "$(field "$output" IMPROVE_PROFILE)" = improve-executor ] || return 1
-  [ "$(field "$output" IMPROVE_MODEL)" = gpt-5.6-sol ] || return 1
-  [ "$(field "$output" IMPROVE_REASONING_EFFORT)" = medium ] || return 1
-  [ "$(field "$output" IMPROVE_EXEC_ACTIVE_TIMEOUT_SECONDS)" = 120 ] || return 1
-  [ "$(field "$output" IMPROVE_EXEC_ACTIVE_TOKEN_LIMIT)" = 12000 ] || return 1
-  [ "$(field "$output" IMPROVE_EXEC_RESULT)" = STOPPED ] || return 1
-  [ "$(field "$output" IMPROVE_EXEC_EXIT_REASON)" = completed ] || return 1
+  local case_root="$1" result="$1/result.json" fixture="$1/fixture"
+  local worktree artifact events final metrics fixture_common worktree_common
+  local prefinal="$1/pre-final-events.jsonl"
+  worktree="$(jq -er '.worktree' "$result")" || return 1
+  [ -d "$worktree" ] || return 1
+  [ "$(git -C "$worktree" rev-parse --show-toplevel)" = "$worktree" ] || return 1
+  [ "$worktree" != "$fixture" ] || return 1
+  fixture_common="$(git -C "$fixture" rev-parse --path-format=absolute --git-common-dir)" || return 1
+  worktree_common="$(git -C "$worktree" rev-parse --path-format=absolute --git-common-dir)" || return 1
+  [ "$fixture_common" = "$worktree_common" ] || return 1
+  git -C "$fixture" worktree list --porcelain | grep -Fx "worktree $worktree" >/dev/null || return 1
+  jq -e '.kind == "execute" and .role == "standard" and .phase == "finished"
+    and .outcome == "STOPPED" and .reason == "completed"
+    and .candidate_tree == .output_candidate_tree
+    and .report.status == "STOPPED"
+    and (.report.stoppedBecause | contains("runtime-acceptance.proof is absent"))' "$result" >/dev/null || return 1
+  XDG_STATE_HOME="$case_root/state" python3 -B "$executor" status "$(jq -r '.id' "$result")" \
+    | jq -e --slurpfile result "$result" '. == ($result[0] | with_entries(select(.key | IN("id","kind","role","phase","outcome","reason","worktree","candidate_tree","output_candidate_tree","report","artifacts","closeout_eligible","parent"))))' >/dev/null || return 1
 
-  artifact="$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
-  execution_id="$(field "$output" IMPROVE_EXECUTION_ID)"
-  events="$(field "$output" IMPROVE_EXEC_EVENT_LOG)"
-  final="$artifact/final.json"
-  rendered="$(field "$output" IMPROVE_EXEC_FINAL_OUTPUT)"
-  metrics="$(field "$output" IMPROVE_EXEC_METRICS)"
-  [ "$events" = "$artifact/events.jsonl" ] || return 1
-  [ "$rendered" = "$artifact/final.txt" ] || return 1
-  [ -s "$events" ] && [ -s "$final" ] && [ -s "$rendered" ] && \
-    [ -s "$metrics" ] || return 1
-  jq -e -s 'length > 0 and all(.[]; type == "object")' "$events" >/dev/null || return 1
-  jq -e '.status == "STOPPED"' "$final" >/dev/null || return 1
-  metric="$(jq -ce -s --arg id "$execution_id" \
-    '[.[] | select(.execution_id == $id)] | last // empty' "$metrics")" || return 1
-  jq -e '.active_timeout_seconds == 120 and .active_token_limit == 12000
-    and (.fuse_flags | .absolute_timeout == false
-      and .event_log_limit == false and .wrapper_signal == false
-      and .rollout_budget_exhausted == false)' <<<"$metric" >/dev/null || return 1
-
+  artifact="$case_root/state/codex-improve-v17/executions/$(jq -r '.id' "$result")"
+  events="$(jq -er '.artifacts.events' "$result")" || return 1
+  final="$(jq -er '.artifacts.final' "$result")" || return 1
+  metrics="$artifact/metrics.json"
+  [ "$events" = "$artifact/events.jsonl" ] && [ "$final" = "$artifact/final.json" ] || return 1
+  [ -s "$events" ] && [ -s "$final" ] && [ -s "$metrics" ] || return 1
+  jq -e --slurpfile result "$result" '. == $result[0].report' "$final" >/dev/null || return 1
   derive_prefinal "$events" "$final" "$prefinal" || return 1
-  jq -s '[.[] | select(.type? == "item.completed"
-      and .item.type? == "agent_message") | .item.text
-      | select(type == "string")
-      | select((gsub("[*`]"; "")
-        | test("(?i)^[[:space:]]*research checkpoint[[:space:]]*:")))]' \
-    "$prefinal" >"$messages" || return 1
-  jq -e 'def structural:
+  jq -es 'def structural:
       gsub("(?m)^[[:space:]]*[-+*][[:space:]]+"; "")
       | gsub("[*`]"; "");
-    any(.[] | structural;
-      test("(?im)^[[:space:]]*question[[:space:]]*:[[:space:]]*\\S")
+    any(.[] | select(.type? == "item.completed" and .item.type? == "agent_message")
+      | .item.text | select(type == "string") | structural;
+      test("(?i)^[[:space:]]*research checkpoint[[:space:]]*:")
+      and test("(?im)^[[:space:]]*question[[:space:]]*:[[:space:]]*\\S")
       and test("(?im)^[[:space:]]*finding[[:space:]]*:[[:space:]]*\\S")
       and test("(?im)^[[:space:]]*evidence[[:space:]]*:[^\\n]*specification\\.txt(:[0-9]+)?([^[:alnum:]_.-]|$)")
       and test("(?im)^[[:space:]]*next[[:space:]]*:[^\\n]*runtime-acceptance\\.proof"))' \
-    "$messages" >/dev/null || return 1
+    "$prefinal" >/dev/null || return 1
   [ -z "$(git -C "$worktree" status --porcelain)" ] || return 1
   [ -z "$(git -C "$fixture" status --porcelain)" ] || return 1
-  if jq -e '.usage_observed == true' <<<"$metric" >/dev/null; then
-    printf '%s\n' 'USAGE_STATE=observed'
+  if jq -e '.usage_observed == true and (.token_usage | type == "object"
+    and ([.input_tokens, .cached_input_tokens, .output_tokens] | all(.[]; type == "number" and . >= 0)))' "$metrics" >/dev/null; then
+    if jq -e '.token_usage == {"input_tokens":0,"cached_input_tokens":0,"output_tokens":0}' "$metrics" >/dev/null; then
+      printf 'USAGE_STATE=observed-zero\n'
+    else
+      printf 'USAGE_STATE=observed\n'
+    fi
+  elif jq -e '.usage_observed == false and .token_usage == null' "$metrics" >/dev/null; then
+    printf 'USAGE_STATE=unknown\n'
   else
-    printf '%s\n' 'USAGE_STATE=unknown'
+    return 1
   fi
-}
-
-run_attempt() {
-  local name="$1" case_root="$2" selected_executor="$3" runner_expectation="$4"
-  local fixture="$2/fixture" invocation_count="$2/invocations"
-  local artifact="$2/fake-artifact" roles_json runner_status
-  setup_fixture "$case_root"
-  : >"$invocation_count"
-  roles_json="$(<"$roles_file")"
-  if [ "$name" = altered-standard-limit ]; then
-    roles_json="$(jq -c '.standard.tokenLimit = 11999' "$roles_file")"
-  fi
-  set +e
-  (cd "$fixture" && XDG_STATE_HOME="$case_root/state" \
-    CODEX_IMPROVE_ROLES_JSON="$roles_json" \
-    SMOKE_ARTIFACT="$artifact" SMOKE_CASE="$name" \
-    SMOKE_EXPECTED_ENVIRONMENT="$environment_json" \
-    SMOKE_EXPECTED_WORKTREE="$fixture" SMOKE_PRODUCTION_ROLES="$roles_source" \
-    SMOKE_RETURNED_WORKTREE="$case_root/returned-worktree" \
-    SMOKE_UNRELATED_WORKTREE="$case_root/unrelated-worktree" \
-    SMOKE_INVOCATIONS="$invocation_count" \
-    bash "$selected_executor" --environment-json "$environment_json" plan.md) \
-    >"$case_root/result.txt" 2>"$case_root/stderr.txt"
-  runner_status=$?
-  set -e
-  [ "$(wc -c <"$invocation_count")" -eq 1 ] || return 1
-  if [ "$runner_expectation" = reject ]; then
-    [ "$runner_status" -ne 0 ] || return 1
-    return 0
-  fi
-  [ "$runner_status" -eq 0 ] || return 1
 }
 
 if [ "$mode" = --self-test ]; then
-  fake_executor="$retained_root/fake-executor"
-  write_fake_executor "$fake_executor"
-  : >"$summary"
-  while read -r name runner_expectation expectation usage_state; do
-    case_root="$retained_root/$name"
-    last_case_root="$case_root"
-    run_attempt "$name" "$case_root" "$fake_executor" "$runner_expectation" || {
-      echo "fake attempt failed before validation: $name" >&2; exit 1;
-    }
-    if [ "$runner_expectation" = reject ]; then
-      printf '%s=fake-input-reject usage=n/a\n' "$name" | tee -a "$summary"
-      continue
+  write_fake_codex
+  for name in valid-missing-usage valid-observed-zero valid-positive-usage valid-bullets valid-formatted-file-only missing-field final-report-only post-terminal-checkpoint post-final-message-checkpoint contradictory-report unrelated-worktree wrong-candidate missing-events source-mutation; do
+    case_root="$root/$name"
+    run_attempt "$case_root" "$name"
+    tamper_attempt "$case_root" "$name"
+    if validate_attempt "$case_root" >"$case_root/validation.txt"; then actual=accept; else actual=reject; fi
+    case "$name" in valid-*) expected=accept ;; *) expected=reject ;; esac
+    [ "$actual" = "$expected" ] || { echo "unexpected validation result: $name=$actual" >&2; exit 1; }
+    if [ "$actual" = accept ]; then
+      case "$name" in
+        valid-missing-usage) expected_usage=unknown ;;
+        valid-positive-usage) expected_usage=observed ;;
+        *) expected_usage=observed-zero ;;
+      esac
+      grep -Fx "USAGE_STATE=$expected_usage" "$case_root/validation.txt" >/dev/null
     fi
-    if validate_attempt "$case_root" >"$case_root/validation.txt" 2>&1; then
-      actual=accept
-    else
-      actual=reject
-    fi
-    [ "$actual" = "$expectation" ] || {
-      echo "unexpected validation result for $name: $actual" >&2; exit 1;
-    }
-    if [ "$expectation" = accept ]; then
-      grep -Fx "USAGE_STATE=$usage_state" "$case_root/validation.txt" >/dev/null || {
-        echo "unexpected usage state for $name" >&2; exit 1;
-      }
-    fi
-    printf '%s=%s usage=%s\n' "$name" "$actual" "$usage_state" | tee -a "$summary"
-  done <<'SELF_TEST_CASES'
-valid-missing-usage accept accept unknown
-valid-observed-zero accept accept observed
-valid-bullets accept accept observed
-valid-formatted-file-only accept accept observed
-post-terminal-checkpoint accept reject n/a
-final-report-only accept reject n/a
-missing-messages accept reject n/a
-missing-field accept reject n/a
-wrong-final-status accept reject n/a
-fired-fuse accept reject n/a
-source-mutation accept reject n/a
-unrelated-worktree accept reject n/a
-altered-standard-limit reject n/a n/a
-SELF_TEST_CASES
+    printf '%s=%s\n' "$name" "$actual"
+  done
   exit 0
 fi
 
-codex_version_file="$retained_root/codex-version.txt"
-codex --version >"$codex_version_file"
-[ "$(<"$codex_version_file")" = 'codex-cli 0.153.4' ] || {
-  echo "live smoke requires codex-cli 0.153.4" >&2; exit 1;
-}
-case_root="$retained_root/live"
-last_case_root="$case_root"
-mkdir -p "$case_root"
-setup_fixture "$case_root"
-output="$case_root/result.txt"
-errors="$case_root/stderr.txt"
-set +e
-(cd "$case_root/fixture" && XDG_STATE_HOME="$case_root/state" \
-  CODEX_IMPROVE_ROLES_JSON="$(<"$roles_file")" \
-  "$executor" --environment-json "$environment_json" plan.md) >"$output" 2>"$errors"
-runner_status=$?
-set -e
-[ "$runner_status" -eq 0 ] || {
-  echo "live smoke runner exited $runner_status" >&2; exit 1;
-}
+case_root="$root/live"
+run_attempt "$case_root" live
 validate_attempt "$case_root" | tee "$case_root/validation.txt"
-{
-  printf 'live=accept\nexecution_id=%s\n' "$(field "$output" IMPROVE_EXECUTION_ID)"
-  printf 'model=%s\neffort=%s\n' "$(field "$output" IMPROVE_MODEL)" \
-    "$(field "$output" IMPROVE_REASONING_EFFORT)"
-  printf 'artifact_dir=%s\n' "$(field "$output" IMPROVE_EXEC_ARTIFACT_DIR)"
-} | tee "$summary"

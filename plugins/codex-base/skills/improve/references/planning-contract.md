@@ -1,12 +1,10 @@
 # Improve Planning Contract
 
-Contract version: `1.0.0-codex.16`
+Contract version: `1.0.0-codex.17`
 
-Version `.16` inherits the `.15` environment, cache, protected-path, plan
-snapshot, candidate, status, checkpoint, recovery and closeout contracts below.
-Descriptions of those `.15` facilities also apply to `.16`. The only routing
-change is Spark-priority, defined under Executor routing. Existing `.15` and
-older supported artifacts keep their behavior and are not migrated.
+Version `.17` uses the public `codex-improve` coordinator. It accepts only `.17`
+plans and reads the execution environment from the plan itself. Older private
+execution state is retained separately and is not migrated.
 
 ## Planning session prerequisites
 
@@ -19,100 +17,51 @@ created or replaced.
 
 ## Execution environment contract
 
-Every new plan, revision dossier, and recovery dossier contains exactly one
-fenced `json codex-improve-environment` block. The caller passes the same JSON
-as the first CLI option through `--environment-json`. The runner compares the
-normalized values and rejects a missing or unequal declaration before worktree
-creation or model invocation.
-The canonical declaration is `` - **Improve contract**: `1.0.0-codex.14` `` (or
-its `.15`/`.16` successors). Any line that matches an `Improve contract` field
-shape but is not in this exact canonical shape is rejected as a malformed
-declaration before preflight. Parser checks are line-based, so mid-line prose is
-not treated as a declaration.
+Every new plan, revision dossier, and recovery dossier declares exactly one
+`- **Improve contract**: `1.0.0-codex.17`` line and contains exactly one fenced
+`json codex-improve-environment` block. The coordinator reads the block from
+the plan. There is no `--environment-json` option and no duplicate payload.
+A malformed or different contract fails before execution.
 
 ```json codex-improve-environment
 {
   "version": 1,
-  "launcher": [],
-  "probes": [],
-  "probeOmissionReason": "This plan needs only the repository's default environment."
+  "launcher": ["nix", "develop", "--command"],
+  "probes": [
+    {"argv": ["python3", "--version"], "timeoutSeconds": 10}
+  ]
 }
 ```
 
-Keys are exactly `version`, `launcher`, and `probes`, plus
-`probeOmissionReason` only when probes are empty and the optional exact object
-`"cache":{"xdgScope":"execution"}` or
-`"cache":{"xdgScope":"worktree"}`. Version is integer 1.
-Launcher contains 0–16 nonempty control-character-free strings. There are 0–16
-probes; each has exactly `argv` (1–32 such strings) and an integer timeout from
-1 through 900. Empty probes require a nonempty omission reason, forbidden
-otherwise. The CLI JSON and fenced payload are each at most 16 KiB.
+The exact keys are `version`, `launcher`, `probes`, and optional
+`"cache":{"xdgScope":"execution"}` or `"cache":{"xdgScope":"worktree"}`.
+Version is integer 1. `launcher` is a required argv prefix with 1–32
+nonblank, control-character-free strings; use `["env"]` when no project
+launcher is needed. `probes` holds 0–32 objects, each with exact `argv` and
+`timeoutSeconds` keys. Probe argv holds 1–32 such strings; timeout is an
+integer from 1 through 3600. The JSON block is limited to 16 KiB. A shell
+string, `probeOmissionReason`, and credentials are invalid. The launcher and
+probes come from reviewed repository evidence; Improve does not infer or
+bundle the project's toolchain.
 
-Omitting `cache` is exactly execution scope: `.15` uses a fresh private XDG
-cache for each invocation. Select worktree scope only with reviewed evidence
-that expensive cache state must survive revision, recovery, or preflight
-resume in the same registered Improve worktree. It derives an opaque identity
-from the physical repository-common directory and worktree path, so it cannot
-cross repositories, worktrees, initial attempts, or dependent `--next`
-worktrees. The longer-lived cache may affect gate runtime, so plans remain
-responsible for clean-state checks; cache contents and hits are never candidate,
-checkpoint, gate, or acceptance evidence. Neither scope copies ambient cache,
-credentials, or configuration.
+Omitting `cache` selects a fresh private XDG cache for each execution. Select
+worktree scope only when reviewed evidence shows expensive state must survive
+a same-worktree follow-up. A cache is never candidate, checkpoint, gate, or
+acceptance evidence. The coordinator does not copy ambient credentials or
+configuration into it.
 
-The launcher is an argv prefix, never shell source; an empty launcher inherits
-the runner environment. Probes are literal argv arrays, not shell strings. Do
-not include secret values, environment-variable contents, or credentials.
-Choose probes only from repository evidence. Improve never assumes, infers, or
-bundles Cargo, Rust, Node, Python, Nix, or another project toolchain.
+The coordinator binds the exact plan bytes, role settings, launcher, probes,
+protected grants, candidate HEAD/tree, and worktree lineage to private state.
+A failed preflight may be resumed once with `codex-improve resume EXECUTION_ID`
+only after correcting the external environment while preserving candidate and
+settings. The main agent owns this operation; the executor does not invoke it.
 
-The runner checks the candidate, creates a private wrapper, and invokes the
-launcher once. Inside that invocation the wrapper runs the probes sequentially
-with their own timeouts, checks the candidate again, and then starts Codex with
-the full lane timeout. The outer failsafe includes probe time, model time, and
-its hard-kill grace; probe time does not reduce the model timeout.
-
-Before any contracted execution launches preflight, the runner verifies
-current-user ownership and establishes mode 0700 on the per-user Improve root,
-worktree root, and specific worktree. Initial and `--next` create the worktree
-beneath that configured XDG root. Revision and recovery reject a worktree
-outside it before invoking the launcher. This safely upgrades state created by
-the legacy runner before its private umask took effect.
-
-Artifacts declaring `.15` or `.16` require this contract and fail closed. `.13` and
-`.14` artifacts remain executable and resumable with their existing behavior.
-Only `.14`, `.15` and `.16` may use repeatable `--allow-protected-path .agents` and
-`--allow-protected-path .codex` options, placed after `--environment-json` and
-before the lane or operation. The caller must obtain user approval and restate
-the exact set for every initial, next, revision, or recovery invocation; the
-runner never infers it from prose. No option preserves the default metadata
-denial, `.agents` and `.codex` are the complete enum, and `.git` is always
-forbidden. Every granted root must be absent or an existing physical directory;
-a root symlink (including a dangling one) or non-directory node fails closed
-before preflight or Codex. Environment-backed execution checks this once before
-the launcher and probes, then again after probes and candidate verification
-immediately before Codex. Failure at that second boundary is a nonresumable
-mutated-preflight stop. Resume accepts no override, uses its authenticated
-manifest, and applies both checks.
-Artifacts declaring `.12` are unsupported and must be re-reviewed and restamped before
-execution. Artifacts declaring `.11`, or carrying no Improve contract
-declaration, keep their legacy-unchecked behavior unless they opt in with a
-matching environment block and CLI value. A genuinely missing declaration remains
-legacy-compatible; malformed `Improve contract` field lines are rejected without
-migrating to legacy behavior. Any other declared contract version is
-unsupported. Legacy artifacts are not migrated.
-
-For a `.15` initial or `--next` invocation, the runner copies the exact plan
-bytes once to private execution state as `plan.md`, protects the copy with mode
-0600, hashes that copy with SHA-256, and builds the executor prompt from the
-copy. Stable output returns `IMPROVE_PLAN_SHA256`; the private path remains
-beneath `IMPROVE_EXEC_ARTIFACT_DIR` and never enters the candidate worktree.
-The runner, not an executor or advisor, calculates this plan identity. `.13`
-and `.14` retain their existing output fields and snapshot behavior.
-
-This reference governs `plan`, `review-plan`, and `reconcile`. A plan is the
-durable handoff to an executor with no conversation context. It preserves the
-operational meaning needed to implement, review, roll back, and accept one
-change; it is not a transcript or a snapshot of every source consulted.
+When an approved plan needs Codex-owned repository metadata, the caller must
+explicitly restate each grant with `--grant .agents` and/or `--grant .codex` on
+execute, next, revise, or recover. No grant preserves default denial. `.git`
+remains read-only. A granted root must be absent or a physical directory;
+symlinks and non-directory nodes fail closed. Grants do not expand the plan's
+modification scope or provide general permission to change metadata.
 
 ## Persist early
 
@@ -253,7 +202,7 @@ During planning, consider whether independently landable parts would use
 different executor lanes. Split only when every resulting plan has standalone
 value, exact verification, a valid checkpoint, and an explicit dependency
 contract. Keep one plan when its pieces must land, roll back, or be accepted
-atomically. Never create a synthetic split merely to increase Spark usage.
+atomically. Never create a synthetic split merely to select a cheaper lane.
 
 During recon, discover and inline the applicable Engineering contract: build,
 test, lint, type, CI, policy, classifier, compatibility, release, deployment,
@@ -283,8 +232,8 @@ explicit user confirmation.
 
 One plan is one integration, rollback, acceptance, and explicitly invoked
 execution unit. Do not put an execution-unit graph or a list of independently
-dispatched units inside one plan. Dependencies remain plan-level, and `--next`
-remains the explicit sequential continuation mechanism.
+dispatched units inside one plan. Dependencies remain plan-level, and
+`codex-improve next` is the explicit sequential continuation mechanism.
 
 Every generated plan has an `Execution isolation` section:
 
@@ -328,7 +277,7 @@ evidence of parallel safety. Repo-local MCP servers remain available project
 capabilities; isolation plans coordinate their logical target rather than
 removing or globally rewriting them.
 
-Every initial, `--next`, revision, and recovery runner invocation creates and
+Every initial, `next`, revision, and recovery coordinator invocation creates and
 exports a fresh opaque `IMPROVE_EXECUTION_ID` to the executor and its child
 processes. The ID is an isolation input, not an automatic database, namespace,
 bucket, schema, tenant, lifecycle, or cleanup policy. Resource names remain out
@@ -338,79 +287,40 @@ A fresh revision or recovery ID normally selects a fresh ephemeral resource.
 When a follow-up must reuse persistent state, its dossier or the plan's
 Operational handoff must name the existing logical resource and lifecycle owner
 explicitly instead of deriving a different resource from the fresh ID.
-Likewise, `--next` inherits source lineage only from its checkpoint; mutable
+Likewise, `next` inherits source lineage only from its checkpoint; mutable
 state lineage exists only through an explicit handoff in the later plan.
 
 ## Executor routing
 
-For `.16`, the existing `--spark` flag requests Spark-priority for an eligible
-bounded task. Before every initial, next, revision, recovery or resumed-preflight
-invocation, the runner queries native Codex account/model/rate-limit metadata.
-It selects Spark with high reasoning when Spark is picker-visible, supports
-high reasoning and has usable quota; otherwise it selects Luna with low
-reasoning (Luna-low). The entire metadata query is bounded to 30 seconds.
-The next independent call reevaluates availability; an active Luna call is
-never interrupted to switch back to Spark.
+Every plan records `Executor lane: economy | standard | deep` and the concrete
+routing evidence. One call starts one role; a started call is not replayed with
+a different model. `--lane` on execute or next selects the approved lane.
+Recovery and revision retain the authenticated role. Scout and review have
+separate read-only roles. No Spark probe, quota lookup, fallback routing, or
+automatic promotion to Astra, max, or ultra occurs.
 
-One call launches one executor. A started model's native failure ends that call
-without replay or another model. Metadata transport, authentication and protocol
-errors stop before execution; they are not evidence of exhaustion. The runner
-does not query Luna quota, change providers or accounts, infer entitlement from
-subscription names, or promise unlimited usage. Standard, deep, scout and review
-roles are unchanged. Under `.15` and older supported contracts, `--spark`
-still selects fixed Spark and makes no metadata query.
+| Role | Model / effort | Token budget | Initial / follow-up seconds | Reminders |
+| --- | --- | ---: | ---: | --- |
+| economy | `gpt-6-luna` / low | 100000 | 1200 / 720 | 50000, 25000, 10000 |
+| standard | `gpt-6-sol` / medium | 120000 | 1200 / 720 | 60000, 30000, 10000 |
+| deep | `gpt-6-sol` / xhigh | 160000 | 1800 / 1080 | 80000, 40000, 15000 |
+| scout | `gpt-6-luna` / high | none | 480 / none | none |
+| correctness, elegance | `gpt-6-sol` / high | 100000 | 480 / none | 50000, 25000, 10000 |
 
-On preflight resume, validate the original immutable role/configuration,
-candidate, environment, scope and limits before making a fresh choice. Record
-the newly selected role in the new invocation's existing private state.
-Effective profile, model and reasoning effort appear in normal handoff output;
-profiles remain compatibility labels, not configuration lookup files.
+Scout verbosity is low; other roles use medium. Workers use approval `never`.
+Economy, standard, and deep use workspace-write with network access. Scout
+and reviewers use read-only with network disabled. The Home Manager main
+session defaults to Sol/medium and Plan Mode high; Astra remains an explicit
+choice for difficult planning. Role settings are snapshotted from `roles.json`;
+the coordinator does not use Codex profile files or lookup keys.
 
-Every generated plan records `Executor lane: spark | standard | deep` and
-`Executor routing evidence` in its status block. The advisor makes this
-auditable decision while planning; the main agent explicitly invokes the
-recorded lane without asking the user to approve each Spark dispatch. The
-runner never parses a plan to choose a model and never falls back between
-lanes.
-
-Every generated plan also records `Recovery seams`. Atomic plans record
-`none`. A standard or deep plan spanning multiple subsystems records one to
-three dependency-ordered seams, each with the applicable paths and gates and a
-candidate `spark`, `standard`, or `deep` lane. These are recovery decomposition
-hints, not pre-dispatch, a reserved executor call, or guaranteed Spark
-selection. After a qualifying inconclusive initial execution, the main agent
-reconciles the actual remainder and reclassifies each bounded slice
-independently under the current routing rules.
-
-Select lanes in this deterministic order:
-
-1. Use `spark` when product, architecture, compatibility, and implementation
-   decisions are settled; the execution unit has exact modification paths and
-   deterministic gates; no broad reconnaissance, unresolved diagnosis, or
-   visual input is needed; the complete unit fits Spark's 128k text-only
-   context; and none of the hard disqualifiers below applies. The plan must
-   explicitly require every verification command.
-2. Use `standard` when at least one named Spark requirement is false. Its
-   routing evidence must name the concrete Spark disqualifier.
-3. Use `deep` only when the bounded work also needs materially greater technical
-   reasoning than Standard. Its routing evidence must name both the concrete
-   Spark disqualifier and the reason for Deep.
-
-Hard Spark disqualifiers are security or authentication decisions, complex
-concurrency, state migration, unresolved diagnosis, broad refactors,
-visual-led UI acceptance, and new architecture or interface design. A file
-category alone is not a disqualifier: mechanical, already-decided edits may
-touch CI workflows, dependency declarations, lockfiles, configuration,
-generated companions, or public-contract files. Selecting a dependency,
-designing an interface, changing CI policy, or making another substantive
-Engineering-contract decision remains non-Spark work.
-
-Classify every initial plan, dependent `--next` plan, revision, and recovery by
-its actual bounded execution work. Split only at the independently
-checkpointable plan boundaries above, never automatically. Spark is never an
-advisor, scout, reviewer, automatic classifier, fallback, ratio target, or
-metric source. The runner never infers a lane from Markdown, paths, or file
-categories and never schedules or retries execution.
+Use economy when the approved implementation is bounded and decisions are
+settled. Use standard for broader work; use deep when cross-layer reasoning or
+large instruction contracts need its larger budget. Record why the chosen
+lane fits the exact task. Split only independently valuable, checkpointable
+units; never split solely to choose a cheaper model. A selected lane in a
+later revision may differ when its complete routing evidence supports the
+change. The coordinator does not automatically escalate or retry.
 
 ## Verification and acceptance
 
@@ -452,29 +362,20 @@ suite merely because a revision or recovery occurred.
 An Improve candidate is identified by its current `HEAD` and the full Git tree
 of the complete worktree state, including staged, unstaged, untracked, deleted,
 and executable-bit changes. Capture that identity with
-`codex-improve-exec --candidate WORKTREE`; the helper builds the tree with a
+`codex-improve candidate WORKTREE`; the helper builds the tree with a
 temporary index and native `git write-tree` without changing the worktree's real
 index. An unmerged index is not a candidate.
 
-Execution output records `IMPROVE_CANDIDATE_AVAILABLE=1` with the candidate head
-and tree when post-run collection succeeds. When collection fails, it preserves
-the already-established execution result and transport evidence, records
-`IMPROVE_CANDIDATE_AVAILABLE=0` plus a content-free
-`IMPROVE_CANDIDATE_ERROR`, omits the head and tree, and returns nonzero. Such an
-execution cannot proceed to review until its candidate is identifiable.
+Execution returns a structured JSON record with `output_head`,
+`output_candidate_tree`, outcome, reason, report, diagnostics, and
+`closeout_eligible`. An inconclusive outcome remains inconclusive even when
+bounded closeout is eligible. A missing candidate blocks review; inspect the
+preserved transport artifacts and resolve the cause within the approved scope.
 
-For `.15`, stable output also records
-`IMPROVE_EXEC_CLOSEOUT_ELIGIBLE=0` or `1`. Eligibility is `1` only for an
-`INCONCLUSIVE` execution with a valid JSONL event log, an available candidate,
-and an allowed bounded-transport reason. It is a fail-closed invitation for the
-main agent to reconcile the private plan snapshot, candidate, and gate ledger;
-it never changes or overrides the original `INCONCLUSIVE` result or its exit
-reason. Earlier contracts expose no closeout-eligibility field.
-
-Pass the full `IMPROVE_CANDIDATE_TREE` explicitly to every review, revision, and
+Pass the full candidate tree explicitly to every review, revision, and
 recovery invocation. Each helper recomputes the complete current tree and
 rejects an abbreviated, missing, or stale expected tree before starting a model.
-Record `IMPROVE_REVIEWED_CANDIDATE_TREE` with review evidence. Any candidate
+Record the reviewed candidate tree with review evidence. Any candidate
 change creates a new tree identity. Capture and review it rather than inferring
 continuity from a worktree path, branch, dossier, or conversation. Initial
 implementation review covers the complete candidate diff. A later review
@@ -503,7 +404,7 @@ reviewer conclusions.
 After all required implementation reviews approve the exact candidate, and
 after any approval required for a commit, the main agent may create one local
 checkpoint with
-`codex-improve-exec --checkpoint WORKTREE EXPECTED_TREE COMMIT_MESSAGE`. The
+`codex-improve checkpoint WORKTREE EXPECTED_TREE --message "type: summary"`. The
 expected tree must be the full reviewed candidate tree. The helper stages that
 complete tree and runs normal commit hooks against an internal local ref. It
 atomically advances the Improve branch only after verifying the resulting
@@ -569,13 +470,11 @@ dependency contract in the dependent plan; never require an executor to recover
 semantics from another plan or prior conversation.
 
 Start one dependent plan from a pre-integration checkpoint only through
-`codex-improve-exec --environment-json '<exact-json>' [--spark|--deep] --next
-CHECKPOINT PLAN`.
-`CHECKPOINT` must be the full commit ID at the current tip of a local
-`codex/improve-*` branch. The helper creates one isolated worktree from that
-exact commit and records it as the predecessor checkpoint. `--next` is an
-explicit one-plan action, not permission to schedule, lock, publish, integrate,
-or automatically chain plans.
+`codex-improve next EXECUTION_ID CHECKPOINT_OID PLAN --lane LANE`.
+`CHECKPOINT_OID` must be the full commit ID at the current tip of the
+registered predecessor branch with the reviewed tree. The coordinator creates
+one isolated worktree from that exact commit. `next` is an explicit one-plan
+action, not permission to publish, integrate, or chain plans automatically.
 
 ## Convergence protocol
 

@@ -3,6 +3,8 @@ let
   codexVersion = "0.156.1";
   codexHash = "sha256-r/RlOag6/4bjxixZK84sUNlTkfnfKJr68DpQwB0UUz0=";
   codexCodeModeHostHash = "sha256-qSnaqfagvdwAwMnmQC3xF7ElrNlvnVVPbJnDLH5mxgg=";
+  worktrunkVersion = "0.79.0";
+  worktrunkHash = "sha256-uMGQsdZSNw759rj0aUotaDG1si9LeJ8EdhKq0ydkxs8=";
   codexAsset = pkgs.fetchurl {
     url = "https://github.com/openai/codex/releases/download/rust-v${codexVersion}/codex-x86_64-unknown-linux-musl.tar.gz";
     hash = codexHash;
@@ -11,12 +13,36 @@ let
     url = "https://github.com/openai/codex/releases/download/rust-v${codexVersion}/codex-code-mode-host-x86_64-unknown-linux-musl.tar.gz";
     hash = codexCodeModeHostHash;
   };
-  runtimeInputs = [ pkgs.bash pkgs.coreutils pkgs.gitMinimal pkgs.gnused pkgs.jq ];
-  mkRunner = name: pkgs.writeShellApplication {
-    inherit name runtimeInputs;
-    text = ''exec bash ${skills}/improve/scripts/${name} "$@"'';
+  worktrunkAsset = pkgs.fetchurl {
+    url = "https://github.com/max-sixty/worktrunk/releases/download/v${worktrunkVersion}/worktrunk-x86_64-unknown-linux-musl.tar.xz";
+    hash = worktrunkHash;
+  };
+  worktrunk = pkgs.stdenvNoCC.mkDerivation {
+    pname = "worktrunk";
+    version = worktrunkVersion;
+    src = worktrunkAsset;
+    dontUnpack = true;
+    nativeBuildInputs = [ pkgs.gnutar pkgs.xz ];
+    installPhase = ''
+      mkdir -p "$out/bin" "$out/share/licenses/worktrunk"
+      tar -xJf "$src" --strip-components=1 -C "$out/bin" \
+        worktrunk-x86_64-unknown-linux-musl/wt \
+        worktrunk-x86_64-unknown-linux-musl/git-wt
+      tar -xOJf "$src" worktrunk-x86_64-unknown-linux-musl/LICENSE \
+        > "$out/share/licenses/worktrunk/LICENSE"
+      chmod 755 "$out/bin/wt" "$out/bin/git-wt"
+      chmod 644 "$out/share/licenses/worktrunk/LICENSE"
+    '';
+    doInstallCheck = true;
+    installCheckPhase = ''
+      "$out/bin/wt" --version | grep -F '${worktrunkVersion}'
+      test -x "$out/bin/git-wt"
+      test -s "$out/share/licenses/worktrunk/LICENSE"
+    '';
+    meta = { mainProgram = "wt"; platforms = [ "x86_64-linux" ]; license = [ pkgs.lib.licenses.mit pkgs.lib.licenses.asl20 ]; };
   };
 in rec {
+  inherit worktrunk;
   codex = pkgs.stdenvNoCC.mkDerivation {
     pname = "codex";
     version = codexVersion;
@@ -47,9 +73,11 @@ in rec {
     export npm_config_cache="''${XDG_CACHE_HOME:-$HOME/.cache}/npm"
     exec ${pkgs.nodejs_24}/bin/npx -y @playwright/cli@0.1.19 "$@"
   '';
-  codex-improve-exec = mkRunner "codex-improve-exec";
-  codex-improve-review = mkRunner "codex-improve-review";
-  codex-improve-scout = mkRunner "codex-improve-scout";
+  codex-improve = pkgs.writeShellApplication {
+    name = "codex-improve";
+    runtimeInputs = [ pkgs.python3 pkgs.gitMinimal codex worktrunk ];
+    text = ''exec python3 -B ${skills}/improve/scripts/codex-improve "$@"'';
+  };
   codex-doctor = pkgs.writeShellApplication {
     name = "codex-doctor";
     runtimeInputs = [ codex ];

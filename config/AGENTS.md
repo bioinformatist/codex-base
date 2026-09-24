@@ -12,6 +12,8 @@ override them.
 - Match implementation to the established cause. Code defects may warrant a
   red-before, green-after test; for one-off operator or repository-state
   incidents, recover the intended state and run existing focused checks.
+- Verification needed to complete authorized work belongs to that work.
+  Defaults and skills do not expand scope or grant permissions.
 - Use the smallest coherent change. Treat new tests, CI checks, policies,
   guardrails, abstractions, and documentation as separate scope unless the
   task requires them or concrete uncovered behavior warrants them.

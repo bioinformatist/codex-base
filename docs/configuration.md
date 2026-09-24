@@ -38,26 +38,7 @@ The official [configuration reference](https://learn.chatgpt.com/docs/config-fil
 
 ## Model choice
 
-These choices apply independently of the installation method. Home Manager manages the Sol defaults; installing the plugin alone leaves the user's model configuration intact.
-
-| Work | Model and reasoning | Reason |
-|---|---|---|
-| Routine implementation, audits, research, and maintenance | `gpt-5.6-sol`, `medium` | Balances capability, latency, and token use. |
-| Bounded planning without a native context-management requirement | `gpt-5.6-sol`, `high` | Allows more reasoning for constraints and tradeoffs while retaining the same model. Formal Improve planning still needs its prerequisite met or explicitly waived. |
-| Formal Improve planning with native context management | If the service exposes the experiment, start a new `gpt-6-astra` task, then enter Plan Mode | A fresh Astra task is necessary because eligibility uses the starting model, but it cannot override a server-disabled capability. |
-| Difficult product or architecture choices, conflicting evidence, or unusually long investigations | `gpt-6-astra` | Its stronger reasoning can justify the extra cost even apart from the context-management requirement. |
-
-See the official [Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) and [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) model pages. Higher effort or a stronger model is not automatically necessary for every plan.
-
-The [README](../README.md#first-workflow) gives the CLI and desktop startup steps. For CLI users keeping Sol as their default, `codex -m gpt-6-astra` is the simplest one-off choice. Setting Astra as the persistent default or launching a personally configured Astra profile also works; Codex Base does not provide that profile. The official [CLI reference](https://learn.chatgpt.com/docs/developer-commands?surface=cli) documents these commands.
-
-In the pinned Codex 0.155.1 implementation, the scope matters:
-
-- Ordinary `/model` selection updates the current chat and attempts to persist the model and reasoning defaults. Plan Mode's “Plan mode only” reasoning choice instead saves the Plan effort override without saving a model default. See the [selection handlers](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/chatwidget/model_popups.rs).
-- `/new` reads effective server defaults while preserving explicit launch-model and profile settings. It does not simply copy the previous chat's model. See [new-session configuration](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/app/new_session.rs) and its [tests](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/tui/src/app/tests/new_session_tests.rs).
-- Therefore `/model` → Astra → `/new` can start with Astra if the new default was saved and is effective. It can start with Sol if Sol remains the effective default or launch override. Inspect `/status`, `/debug-config`, and any configuration-save warning before drawing conclusions about a particular installation.
-
-Context management has a separate [initialization check](https://github.com/openai/codex/blob/be2951ea34f0d295ed0becf97079f92fa5f6950e/codex-rs/core/src/session/token_budget.rs). Codex 0.155.1 requires the local opt-in, `supports_experimental_context = true` in the starting model's server-provided metadata, the supported OpenAI backend, and eligible ChatGPT authentication. A new Astra task satisfies only the starting-model timing requirement; if the service marks that model as unsupported for the signed-in identity, local configuration cannot force activation.
+Home Manager defaults to `gpt-6-sol` with medium reasoning and high reasoning in Plan Mode. The plugin does not change the user's model. Formal Improve planning depends on live context-management and structured-question capabilities, not a particular model name. Astra may be chosen explicitly for difficult planning; neither a model name nor a config flag proves the capability is available. The selected Improve executor lane has separate role settings; see [executor routing](architecture.md#executor-routing).
 
 ## Context7 authentication
 

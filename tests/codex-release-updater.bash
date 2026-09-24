@@ -275,6 +275,127 @@ test_stable_sentence_is_required() {
   assert_clean "$repo"
 }
 
+test_maintenance_workflow() {
+  local workflow="$source_root/.github/workflows/maintenance-codex.yml"
+  local fixture_dir="$test_root/maintenance-workflow"
+  local bin_dir="$fixture_dir/bin"
+  local bash_path
+  mkdir -p "$bin_dir"
+  bash_path="$(command -v bash)"
+
+  # Assert GitHub wiring separately from the repository-owned shell behavior below.
+  python3 - "$workflow" "$fixture_dir" <<'PY'
+import pathlib
+import sys
+import yaml
+
+workflow = yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())
+output = pathlib.Path(sys.argv[2])
+triggers = workflow.get("on", workflow.get(True))  # PyYAML also accepts YAML 1.1's boolean key.
+assert "workflow_dispatch" in triggers
+assert triggers["schedule"] == [{"cron": "17 */4 * * *"}]
+steps = workflow["jobs"]["update"]["steps"]
+named = {step.get("name"): (index, step) for index, step in enumerate(steps)}
+require = named["Require maintenance credential"][1]
+checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
+detect = named["Detect changes"][1]
+cleanup_index, cleanup = named["Close stale pull request and branch"]
+verify_index, verify = named["Verify update"]
+publish_index, publish = named["Create or update maintenance pull request"]
+ready_index, ready = named["Ready and auto squash maintenance pull request"]
+assert require["env"]["MAINTENANCE_PAT"] == "${{ secrets.MAINTENANCE_PAT }}"
+assert checkout["with"]["ref"] == "main"
+assert checkout["with"]["token"] == "${{ secrets.MAINTENANCE_PAT }}"
+assert workflow["jobs"]["update"]["env"]["MAINTENANCE_BRANCH"] == "maint/codex"
+assert detect["id"] == "changes"
+assert cleanup["if"] == "steps.changes.outputs.changed == 'false'"
+assert cleanup["env"]["GH_TOKEN"] == "${{ secrets.MAINTENANCE_PAT }}"
+assert verify["if"] == publish["if"] == ready["if"] == "steps.changes.outputs.changed == 'true'"
+# GitHub's default success() applies to these step conditions when no status function is present.
+assert cleanup_index < verify_index < publish_index < ready_index
+assert "continue-on-error" not in verify
+assert "continue-on-error" not in workflow["jobs"]["update"]
+assert publish["id"] == "cpr"
+assert publish["uses"] == "peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1"
+settings = publish["with"]
+assert settings["token"] == "${{ secrets.MAINTENANCE_PAT }}"
+assert settings["branch"] == "maint/codex" and settings["base"] == "main"
+assert settings["add-paths"].splitlines() == [
+    "README.md", "README.zh-CN.md", "flake.nix", "flake.lock", "nix/packages.nix"
+]
+bot = "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+assert settings["author"] == settings["committer"] == bot
+assert ready["env"]["GH_TOKEN"] == "${{ secrets.MAINTENANCE_PAT }}"
+assert "${{ steps.cpr.outputs.pull-request-number }}" in ready["run"]
+assert "gh pr merge \"$pr_number\" --repo \"$GITHUB_REPOSITORY\" --auto --squash" in ready["run"]
+
+(output / "cleanup.bash").write_text(cleanup["run"])
+(output / "verify.bash").write_text(verify["run"])
+# GitHub resolves the Action output before running the shell step.
+(output / "ready.bash").write_text(ready["run"].replace(
+    "${{ steps.cpr.outputs.pull-request-number }}", "${PR_NUMBER}"
+))
+PY
+
+  cat > "$bin_dir/gh" <<'EOF'
+#!__BASH_PATH__
+set -euo pipefail
+printf 'gh %s\n' "$*" >> "$FAKE_LOG"
+case "$1 $2" in
+  'pr list') printf '42\n' ;;
+  'pr view') printf '%s\n' "$FAKE_IS_DRAFT" ;;
+esac
+EOF
+  cat > "$bin_dir/git" <<'EOF'
+#!__BASH_PATH__
+set -euo pipefail
+printf 'git %s\n' "$*" >> "$FAKE_LOG"
+[[ "$1" == ls-remote || "$1" == push ]]
+EOF
+  cat > "$bin_dir/nix" <<'EOF'
+#!__BASH_PATH__
+set -euo pipefail
+printf 'nix %s\n' "$*" >> "$FAKE_LOG"
+[[ "$1 $2" != 'flake check' ]]
+EOF
+  sed -i "s@__BASH_PATH__@${bash_path}@" "$bin_dir/gh" "$bin_dir/git" "$bin_dir/nix"
+  chmod +x "$bin_dir/gh" "$bin_dir/git" "$bin_dir/nix"
+
+  export PATH="$bin_dir:$PATH" FAKE_LOG="$fixture_dir/calls" \
+    GITHUB_REPOSITORY=example/repo MAINTENANCE_BRANCH=maint/codex \
+    PR_NUMBER=42 FAKE_IS_DRAFT=true
+
+  # No changes: run the actual cleanup snippet against fake gh/git.
+  bash "$fixture_dir/cleanup.bash"
+  printf '%s\n' \
+    'gh pr list --repo example/repo --state open --base main --head maint/codex --json number --jq .[].number' \
+    'gh pr close 42 --repo example/repo --comment Closing because the pinned Codex release is current.' \
+    'git ls-remote --exit-code --heads origin refs/heads/maint/codex' \
+    'git push origin --delete maint/codex' > "$fixture_dir/expected"
+  cmp -s "$fixture_dir/expected" "$FAKE_LOG" || fail "no-change cleanup did not close the PR and delete the branch"
+
+  # Failed verification exits before the statically gated publish step.
+  : > "$FAKE_LOG"
+  if bash -e -o pipefail "$fixture_dir/verify.bash" >/dev/null 2>&1; then
+    fail "failed verification unexpectedly succeeded"
+  fi
+  printf '%s\n' 'nix run .#sync-vendored-skills -- --check' \
+    'nix flake check --allow-import-from-derivation' > "$fixture_dir/expected"
+  cmp -s "$fixture_dir/expected" "$FAKE_LOG" || fail "verification did not stop at the failed check"
+
+  # Existing draft becomes ready; the same Action output is used on the next update.
+  : > "$FAKE_LOG"
+  bash "$fixture_dir/ready.bash"
+  FAKE_IS_DRAFT=false bash "$fixture_dir/ready.bash"
+  printf '%s\n' \
+    'gh pr view 42 --repo example/repo --json isDraft --jq .isDraft' \
+    'gh pr ready 42 --repo example/repo' \
+    'gh pr merge 42 --repo example/repo --auto --squash' \
+    'gh pr view 42 --repo example/repo --json isDraft --jq .isDraft' \
+    'gh pr merge 42 --repo example/repo --auto --squash' > "$fixture_dir/expected"
+  cmp -s "$fixture_dir/expected" "$FAKE_LOG" || fail "draft readiness or repeated auto squash differed"
+}
+
 test_current_is_noop
 test_new_release_updates_all_surfaces
 test_malformed_metadata_fails_closed
@@ -285,5 +406,6 @@ for language in en zh; do
     test_stable_sentence_is_required "$language" "$case_name"
   done
 done
+test_maintenance_workflow
 
 echo "Codex release updater tests passed."

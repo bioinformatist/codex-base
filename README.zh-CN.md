@@ -31,7 +31,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 ![直接修改与 Codex Base 如何处理逐渐变长的任务](docs/assets/codex-base-workflow.zh-CN.svg)
 
-对于适合轻量执行、边界明确的实现任务，我们优先使用可用且有额度的 Spark，否则使用低推理强度的 Luna。[Codex-Spark 有独立的用量限制](https://learn.chatgpt.com/docs/agent-configuration/speed)；兼容性和失败处理见[执行器路由](docs/architecture.md#executor-routing)。
+对于边界明确的实现任务，已批准的计划选择 economy（Luna/low）、standard（Sol/medium）或 deep（Sol/xhigh）。协调器启动后不会自动换模型；详见[执行器路由](docs/architecture.md#executor-routing)。
 
 规划和审查也会消耗用量，小而明确的修改通常直接做更合适；Codex Base 不承诺每项任务都能减少 token 或降低费用。
 
@@ -54,7 +54,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 SSH 连接请按官方[连接说明](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host)配置。只在桌面客户端上安装，不会配置远端主机。
 
-Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq 和 Codex。Windows 用户可以在兼容的 Codex CLI 环境中使用可移植技能；完整 Improve 执行器和 Nix/Home Manager 环境需要 Linux，例如 WSL2。WSL 仓库应放在其 Linux 文件系统内（例如 `~/src`，不要放在 `/mnt/c`）。本仓库不提供原生 Windows Improve 执行器或 Windows CI。
+Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq 和 Codex。可移植 Improve 执行还要求 Python 3.11 或更新版本以及 Worktrunk（`wt`）；Nix 闭包提供 Python、Git、Codex 和 Worktrunk。Windows 用户可以在兼容的 Codex CLI 环境中使用可移植技能；完整 Improve 执行器和 Nix/Home Manager 环境需要 Linux，例如 WSL2。WSL 仓库应放在其 Linux 文件系统内（例如 `~/src`，不要放在 `/mnt/c`）。本仓库不提供原生 Windows Improve 执行器或 Windows CI。
 
 <a id="选择安装方式"></a>
 
@@ -65,7 +65,7 @@ Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed�
 | 提供或配置的内容 | Codex 插件 | Nix / Home Manager 完整环境 |
 |---|---|---|
 | 工程技能 | 带命名空间，例如 `$codex-base:improve` | 无命名空间，例如 `$improve` |
-| Improve 执行器 | 随技能打包，需要 Linux 工具 | 打包为 `codex-improve-*` 命令 |
+| Improve CLI | 使用主机依赖运行 `python3 -B skills/improve/scripts/codex-improve` | 提供 `codex-improve` 和 `wt` |
 | 全局指引与 GitHub MCP | 无 | 有 |
 | Mintlify / Context7 文档服务 | 匿名 HTTP 默认配置 | HTTP Mintlify、本地匿名 Context7 和可选的用户级认证 |
 | Codex、Code Mode Host、Node、Playwright CLI | 不安装 | 固定版本的软件包 |
@@ -134,18 +134,11 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 ### 以合适的模型启动任务
 
-托管默认值是 `gpt-5.6-sol`、`medium` 推理强度，进入 Plan Mode 后提高为 `high`，适用于日常工作。正式 Improve 规划还要求原生 Context Manager（通过笔记和检索跨上下文窗口延续任务历史的功能）及结构化提问能力。上下文管理资格在任务启动时判定，因此应先启用实验，再从 **`gpt-6-astra`** 启动这类任务。这只是必要条件，并不保证能力可用：服务端 rollout、登录方式、账户资格和客户端支持仍会参与判定。详见官方[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。
-
-| 客户端 | 如何启动 Astra 任务 |
-|---|---|
-| CLI，包括 Home Manager 安装 | 在仓库目录中运行 `codex -m gpt-6-astra`。 |
-| 本地桌面或桌面通过 SSH 连接 | 新建 Codex 对话，在发送首条请求之前选好 Astra 作为启动模型。如果运行时或配置有变，先重新加载对应后端。 |
-
-把已有 Sol 对话切成 Astra，不会重新执行任务初始化。CLI 的 `/new` 采用有效默认配置及显式启动设置，可能与当前对话的模型不同；`/model` 也可能保存新的默认值。用 `codex -m gpt-6-astra` 启动，可以明确选择 Astra，并让同次运行中的后续 `/new` 继承它。已核对的 0.155.1 行为见[模型选择与 CLI 作用域](docs/configuration.zh-CN.md#model-choice)。
+托管默认值是 `gpt-6-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划要求当前会话实际具备原生上下文管理和结构化提问能力。应检查可用工具及服务端能力；单凭模型名称不能证明两项能力可用。Astra 可供困难规划显式选择，但不是前置条件，也不会自动升级。详见[模型选择](docs/configuration.zh-CN.md#model-choice)。
 
 <a id="temporary-context-waiver"></a>
 
-正式规划前应核对会话实际提供的工具：配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用；以 Astra 启动任务同样不能证明原生上下文管理已经可用。缺少该能力时，不要反复重启、重建或切换同一配置；应改用服务端实际开放该能力的会话，或请用户明确授予[单计划临时豁免](docs/configuration.zh-CN.md#temporary-context-waiver)。结构化提问和其他规划要求仍须满足。
+正式规划前应核对会话实际提供的工具：配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用；选择 Astra 同样不能证明原生上下文管理已经可用。缺少该能力时，不要反复重启、重建或切换同一配置；应改用服务端实际开放该能力的会话，或请用户明确授予[单计划临时豁免](docs/configuration.zh-CN.md#temporary-context-waiver)。结构化提问和其他规划要求仍须满足。
 
 ### 先规划，再授权实现
 

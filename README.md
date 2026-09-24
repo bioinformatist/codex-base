@@ -31,7 +31,7 @@ The [credits and licenses](docs/credits.md) describe the upstream contributions 
 
 ![How direct editing and Codex Base handle a task as its context grows](docs/assets/codex-base-workflow.svg)
 
-For bounded implementation work that qualifies for the lightweight executor, we prefer Spark when it is available and has quota, otherwise Luna with low reasoning. [Codex-Spark has its own usage limits](https://learn.chatgpt.com/docs/agent-configuration/speed); see [executor routing](docs/architecture.md#executor-routing) for compatibility and failure behavior.
+For bounded implementation work, the approved plan selects economy (Luna/low), standard (Sol/medium), or deep (Sol/xhigh). The coordinator does not switch models after launch; see [executor routing](docs/architecture.md#executor-routing).
 
 Planning and review also consume usage, so small, clear edits are usually better handled directly. Codex Base does not promise fewer tokens or lower cost for every task.
 
@@ -54,7 +54,7 @@ Install and configure Codex Base on the machine that executes the task:
 
 For SSH setup, follow the official [connection guide](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host). Installing on the desktop client alone does not configure the remote host.
 
-Linux execution needs Bash, GNU coreutils, Git, GNU sed, jq, and Codex on `PATH`. Windows users can use portable skills from a compatible Codex CLI environment; the complete Improve runners and Nix/Home Manager environment require Linux, such as WSL2. Keep WSL repositories in its Linux filesystem (for example `~/src`, not `/mnt/c`). Native Windows Improve runners and Windows CI are not provided here.
+Linux execution needs Bash, GNU coreutils, Git, GNU sed, jq, and Codex on `PATH`. Portable Improve execution additionally needs Python 3.11 or newer and Worktrunk (`wt`); the Nix closure supplies Python, Git, Codex, and Worktrunk. Windows users can use portable skills from a compatible Codex CLI environment; the complete Improve runners and Nix/Home Manager environment require Linux, such as WSL2. Keep WSL repositories in its Linux filesystem (for example `~/src`, not `/mnt/c`). Native Windows Improve runners and Windows CI are not provided here.
 
 <a id="choose-an-installation"></a>
 
@@ -65,7 +65,7 @@ Choose the plugin to add the portable workflow to an existing Codex setup, or Ho
 | Provided or configured | Codex plugin | Nix / Home Manager full environment |
 |---|---|---|
 | Engineering skills | Namespaced, such as `$codex-base:improve` | Unnamespaced, such as `$improve` |
-| Improve runners | Bundled; Linux tools required | Packaged `codex-improve-*` commands |
+| Improve CLI | `python3 -B skills/improve/scripts/codex-improve` with host dependencies | Packaged `codex-improve` plus `wt` |
 | Global guidance and GitHub MCP | No | Yes |
 | Mintlify / Context7 documentation services | Anonymous HTTP defaults | HTTP Mintlify, local anonymous Context7, and optional per-user authentication |
 | Codex, Code Mode Host, Node, Playwright CLI | No | Pinned packages |
@@ -134,18 +134,11 @@ These instructions apply to **both installation methods**. A Codex task means on
 
 ### Start with the right model
 
-The managed default is `gpt-5.6-sol` with `medium` reasoning; Plan Mode raises reasoning to `high`. Those defaults suit routine work. Formal Improve planning additionally requires native Context Manager, which maintains notes and retrieves earlier task history across context windows, and structured questions. Context-management eligibility is decided when the task starts, so opt in and start that task with **`gpt-6-astra`**. This is necessary, not sufficient: service rollout, sign-in method, account eligibility, and client support still determine whether the capability is available. See the official [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management).
-
-| Client | Start an Astra task |
-|---|---|
-| CLI, including a Home Manager installation | Launch `codex -m gpt-6-astra` from the repository. |
-| Local desktop or desktop over SSH | Select Astra as the starting model for a new Codex chat, before sending its first request. If the runtime or configuration changed, reload the relevant backend first. |
-
-Changing an existing Sol chat to Astra does not redo task initialization. CLI `/new` uses effective defaults and explicit launch settings, which may differ from the current chat's model; `/model` can also save a new default. Starting with `codex -m gpt-6-astra` explicitly selects Astra and preserves it for subsequent `/new` chats in that invocation. See [model selection and CLI scope](docs/configuration.md#model-choice) for the verified 0.155.1 behavior.
+The managed default is `gpt-6-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning requires live native context management and structured questions. Check the actual tools and server capability in the current session. A model name alone does not establish either capability. Astra is an explicit choice for difficult planning, not a prerequisite or automatic escalation. See [model selection](docs/configuration.md#model-choice).
 
 <a id="temporary-context-waiver"></a>
 
-Before formal planning, verify the live tools: configured `true` values and a Plan Mode label do not prove that either capability is live. An Astra-started task does not prove that native context management is live either. If it is absent, do not repeatedly restart, rebuild, or toggle the same setting; use a session where the service actually exposes it, or ask the user to grant a [temporary per-plan waiver](docs/configuration.md#temporary-context-waiver). Structured questions and the other planning requirements still apply.
+Before formal planning, verify the live tools: configured `true` values and a Plan Mode label do not prove that either capability is live. Selecting Astra does not prove that native context management is live either. If it is absent, do not repeatedly restart, rebuild, or toggle the same setting; use a session where the service actually exposes it, or ask the user to grant a [temporary per-plan waiver](docs/configuration.md#temporary-context-waiver). Structured questions and the other planning requirements still apply.
 
 ### Plan, then authorize implementation
 

@@ -42,7 +42,7 @@
         packages = [
           pkgs.bash pkgs.coreutils pkgs.diffutils pkgs.git pkgs.curl pkgs.gnused
           pkgs.gnutar pkgs.jq pkgs.gh pkgs.shellcheck pkgs.actionlint pkgs.typos
-          (pkgs.python3.withPackages (p: [ p.pyyaml ])) pkgs.librsvg basePackages.codex
+          (pkgs.python3.withPackages (p: [ p.pyyaml ])) pkgs.librsvg basePackages.codex basePackages.worktrunk
         ];
       };
     };

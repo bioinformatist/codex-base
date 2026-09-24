@@ -20,7 +20,7 @@ the override boundary. Both public third-party services receive only focused
 public lookup terms, never private or secret content.
 
 `nix/packages.nix` packages Codex, its Code Mode Host companion, Playwright CLI,
-and thin runner wrappers. `nix/home-manager.nix` owns the full Linux runtime:
+and the single `codex-improve` wrapper with Python, Git, and Worktrunk. `nix/home-manager.nix` owns the full Linux runtime:
 config overlay, MCP wrappers, global instructions, rules, packages, and direct
 unnamespaced skill links. It intentionally renders no Improve profile files.
 
@@ -36,14 +36,13 @@ not install it. Executor prompts retain runner-local scope, checks, STOP, and
 handoff constraints. Codex Base has no model-index or per-model global guidance
 files, and its ordinary runtime default remains Sol with medium reasoning.
 
-Native context-management eligibility is established when a task session is
-initialized from its starting model, service-provided model metadata, and the
-signed-in account. In the desktop app, that task is a Codex chat under a
+Native context-management eligibility depends on live tools and server
+capability for the signed-in account. In the desktop app, that task is a Codex chat under a
 project; entering Plan Mode or invoking Improve in an existing chat does not
 start another session. Codex Base therefore keeps Sol as its ordinary default.
-When the service exposes the experiment, formal Improve planning that retains
-the native context-management prerequisite needs a fresh Astra-started task;
-that model choice cannot override a server-disabled capability.
+Formal Improve planning requires a session that actually exposes context
+management and structured questions. Astra is an explicit choice for difficult
+planning; its name is not capability evidence.
 
 In the CLI, ordinary `/model` selection changes the current chat and attempts
 to persist defaults. `/new` uses effective defaults plus explicit launch
@@ -71,20 +70,17 @@ public base/template content, while Astra differs. It does not describe the
 current release pin or undisclosed server-side instructions, and Codex Base
 does not copy those model prompts.
 
-Improve profile names remain stable labels in roles, manifests, metrics, and
-handoffs. Runners pin effective settings at CLI precedence and never look up a
-Codex profile.
+Improve reads the selected role from `src/improve/config/roles.json` and stores
+its effective settings with each execution. It never looks up a Codex profile.
 
 ## Executor routing
 
-Improve `.16` adds one caller-time choice to the existing eligible Spark lane.
-A short-lived native app-server query selects Spark/high when available with
-quota, otherwise Luna/low, before one executor starts. Query errors terminate
-without execution; inference errors never cause replay. Each new call, including
-preflight resume, reevaluates availability after validating any inherited
-provenance. The existing role snapshot, execution record, metrics and
-profile/model/effort handoff identify the choice. There is no scheduler,
-persistent routing cache, account switch or new configuration-profile lookup.
-Older supported contracts (`.15` and earlier) keep fixed Spark, and standard,
-deep, scout, and review roles are unchanged. Luna usage is neither guaranteed
-nor unlimited; the runner does not precheck its quota or switch providers.
+Improve `.17` uses the public `codex-improve` coordinator. A reviewed plan
+selects economy (Luna/low), standard (Sol/medium), or deep (Sol/xhigh). Scout
+uses Luna/high; correctness and elegance review use Sol/high. The coordinator
+reads the launcher and probes from the plan, snapshots the selected role, and
+runs one model call. It does not probe quota, switch models, or replay failures.
+The Nix closure supplies Python 3.11 or newer, Git, Codex, and Worktrunk. A
+portable plugin install requires these host commands. Worktrunk manages
+worktrees; Git owns exact candidate and checkpoint operations. The plugin
+changes neither the user's main model nor native Codex configuration.

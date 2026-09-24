@@ -1,0 +1,606 @@
+#!/usr/bin/env python3
+"""Improve .17 source CLI. Run with python3 -B when the source is immutable."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import signal
+import shutil
+import sys
+from pathlib import Path
+
+if sys.version_info < (3, 11):
+    raise SystemExit("codex-improve requires Python 3.11 or newer")
+
+SOURCE = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(SOURCE / "runtime"))
+
+from contracts import (StateStore, atomic_private, digest, parse_plan, private_append,
+                       private_dir, private_read, read_roles)
+from git_worktree import (BoundaryError, candidate, checkpoint, copy_ignored,
+                          create_worktree, git, integrate_exact,
+                          require_candidate, require_oid, validate_worktree)
+from transport import codex_command, classify, run_process
+
+ROLES = SOURCE / "config/roles.json"
+EXECUTOR_SCHEMA = SOURCE / "references/executor-report.schema.json"
+REVIEW_SCHEMA = SOURCE / "references/review-verdict.schema.json"
+
+
+def require_tools(*names: str) -> None:
+    missing = [name for name in names if shutil.which(name) is None]
+    if missing:
+        raise BoundaryError("missing required command(s): " + ", ".join(missing))
+
+
+def grants_checked(worktree: Path, grants: list[str]) -> list[str]:
+    if len(grants) != len(set(grants)) or any(item not in (".agents", ".codex") for item in grants):
+        raise BoundaryError("only .agents and .codex are grantable")
+    for name in (".agents", ".codex"):
+        root = worktree / name
+        if root.is_symlink() or (root.exists() and not root.is_dir()):
+            raise BoundaryError(f"protected root is not a physical directory: {name}")
+    return sorted(grants)
+
+
+def repo_root(path: Path) -> Path:
+    root = Path(git(path, "rev-parse", "--show-toplevel")).resolve()
+    if path.resolve() != root:
+        raise BoundaryError("repository must be the Git root")
+    return root
+
+
+def _record(store: StateStore, *, role: str, worktree: Path, common_dir: Path,
+            branch: str, head: str, tree: str, grants: list[str], kind: str,
+            parent: str | None = None, attempt: int = 0) -> dict:
+    return {"id": store.new_id(), "contract": "1.0.0-codex.17", "kind": kind,
+            "role": role, "worktree": str(worktree), "common_dir": str(common_dir),
+            "branch": branch, "base_head": head, "candidate_tree": tree,
+            "grants": grants, "phase": "preparing", "outcome": None, "reason": None,
+            "parent": parent, "attempt": attempt, "resume_used": False,
+            "recover_used": False, "revision_count": 0, "consumed": False,
+            "reviewed_oid": None, "output_candidate_tree": None, "report": None,
+            "artifacts": None, "closeout_eligible": False}
+
+
+def _executor_prompt(plan: bytes, tree: str, role: str, *, grants: list[str],
+                     followup: str = "") -> bytes:
+    header = (f"You are implementing an approved Improve plan with contract 1.0.0-codex.17.\n"
+              f"Role: {role}. Expected exact candidate tree: {tree}.\n"
+              f"Explicit protected grants: {', '.join(grants) if grants else 'none'}. .git is read-only.\n"
+              "Implement only the approved scope in this worktree; leave changes uncommitted. "
+              "Do not call candidate, checkpoint, or resume, and do not launch nested agents. "
+              "Run every required verification and report actual results and omitted acceptance. "
+              "After each code or test step, verify, inspect only new hunks for delete, stdlib, "
+              "native, yagni, and shrink opportunities, and simplify only when semantics and tests hold; "
+              "rerun affected checks. Record ponytail=lean or ponytail=simplified. "
+              "For bounded research, give a Research checkpoint with Question, Finding, Evidence, "
+              "and Next before changing questions. Stop on scope or contract conflict. "
+              "Return the required JSON report.\n")
+    if followup:
+        header += f"Continuation: {followup}\n"
+    return header.encode() + b"\nApproved plan snapshot:\n" + plan
+
+
+def _review_prompt(dossier: bytes, tree: str, role: str) -> bytes:
+    return (f"You are an independent {role} reviewer. Inspect the exact candidate tree {tree}. "
+            "Check the assigned implementation, tests, permission and STOP boundaries. "
+            "You may inspect candidate files needed for your checks, expanding only for concrete gaps. "
+            "Put later physical or external checks in deferred_acceptance. Return the required review JSON.\n\n"
+            ).encode() + dossier
+
+
+def _cache_env(store: StateStore, record: dict) -> tuple[dict[str, str], Path, Path, Path]:
+    shared = private_dir(store.cache / "shared")
+    cargo = private_dir(shared / "cargo")
+    npm = private_dir(shared / "npm")
+    plan = record["environment_settings"]
+    if plan["cache"]["xdgScope"] == "worktree":
+        name = digest((record["common_dir"] + "\0" + record["worktree"]).encode())
+        xdg_parent = private_dir(store.cache / "worktrees")
+        xdg = private_dir(private_dir(xdg_parent / name) / "xdg")
+    else:
+        xdg_parent = private_dir(store.cache / "executions")
+        xdg = private_dir(private_dir(xdg_parent / record["id"]) / "xdg")
+    env = dict(os.environ)
+    env.update({"CARGO_HOME": str(cargo), "npm_config_cache": str(npm),
+                "XDG_CACHE_HOME": str(xdg), "IMPROVE_EXECUTION_ID": record["id"]})
+    return env, cargo, npm, xdg
+
+
+def _verify_snapshot(store: StateStore, record: dict) -> None:
+    plan = private_read(store.path(record["id"]) / "plan.md")
+    if record.get("environment_settings") != parse_plan(plan) or record.get(
+        "role_settings") != read_roles(ROLES).get(record["role"]):
+        raise BoundaryError("execution settings changed since their snapshot")
+
+
+def _finish(store: StateStore, record: dict, outcome: str, reason: str,
+            metrics: dict | None = None, report: dict | None = None) -> None:
+    try:
+        worktree = validate_worktree(record["worktree"], owned=record["kind"] != "scout")
+        if (str(worktree.common_dir), worktree.branch) != (record["common_dir"], record["branch"]):
+            raise BoundaryError("worktree lineage changed")
+        record["output_head"], record["output_candidate_tree"] = candidate(worktree)
+    except (BoundaryError, OSError) as exc:
+        record["candidate_capture_error"] = str(exc)
+        record["output_head"] = record["output_candidate_tree"] = None
+        if outcome not in ("INCONCLUSIVE", "STOPPED"):
+            if metrics is not None:
+                metrics["classified_outcome"] = outcome
+                metrics["classified_reason"] = reason
+            outcome, reason = "INCONCLUSIVE", "candidate_capture_failed"
+    if record["kind"] in ("review", "scout") and outcome not in ("INCONCLUSIVE", "STOPPED"):
+        if (record["output_head"], record["output_candidate_tree"]) != (
+            record["base_head"], record["candidate_tree"]
+        ):
+            if metrics is not None:
+                metrics["classified_outcome"] = outcome
+                metrics["classified_reason"] = reason
+            outcome, reason = "STOPPED", "postrun_candidate_drift"
+    record.update(phase="finished", outcome=outcome, reason=reason)
+    record["report"] = report
+    record["closeout_eligible"] = (outcome == "INCONCLUSIVE" and reason in (
+        "rollout_budget_exhausted", "absolute_timeout", "empty_final_output",
+        "invalid_final_output", "final_output_limit") and
+        metrics is not None and metrics.get("event_evidence_valid") is True and
+        bool(record.get("output_candidate_tree")))
+    location = store.path(record["id"])
+    record["artifacts"] = {"final": str(location / "final.json"),
+                           "events": str(location / "events.jsonl"),
+                           "diagnostics": str(location / "diagnostics.txt"),
+                           "launcher_diagnostics": str(location / "launcher-diagnostics.txt"),
+                           "preflight": str(location / "preflight.txt")}
+    store.save(record)
+    if metrics is not None:
+        store.write_artifact(record["id"], "metrics.json", json.dumps(metrics, sort_keys=True).encode())
+
+
+def _worker_run(store: StateStore, execution_id: str) -> dict:
+    os.umask(0o077)
+    record = store.load(execution_id)
+    if record["phase"] != "preparing":
+        raise BoundaryError("execution was already started")
+    _verify_snapshot(store, record)
+    try:
+        worktree = validate_worktree(record["worktree"], owned=record["kind"] != "scout")
+        if (str(worktree.common_dir), worktree.branch) != (record["common_dir"], record["branch"]):
+            raise BoundaryError("worktree lineage changed")
+        require_candidate(worktree, record["candidate_tree"])
+        if worktree.head != record["base_head"]:
+            raise BoundaryError("worktree HEAD changed")
+        grants_checked(worktree.path, record["grants"])
+    except BoundaryError:
+        _finish(store, record, "STOPPED", "environment_preflight_mutated_candidate")
+        return record
+    role = record["role_settings"]
+    environment = record["environment_settings"]
+    env, cargo, npm, xdg = _cache_env(store, record)
+    record["phase"] = "preflight"
+    store.save(record)
+    logs = bytearray()
+    preflight_failed = False
+    for index, probe in enumerate(environment["probes"]):
+        try:
+            result = run_process(probe["argv"], cwd=worktree.path, env=env,
+                                 deadline=probe["timeoutSeconds"],
+                                 stdout_limit=1024 * 1024, stderr_limit=1024 * 1024)
+        except BoundaryError as exc:
+            logs.extend(f"probe[{index}] failed: {exc}\n".encode())
+            preflight_failed = True
+            break
+        logs.extend(f"probe[{index}] status={result.status} reason={result.reason}\n".encode())
+        logs.extend(result.stdout[:65536] + result.stderr[:65536])
+        if result.status or result.reason != "exit":
+            preflight_failed = True
+            break
+    store.write_artifact(execution_id, "preflight.txt", bytes(logs[:1024 * 1024]))
+    try:
+        require_candidate(worktree, record["candidate_tree"])
+        grants_checked(worktree.path, record["grants"])
+        if git(worktree.path, "rev-parse", "HEAD") != record["base_head"]:
+            raise BoundaryError("candidate HEAD changed")
+    except BoundaryError:
+        _finish(store, record, "STOPPED", "environment_preflight_mutated_candidate")
+        return record
+    if preflight_failed:
+        _finish(store, record, "STOPPED", "environment_preflight_failed")
+        return record
+    require_tools("codex")
+    schema = EXECUTOR_SCHEMA if record["kind"] != "review" else REVIEW_SCHEMA
+    final_path = store.path(execution_id) / "final.json"
+    prompt = private_read(store.path(execution_id) / "prompt.txt")
+    record["phase"] = "executing"
+    store.save(record)
+    argv = codex_command(role, cwd=worktree.path, schema=schema, final=final_path,
+                         grants=record["grants"], cache_root=store.cache,
+                         cargo=cargo, npm=npm, xdg=xdg)
+    group_path = store.path(execution_id) / "active-codex-pgid"
+    try:
+        with private_append(store.path(execution_id) / "events.jsonl") as events, \
+             private_append(store.path(execution_id) / "diagnostics.txt") as diagnostics:
+            process = run_process(argv, cwd=worktree.path, env=env, stdin=prompt,
+                                  deadline=role["initialTimeout"] if record["attempt"] == 0
+                                  else (role["followupTimeout"] or role["initialTimeout"]),
+                                  on_start=lambda pid: atomic_private(group_path, str(pid).encode()),
+                                  on_stdout=events.write, on_stderr=diagnostics.write)
+    finally:
+        group_path.unlink(missing_ok=True)
+    final_raw = private_read(final_path) if final_path.exists() or final_path.is_symlink() else b""
+    record["phase"] = "classifying"
+    store.save(record)
+    outcome, reason, report, metrics = classify(process, final_raw,
+                                                report_kind="review" if record["kind"] == "review" else "executor")
+    metrics.update({"execution_id": execution_id, "role": record["role"],
+                    "outcome": outcome, "reason": reason})
+    _finish(store, record, outcome, reason, metrics, report)
+    return record
+
+
+def _worker(store: StateStore, execution_id: str) -> dict:
+    try:
+        return _worker_run(store, execution_id)
+    except (BoundaryError, OSError, ValueError) as exc:
+        record = store.load(execution_id)
+        if record["phase"] != "finished":
+            diagnostics = store.path(execution_id) / "diagnostics.txt"
+            prior = private_read(diagnostics)
+            if not prior:
+                store.write_artifact(execution_id, "diagnostics.txt", f"worker error: {exc}\n".encode())
+            _finish(store, record, "INCONCLUSIVE", "worker_error", {"worker_error": str(exc)})
+        return store.load(execution_id)
+
+
+def launch(store: StateStore, record: dict) -> dict:
+    environment = record["environment_settings"]
+    launcher = environment["launcher"]
+    argv = [*launcher, sys.executable, "-B", str(Path(__file__).resolve()), "_worker",
+            record["id"], "--state-home", str(store.root.parent)]
+    # The worker performs probes and Codex in one launched environment.
+    role = record["role_settings"]
+    duration = sum(probe["timeoutSeconds"] for probe in environment["probes"])
+    duration += role["initialTimeout"] if record["attempt"] == 0 else (role["followupTimeout"] or role["initialTimeout"])
+    group_path = store.path(record["id"]) / "active-codex-pgid"
+    launcher_diagnostics_path = store.path(record["id"]) / "launcher-diagnostics.txt"
+
+    def stop_inner(sig: int) -> None:
+        if not group_path.exists() and not group_path.is_symlink():
+            return
+        try:
+            raw = private_read(group_path)
+        except BoundaryError:
+            return
+        if raw.isdigit() and int(raw) > 1:
+            try:
+                os.killpg(int(raw), sig)
+            except ProcessLookupError:
+                pass
+
+    try:
+        with private_append(launcher_diagnostics_path) as launcher_diagnostics:
+            result = run_process(argv, cwd=Path(record["worktree"]), env=dict(os.environ),
+                                 deadline=duration + 30, stdout_limit=65536, stderr_limit=1024 * 1024,
+                                 on_stop=stop_inner, on_stderr=launcher_diagnostics.write)
+    except (BoundaryError, OSError) as exc:
+        current = store.load(record["id"])
+        if current["phase"] != "finished":
+            stop_inner(signal.SIGKILL)
+            group_path.unlink(missing_ok=True)
+            if not private_read(launcher_diagnostics_path):
+                store.write_artifact(record["id"], "launcher-diagnostics.txt", str(exc).encode())
+            if not private_read(store.path(record["id"]) / "diagnostics.txt"):
+                store.write_artifact(record["id"], "diagnostics.txt", str(exc).encode())
+            _finish(store, current, "INCONCLUSIVE", "launcher_error")
+        return store.load(record["id"])
+    current = store.load(record["id"])
+    if current["phase"] != "finished":
+        stop_inner(signal.SIGKILL)
+        group_path.unlink(missing_ok=True)
+        _finish(store, current, "INCONCLUSIVE", result.reason if result.reason != "exit" else
+                f"launcher_exit_{result.status}")
+        current = store.load(record["id"])
+    return current
+
+
+def start(store: StateStore, record: dict, plan: bytes, prompt: bytes) -> dict:
+    record["environment_settings"] = parse_plan(plan)
+    record["role_settings"] = read_roles(ROLES)[record["role"]]
+    store.create(record, plan, prompt)
+    return launch(store, record)
+
+
+def cmd_execute(args: argparse.Namespace, store: StateStore) -> dict:
+    require_tools("git", "wt", "codex")
+    plan = args.plan.read_bytes()
+    parse_plan(plan)
+    roles = read_roles(ROLES)
+    if args.lane not in ("economy", "standard", "deep") or args.lane not in roles:
+        raise BoundaryError("invalid executor lane")
+    repository = repo_root(args.repository)
+    base = args.base or git(repository, "rev-parse", "HEAD")
+    require_oid(repository, base, "commit")
+    execution_id = store.new_id()
+    branch = f"codex/improve-{execution_id}"
+    worktree = create_worktree(repository, branch, base, store.worktrees)
+    if args.copy_from is not None:
+        if not args.include:
+            raise BoundaryError("cache copying requires an explicit include set")
+        source = validate_worktree(args.copy_from, owned=False)
+        copy_ignored(source, worktree, args.include)
+    elif args.include:
+        raise BoundaryError("--include requires --copy-from")
+    head, tree = candidate(worktree)
+    if head != base or tree != git(worktree.path, "rev-parse", "HEAD^{tree}"):
+        raise BoundaryError("new worktree is not at the committed base")
+    grants = grants_checked(worktree.path, args.grant)
+    record = _record(store, role=args.lane, worktree=worktree.path,
+                     common_dir=worktree.common_dir, branch=branch, head=head, tree=tree,
+                     grants=grants, kind="execute")
+    record["id"] = execution_id
+    return start(store, record, plan, _executor_prompt(plan, tree, args.lane, grants=grants))
+
+
+def cmd_review(args: argparse.Namespace, store: StateStore, *, scout: bool = False) -> dict:
+    require_tools("git", "wt", "codex")
+    worktree = validate_worktree(args.worktree, owned=not scout)
+    head, tree = require_candidate(worktree, args.tree)
+    role = "scout" if scout else args.role
+    dossier = args.dossier.read_bytes()
+    if not dossier:
+        raise BoundaryError("review dossier is empty")
+    # Review/scout have no plan environment of their own. Snapshot a bounded .17 launcher contract.
+    plan = ("- **Improve contract**: `1.0.0-codex.17`\n"
+            "```json codex-improve-environment\n"
+            '{"version":1,"launcher":["env"],"probes":[]}\n```\n').encode()
+    record = _record(store, role=role, worktree=worktree.path, common_dir=worktree.common_dir,
+                     branch=worktree.branch, head=head, tree=tree, grants=[],
+                     kind="scout" if scout else "review")
+    prompt = _review_prompt(dossier, tree, role) if not scout else (
+        b"Scout this Improve candidate read-only. Return an executor-style JSON report.\n" + dossier)
+    return start(store, record, plan, prompt)
+
+
+def _followup_ready(store: StateStore, parent: dict, expected: str) -> tuple[object, str, str]:
+    _verify_snapshot(store, parent)
+    if expected != parent.get("output_candidate_tree") or not expected:
+        raise BoundaryError("followup expected tree differs from captured output")
+    worktree = validate_worktree(parent["worktree"], owned=parent["kind"] != "scout")
+    if str(worktree.common_dir) != parent["common_dir"] or worktree.branch != parent["branch"]:
+        raise BoundaryError("worktree lineage changed")
+    head, tree = require_candidate(worktree, expected)
+    if head != parent["output_head"]:
+        raise BoundaryError("candidate HEAD changed")
+    grants_checked(worktree.path, parent["grants"])
+    return worktree, head, tree
+
+
+def clone_run(store: StateStore, parent: dict, *, kind: str, followup: str) -> dict:
+    if kind != parent["kind"] and (parent["kind"] in ("review", "scout") or
+                                   kind not in ("recover", "revise")):
+        raise BoundaryError("this followup cannot change review or scout into executor work")
+    worktree, head, tree = _followup_ready(store, parent, parent["output_candidate_tree"])
+    plan = private_read(store.path(parent["id"]) / "plan.md")
+    record = _record(store, role=parent["role"], worktree=worktree.path,
+                     common_dir=worktree.common_dir, branch=worktree.branch,
+                     head=head, tree=tree, grants=parent["grants"], kind=kind,
+                     parent=parent["id"], attempt=parent["attempt"] + 1)
+    record["resume_used"] = parent["resume_used"]
+    record["recover_used"] = parent["recover_used"]
+    record["revision_count"] = parent["revision_count"]
+    prompt = (private_read(store.path(parent["id"]) / "prompt.txt")
+              if kind == parent["kind"] and parent["reason"] == "environment_preflight_failed"
+              else _executor_prompt(plan, tree, record["role"], grants=record["grants"],
+                                    followup=followup))
+    return start(store, record, plan, prompt)
+
+
+def cmd_resume(args: argparse.Namespace, store: StateStore) -> dict:
+    with store.locked(args.execution_id) as parent:
+        if parent["outcome"] != "STOPPED" or parent["reason"] != "environment_preflight_failed" or parent["resume_used"]:
+            raise BoundaryError("only one unchanged-candidate preflight resume is allowed")
+        _followup_ready(store, parent, parent["candidate_tree"])
+        parent["resume_used"] = True
+        store.save(parent)
+    return clone_run(store, parent, kind=parent["kind"],
+                     followup="Resume after the failed environment probe with unchanged settings and grants.")
+
+
+def cmd_recover(args: argparse.Namespace, store: StateStore) -> dict:
+    slices = [path.read_text() for path in args.slices]
+    if not 1 <= len(slices) <= 3 or len(set(slices)) != len(slices) or any(
+        "Scope:" not in item or not item.strip() for item in slices
+    ):
+        raise BoundaryError("recovery requires one to three distinct concrete slice dossiers")
+    with store.locked(args.execution_id) as parent:
+        if (parent["outcome"] != "INCONCLUSIVE" or not parent.get("closeout_eligible") or
+                parent["kind"] in ("review", "scout", "recover") or parent["recover_used"]):
+            raise BoundaryError("this execution is not eligible for one recovery")
+        _followup_ready(store, parent, args.expected_tree)
+        if grants_checked(Path(parent["worktree"]), args.grant) != parent["grants"]:
+            raise BoundaryError("recovery must restate the authenticated protected grants")
+        parent["recover_used"] = True
+        store.save(parent)
+    current = parent
+    for index, dossier in enumerate(slices):
+        current = clone_run(store, current, kind="recover",
+                            followup=f"Approved recovery slice {index + 1} of {len(slices)}:\n{dossier}")
+        if current["outcome"] != "COMPLETE":
+            break
+    return current
+
+
+def cmd_revise(args: argparse.Namespace, store: StateStore) -> dict:
+    findings = args.findings.read_text()
+    if "Finding:" not in findings or not findings.strip():
+        raise BoundaryError("revision requires a concrete findings dossier")
+    with store.locked(args.execution_id) as parent:
+        if (parent["revision_count"] >= 2 or parent["consumed"] or parent["outcome"] != "COMPLETE"
+                or parent["kind"] in ("review", "scout")):
+            raise BoundaryError("review revision limit or consumption reached")
+        _followup_ready(store, parent, args.expected_tree)
+        if grants_checked(Path(parent["worktree"]), args.grant) != parent["grants"]:
+            raise BoundaryError("revision must restate the authenticated protected grants")
+        parent["consumed"] = True
+        parent["revision_count"] += 1
+        store.save(parent)
+    return clone_run(store, parent, kind="revise", followup="Approved review findings:\n" + findings)
+
+
+def cmd_next(args: argparse.Namespace, store: StateStore) -> dict:
+    require_tools("git", "wt", "codex")
+    plan = args.plan.read_bytes()
+    parse_plan(plan)
+    read_roles(ROLES)[args.lane]
+    with store.locked(args.execution_id) as parent:
+        if parent["consumed"] or parent["outcome"] != "COMPLETE":
+            raise BoundaryError("execution is not eligible for next")
+        _verify_snapshot(store, parent)
+        predecessor = validate_worktree(parent["worktree"])
+        if (str(predecessor.common_dir), predecessor.branch) != (
+            parent["common_dir"], parent["branch"]
+        ):
+            raise BoundaryError("worktree lineage changed")
+        require_oid(predecessor.path, args.checkpoint_oid, "commit")
+        if (predecessor.head != args.checkpoint_oid or
+                git(predecessor.path, "rev-parse", "HEAD^{tree}") != parent["output_candidate_tree"] or
+                git(predecessor.path, "rev-parse", "HEAD^1") != parent["output_head"]):
+            raise BoundaryError("next requires the protected exact checkpoint")
+        require_candidate(predecessor, parent["output_candidate_tree"])
+        execution_id = store.new_id()
+        worktree = create_worktree(predecessor.path, f"codex/improve-{execution_id}",
+                                   args.checkpoint_oid, store.worktrees)
+        head, tree = candidate(worktree)
+        if head != args.checkpoint_oid or tree != parent["output_candidate_tree"]:
+            raise BoundaryError("next worktree is not clean at the checkpoint")
+        grants = grants_checked(worktree.path, args.grant)
+        record = _record(store, role=args.lane, worktree=worktree.path,
+                         common_dir=worktree.common_dir, branch=worktree.branch,
+                         head=head, tree=tree, grants=grants, kind="next", parent=parent["id"])
+        record["id"] = execution_id
+        parent["consumed"] = True
+        store.save(parent)
+    return start(store, record, plan, _executor_prompt(plan, tree, args.lane, grants=grants))
+
+
+def cmd_status(args: argparse.Namespace, store: StateStore) -> object:
+    if args.execution_id:
+        record = store.load(args.execution_id)
+        return {key: record[key] for key in ("id", "kind", "role", "phase", "outcome", "reason",
+                                              "worktree", "candidate_tree", "output_candidate_tree",
+                                              "report", "artifacts", "closeout_eligible", "parent")}
+    records = []
+    for location in sorted(store.executions.iterdir()):
+        if location.is_symlink() or not location.is_dir():
+            raise BoundaryError("ambiguous private execution entry")
+        record = store.load(location.name)
+        records.append({key: record[key] for key in ("id", "kind", "phase", "outcome", "reason")})
+    return records
+
+
+def parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(prog="codex-improve", description="Improve 1.0.0-codex.17 source runtime")
+    root.add_argument("--state-home", type=Path, help=argparse.SUPPRESS)
+    verbs = root.add_subparsers(dest="verb", required=True)
+    execute = verbs.add_parser("execute", help="create a clean Worktrunk worktree and run an approved plan")
+    execute.add_argument("plan", type=Path)
+    execute.add_argument("repository", type=Path)
+    execute.add_argument("--lane", choices=("economy", "standard", "deep"), default="standard")
+    execute.add_argument("--base", help="full committed base OID")
+    execute.add_argument("--grant", action="append", default=[], choices=(".agents", ".codex"))
+    execute.add_argument("--copy-from", type=Path)
+    execute.add_argument("--include", action="append", default=[])
+    scout = verbs.add_parser("scout", help="run an independent read-only scout")
+    scout.add_argument("worktree", type=Path)
+    scout.add_argument("tree")
+    scout.add_argument("dossier", type=Path)
+    review = verbs.add_parser("review", help="run an independent read-only review")
+    review.add_argument("role", choices=("correctness", "elegance"))
+    review.add_argument("worktree", type=Path)
+    review.add_argument("tree")
+    review.add_argument("dossier", type=Path)
+    status = verbs.add_parser("status", help="inspect authenticated private state without a model call")
+    status.add_argument("execution_id", nargs="?")
+    cand = verbs.add_parser("candidate", help="print full HEAD and candidate tree")
+    cand.add_argument("worktree", type=Path)
+    point = verbs.add_parser("checkpoint", help="commit an exact candidate or integrate a reviewed OID")
+    point.add_argument("worktree", nargs="?", type=Path)
+    point.add_argument("tree", nargs="?")
+    point.add_argument("--message")
+    point.add_argument("--integrate-oid")
+    point.add_argument("--target", type=Path)
+    point.add_argument("--expected-target")
+    resume = verbs.add_parser("resume", help="retry a failed preflight once")
+    resume.add_argument("execution_id")
+    recover = verbs.add_parser("recover", help="run one bounded serial recovery")
+    recover.add_argument("execution_id")
+    recover.add_argument("slices", type=Path, nargs="+")
+    recover.add_argument("--expected-tree", required=True)
+    recover.add_argument("--grant", action="append", default=[], choices=(".agents", ".codex"))
+    revise = verbs.add_parser("revise", help="run a bounded review revision")
+    revise.add_argument("execution_id")
+    revise.add_argument("findings", type=Path)
+    revise.add_argument("--expected-tree", required=True)
+    revise.add_argument("--grant", action="append", default=[], choices=(".agents", ".codex"))
+    next_ = verbs.add_parser("next", help="start at a protected exact checkpoint")
+    next_.add_argument("execution_id")
+    next_.add_argument("checkpoint_oid")
+    next_.add_argument("plan", type=Path)
+    next_.add_argument("--lane", choices=("economy", "standard", "deep"), default="standard")
+    next_.add_argument("--grant", action="append", default=[], choices=(".agents", ".codex"))
+    hidden = verbs.add_parser("_worker", help=argparse.SUPPRESS)
+    hidden.add_argument("execution_id")
+    hidden.add_argument("--state-home", type=Path, required=True)
+    return root
+
+
+def main() -> int:
+    args = parser().parse_args()
+    try:
+        if args.verb == "candidate":
+            worktree = validate_worktree(args.worktree, owned=False)
+            head, tree = candidate(worktree)
+            result = {"head": head, "tree": tree}
+        elif args.verb == "checkpoint":
+            if args.integrate_oid:
+                if not args.target or not args.expected_target or args.worktree or args.tree or args.message:
+                    raise BoundaryError("integration requires only --integrate-oid, --target, --expected-target")
+                result = {"integrated_oid": integrate_exact(repo_root(args.target), args.integrate_oid,
+                                                             args.expected_target)}
+            else:
+                if not args.worktree or not args.tree or not args.message or args.target or args.expected_target:
+                    raise BoundaryError("checkpoint requires worktree, full tree, and --message")
+                result = {"checkpoint_oid": checkpoint(validate_worktree(args.worktree),
+                                                        args.tree, args.message)}
+        else:
+            store = StateStore(args.state_home)
+            if args.verb == "execute":
+                result = cmd_execute(args, store)
+            elif args.verb == "scout":
+                result = cmd_review(args, store, scout=True)
+            elif args.verb == "review":
+                result = cmd_review(args, store)
+            elif args.verb == "status":
+                result = cmd_status(args, store)
+            elif args.verb == "resume":
+                result = cmd_resume(args, store)
+            elif args.verb == "recover":
+                result = cmd_recover(args, store)
+            elif args.verb == "revise":
+                result = cmd_revise(args, store)
+            elif args.verb == "next":
+                result = cmd_next(args, store)
+            elif args.verb == "_worker":
+                result = _worker(store, args.execution_id)
+            else:
+                raise BoundaryError("unknown verb")
+        print(json.dumps(result, sort_keys=True))
+        return 1 if isinstance(result, dict) and result.get("outcome") == "INCONCLUSIVE" else 0
+    except (BoundaryError, OSError, ValueError) as exc:
+        print(f"codex-improve: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
