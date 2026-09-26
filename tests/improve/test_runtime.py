@@ -28,7 +28,9 @@ from git_worktree import (BoundaryError, candidate, checkpoint, copy_ignored,
                           require_oid, validate_worktree, wt)
 from transport import ProcessResult, classify, codex_command, run_process
 
-CLI_FUNCTIONS = runpy.run_path(str(CLI))
+with patch.dict(os.environ):
+    os.environ.pop("CODEX_IMPROVE_CODEX", None)
+    CLI_FUNCTIONS = runpy.run_path(str(CLI))
 
 
 def run(*args: str | Path, cwd: Path | None = None, env: dict | None = None,
@@ -55,6 +57,7 @@ class Fixture(unittest.TestCase):
         self.state_home.mkdir(mode=0o700)
         self.store = StateStore(self.state_home)
         self.env = dict(os.environ, XDG_STATE_HOME=str(self.state_home), HOME=str(self.root))
+        self.env.pop("CODEX_IMPROVE_CODEX", None)
         self.bin = self.root / "bin"
         self.bin.mkdir()
         fake = self.bin / "codex"
@@ -259,6 +262,40 @@ class GitAndWorktrunk(Fixture):
 
 
 class ContractsAndTransport(Fixture):
+    def test_selected_codex_survives_launcher_path_change(self):
+        selected = self.root / "selected-codex"
+        marker = self.root / "selected-called"
+        selected.write_text(f"#!/bin/sh\nprintf selected > {marker}\nexec {self.bin / 'codex'} \"$@\"\n")
+        selected.chmod(0o755)
+        conflict_bin = self.root / "conflict-bin"
+        conflict_bin.mkdir()
+        conflict = conflict_bin / "codex"
+        conflict.write_text(f"#!/bin/sh\nprintf conflict > {self.root / 'conflict-called'}\nexit 97\n")
+        conflict.chmod(0o755)
+        launcher = ["env", "PATH=" + str(conflict_bin) + os.pathsep + self.env["PATH"]]
+        result = self.cli("execute", self.plan(launcher=launcher), self.repo,
+                          env={"CODEX_IMPROVE_CODEX": str(selected)})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["outcome"], "COMPLETE")
+        self.assertEqual(marker.read_text(), "selected")
+        self.assertFalse((self.root / "conflict-called").exists())
+
+        selected.chmod(0o644)
+        marker.unlink()
+        failed = self.cli("execute", self.plan(launcher=launcher), self.repo,
+                          env={"CODEX_IMPROVE_CODEX": str(selected)})
+        self.assertEqual(failed.returncode, 2)
+        self.assertIn(str(selected), failed.stderr)
+        self.assertFalse(marker.exists())
+        self.assertFalse((self.root / "conflict-called").exists())
+
+        missing = self.root / "missing-codex"
+        failed = self.cli("execute", self.plan(launcher=launcher), self.repo,
+                          env={"CODEX_IMPROVE_CODEX": str(missing)})
+        self.assertEqual(failed.returncode, 2)
+        self.assertIn(str(missing), failed.stderr)
+        self.assertFalse((self.root / "conflict-called").exists())
+
     def test_status_reports_live_and_finished_records(self):
         worktree = self.worktree()
         plan = self.plan().read_bytes()

@@ -125,6 +125,7 @@ let
 in {
   options.programs.codexBase = {
     enable = lib.mkEnableOption "the full Codex Base environment";
+    package = lib.mkOption { type = lib.types.package; default = packages.codex; };
     trustedProjects = lib.mkOption { type = lib.types.listOf lib.types.path; default = [ ]; };
     writableRoots = lib.mkOption {
       type = lib.types.listOf lib.types.path;
@@ -139,8 +140,9 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    home.packages = [ packages.codex toolPkgs.mcp-nixos pkgs.nodejs_24 pkgs.curl packages.playwright-cli packages.codex-doctor ]
-      ++ lib.optionals cfg.improve.enable [ packages.codex-improve packages.worktrunk ];
+    home.packages = [ cfg.package toolPkgs.mcp-nixos pkgs.nodejs_24 pkgs.curl packages.playwright-cli
+      (packages.codex-doctor.override { codex = cfg.package; }) ]
+      ++ lib.optionals cfg.improve.enable [ (packages.codex-improve.override { codex = cfg.package; }) packages.worktrunk ];
     home.file = lib.mkMerge [
       {
         ".agents/skills/docs-routing" = linkSkill "docs-routing";
