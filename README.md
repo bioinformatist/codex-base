@@ -68,7 +68,7 @@ Choose the plugin to add the portable workflow to an existing Codex setup, or Ho
 | Improve CLI | `python3 -B skills/improve/scripts/codex-improve` with host dependencies | Packaged `codex-improve` plus `wt` |
 | Global guidance and GitHub MCP | No | Yes |
 | Mintlify / Context7 documentation services | Anonymous HTTP defaults | HTTP Mintlify, local anonymous Context7, and optional per-user authentication |
-| Codex, Code Mode Host, Node, Playwright CLI | No | Pinned packages |
+| Codex, Code Mode Host, Node, Playwright CLI | No | Default Codex package with Code Mode Host, plus pinned Node and Playwright CLI; Codex package can be replaced |
 
 #### Codex plugin
 
@@ -105,6 +105,7 @@ In your Home Manager module, with `inputs` in scope:
 Activate the consuming Home Manager or NixOS configuration using your usual deployment procedure. This route provides the skills, runners, and managed configuration; a separate plugin installation is unnecessary.
 
 The full Nix / Home Manager environment currently pins Codex 0.157.1 and Code Mode Host.
+This describes the default package; to supply another CLI package, see [Codex package selection](docs/configuration.md#codex-package-selection).
 
 ### 3. Configure and verify
 

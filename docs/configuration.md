@@ -5,6 +5,7 @@
 Use this page for runtime settings, optional documentation-service credentials, and planning-capability troubleshooting. Installation and the shared CLI/desktop workflow are in the [README](../README.md#first-workflow).
 
 - [Native Codex configuration](#native-codex-configuration)
+- [Codex package selection](#codex-package-selection)
 - [Model choice](#model-choice)
 - [Context7 authentication](#context7-authentication)
 - [Temporary context-management waiver](#temporary-context-waiver)
@@ -27,7 +28,7 @@ default_mode_request_user_input = true
 |---|---|
 | `plan_mode_reasoning_effort` | Gives Plan Mode more reasoning effort; it does not change the model. |
 | `context_management.experimental_mode` | Requests experimental native context management. It cannot override service rollout or the server-provided capability for the signed-in account and model. Authentication, starting model, client, and live session must also be eligible. Follow the shared [task-start instructions](../README.md#first-workflow). |
-| `code_mode.enabled` | Requests Code Mode, which requires the matching Code Mode companion host. Home Manager installs that host; a standalone CLI may not have it. Set this to `false` if the host is unavailable. |
+| `code_mode.enabled` | Requests Code Mode, which requires the matching Code Mode companion host. The default Home Manager package includes it; a replacement package or standalone CLI may not. Set this to `false` if the host is unavailable. |
 | `default_mode_request_user_input` | Makes structured questions available in Default Mode. It does not automatically invoke Grilling or another question workflow. |
 
 This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level; the three feature toggles belong in `[features]`. Update existing keys in place. Replace existing boolean `context_management` or `code_mode` entries with the dotted form above; do not keep both a boolean and table form or duplicate a TOML key.
@@ -35,6 +36,18 @@ This is a merge fragment, not a replacement file or per-start flag. Keep unrelat
 After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend, and the service can still withhold the capability from the starting model. Consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. Missing native context management during formal planning is handled through the [per-plan waiver](#temporary-context-waiver), not repeated configuration changes.
 
 The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers context management, Code Mode, and Plan Mode effort. The Default Mode question flag is supported by the verified Codex [feature declaration](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs).
+
+<a id="codex-package-selection"></a>
+
+## Codex package selection
+
+The Home Manager option `programs.codexBase.package` defaults to this repository's standalone Codex CLI package. Set it to another Nix package to install that package and make `codex-improve` and `codex-doctor` use its `bin/codex`:
+
+```nix
+programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
+```
+
+The supplied package must provide an executable `bin/codex` and any sandbox or Code Mode companion resources it needs. The option does not replace the desktop application's bundled backend or change another project's devShell. Test a community package in its consuming environment before relying on it; this option alone does not establish runtime compatibility.
 
 ## Model choice
 
