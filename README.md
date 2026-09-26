@@ -104,7 +104,7 @@ In your Home Manager module, with `inputs` in scope:
 
 Activate the consuming Home Manager or NixOS configuration using your usual deployment procedure. This route provides the skills, runners, and managed configuration; a separate plugin installation is unnecessary.
 
-The full Nix / Home Manager environment currently pins Codex 0.157.0 and Code Mode Host.
+The full Nix / Home Manager environment currently pins Codex 0.157.1 and Code Mode Host.
 
 ### 3. Configure and verify
 
