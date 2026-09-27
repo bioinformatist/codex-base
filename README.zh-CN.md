@@ -68,7 +68,7 @@ Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed�
 | Improve CLI | 使用主机依赖运行 `python3 -B skills/improve/scripts/codex-improve` | 提供 `codex-improve` 和 `wt` |
 | 全局指引与 GitHub MCP | 无 | 有 |
 | Mintlify / Context7 文档服务 | 匿名 HTTP 默认配置 | HTTP Mintlify、本地匿名 Context7 和可选的用户级认证 |
-| Codex、Code Mode Host、Node、Playwright CLI | 不安装 | 固定版本的软件包 |
+| Codex、Code Mode Host、Node、Playwright CLI | 不安装 | 默认 Codex 包含 Code Mode Host，Node 和 Playwright CLI 固定版本；Codex 包可替换 |
 
 #### Codex 插件
 
@@ -105,6 +105,7 @@ inputs.codex-base = {
 按你平时的部署流程激活使用该模块的 Home Manager 或 NixOS 配置。这条路径会提供技能、执行器和托管配置，无需再单独安装插件。
 
 Nix / Home Manager 完整环境当前固定 Codex 0.157.1 和 Code Mode Host。
+这描述的是默认包；如需提供其他 CLI 包，参见 [Codex 软件包选择](docs/configuration.zh-CN.md#codex-package-selection)。
 
 ### 3. 配置并验证
 

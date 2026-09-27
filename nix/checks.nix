@@ -27,12 +27,79 @@ let
       programs.codexBase.improve.enable = false;
     } ];
   };
+  selectedCodex = pkgs.writeShellScriptBin "codex" ''
+    printf '%s\n' "$@" > "$CODEX_PACKAGE_LOG/''${1-unknown}.args"
+    case "''${1-}" in
+      --version) echo 'codex-cli selected' ;;
+      plugin) echo 'github@openai-curated installed, enabled' ;;
+      exec)
+        echo '{"type":"thread.started"}'
+        echo '{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":2,"output_tokens":3}}'
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = "--output-last-message" ]; then
+            printf '%s\n' '{"status":"COMPLETE","steps":["selected"],"stoppedBecause":null,"filesChanged":[],"notes":[]}' > "$2"
+            break
+          fi
+          shift
+        done
+        ;;
+      *) exit 90 ;;
+    esac
+  '';
+  unusableCodex = pkgs.runCommand "unusable-codex" { } ''
+    mkdir -p "$out/bin"
+    printf '#!/bin/sh\nexit 0\n' > "$out/bin/codex"
+    chmod 644 "$out/bin/codex"
+  '';
+  hmSelected = inputs.home-manager.lib.homeManagerConfiguration {
+    inherit pkgs;
+    modules = [ self.homeManagerModules.default {
+      home.username = "tester"; home.homeDirectory = "/home/tester"; home.stateVersion = "26.05";
+      programs.codexBase.enable = true;
+      programs.codexBase.package = selectedCodex;
+    } ];
+  };
+  hmSelectedOff = inputs.home-manager.lib.homeManagerConfiguration {
+    inherit pkgs;
+    modules = [ self.homeManagerModules.default {
+      home.username = "tester"; home.homeDirectory = "/home/tester"; home.stateVersion = "26.05";
+      programs.codexBase.enable = true;
+      programs.codexBase.package = selectedCodex;
+      programs.codexBase.improve.enable = false;
+    } ];
+  };
+  selectedImprove = packages.codex-improve.override { codex = selectedCodex; };
+  selectedDoctor = packages.codex-doctor.override { codex = selectedCodex; };
+  unusableImprove = packages.codex-improve.override { codex = unusableCodex; };
+  selectedClosure = pkgs.closureInfo { rootPaths = [ hmSelected.activationPackage ]; };
   files = hm.config.home.file;
   filesOff = hmOff.config.home.file;
   activation = hm.config.home.activation.codex-base-config.data;
   hmClosure = pkgs.closureInfo { rootPaths = [ hm.activationPackage ]; };
   legacy = map (n: ".codex/${n}.config.toml") [ "improve-scout" "improve-executor" "improve-executor-spark" "improve-executor-luna-low" "improve-executor-deep" "improve-reviewer" "improve-elegance-reviewer" ];
 in {
+  codex-package-selection =
+    assert hm.config.programs.codexBase.package == packages.codex;
+    assert builtins.elem packages.codex hm.config.home.packages;
+    assert builtins.elem packages.codex-improve hm.config.home.packages;
+    assert builtins.elem packages.codex-doctor hm.config.home.packages;
+    assert builtins.elem selectedCodex hmSelected.config.home.packages;
+    assert builtins.elem selectedImprove hmSelected.config.home.packages;
+    assert builtins.elem selectedDoctor hmSelected.config.home.packages;
+    assert builtins.elem selectedCodex hmSelectedOff.config.home.packages;
+    assert builtins.elem selectedDoctor hmSelectedOff.config.home.packages;
+    assert !(builtins.elem selectedImprove hmSelectedOff.config.home.packages);
+    assert !(builtins.elem packages.codex hmSelected.config.home.packages);
+    mkTest "codex-package-selection" (shellTools ++ [ pkgs.jq selectedImprove selectedDoctor ]) ''
+      grep -Fxq ${selectedCodex} ${selectedClosure}/store-paths
+      ! grep -Fxq ${packages.codex} ${selectedClosure}/store-paths
+      export SELECTED_DOCTOR=${selectedDoctor}/bin/codex-doctor
+      export SELECTED_IMPROVE=${selectedImprove}/bin/codex-improve
+      export UNUSABLE_IMPROVE=${unusableImprove}/bin/codex-improve
+      export FIXTURE_LAUNCHER_PATH=${pkgs.lib.makeBinPath [ pkgs.python3 pkgs.gitMinimal packages.worktrunk pkgs.coreutils ]}
+      bash ${srcRoot}/tests/codex-package-selection.bash
+      touch $out
+    '';
   generated-plugin-parity = mkTest "generated-plugin-parity" shellTools ''
     diff -ruN --no-dereference ${generatedSkills} ${srcRoot}/plugins/codex-base/skills
     touch $out

@@ -41,7 +41,7 @@ let
     '';
     meta = { mainProgram = "wt"; platforms = [ "x86_64-linux" ]; license = [ pkgs.lib.licenses.mit pkgs.lib.licenses.asl20 ]; };
   };
-in rec {
+in let self = rec {
   inherit worktrunk;
   codex = pkgs.stdenvNoCC.mkDerivation {
     pname = "codex";
@@ -73,18 +73,21 @@ in rec {
     export npm_config_cache="''${XDG_CACHE_HOME:-$HOME/.cache}/npm"
     exec ${pkgs.nodejs_24}/bin/npx -y @playwright/cli@0.1.19 "$@"
   '';
-  codex-improve = pkgs.writeShellApplication {
+  codex-improve = pkgs.lib.makeOverridable ({ codex ? self.codex }: pkgs.writeShellApplication {
     name = "codex-improve";
-    runtimeInputs = [ pkgs.python3 pkgs.gitMinimal codex worktrunk ];
-    text = ''exec python3 -B ${skills}/improve/scripts/codex-improve "$@"'';
-  };
-  codex-doctor = pkgs.writeShellApplication {
-    name = "codex-doctor";
-    runtimeInputs = [ codex ];
+    runtimeInputs = [ pkgs.python3 pkgs.gitMinimal worktrunk ];
     text = ''
-      codex --version
-      codex plugin list --marketplace openai-curated | grep -E '^github@openai-curated[[:space:]]+installed, enabled' >/dev/null
+      export CODEX_IMPROVE_CODEX=${pkgs.lib.escapeShellArg "${codex}/bin/codex"}
+      exec python3 -B ${skills}/improve/scripts/codex-improve "$@"
+    '';
+  }) { };
+  codex-doctor = pkgs.lib.makeOverridable ({ codex ? self.codex }: pkgs.writeShellApplication {
+    name = "codex-doctor";
+    runtimeInputs = [ pkgs.gnugrep ];
+    text = ''
+      ${codex}/bin/codex --version
+      ${codex}/bin/codex plugin list --marketplace openai-curated | grep -E '^github@openai-curated[[:space:]]+installed, enabled' >/dev/null
       command -v mcp-nixos >/dev/null || { echo "mcp-nixos: missing from PATH" >&2; exit 1; }
     '';
-  };
-}
+  }) { };
+}; in self

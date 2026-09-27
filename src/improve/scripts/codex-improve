@@ -27,6 +27,7 @@ from transport import codex_command, classify, run_process
 ROLES = SOURCE / "config/roles.json"
 EXECUTOR_SCHEMA = SOURCE / "references/executor-report.schema.json"
 REVIEW_SCHEMA = SOURCE / "references/review-verdict.schema.json"
+CODEX_EXECUTABLE = os.environ.get("CODEX_IMPROVE_CODEX", "codex")
 
 
 def require_tools(*names: str) -> None:
@@ -208,7 +209,7 @@ def _worker_run(store: StateStore, execution_id: str) -> dict:
     if preflight_failed:
         _finish(store, record, "STOPPED", "environment_preflight_failed")
         return record
-    require_tools("codex")
+    require_tools(CODEX_EXECUTABLE)
     schema = EXECUTOR_SCHEMA if record["kind"] != "review" else REVIEW_SCHEMA
     final_path = store.path(execution_id) / "final.json"
     prompt = private_read(store.path(execution_id) / "prompt.txt")
@@ -216,7 +217,8 @@ def _worker_run(store: StateStore, execution_id: str) -> dict:
     store.save(record)
     argv = codex_command(role, cwd=worktree.path, schema=schema, final=final_path,
                          grants=record["grants"], cache_root=store.cache,
-                         cargo=cargo, npm=npm, xdg=xdg)
+                         cargo=cargo, npm=npm, xdg=xdg,
+                         codex_executable=CODEX_EXECUTABLE)
     group_path = store.path(execution_id) / "active-codex-pgid"
     try:
         with private_append(store.path(execution_id) / "events.jsonl") as events, \
@@ -312,7 +314,7 @@ def start(store: StateStore, record: dict, plan: bytes, prompt: bytes) -> dict:
 
 
 def cmd_execute(args: argparse.Namespace, store: StateStore) -> dict:
-    require_tools("git", "wt", "codex")
+    require_tools("git", "wt", CODEX_EXECUTABLE)
     plan = args.plan.read_bytes()
     parse_plan(plan)
     roles = read_roles(ROLES)
@@ -343,7 +345,7 @@ def cmd_execute(args: argparse.Namespace, store: StateStore) -> dict:
 
 
 def cmd_review(args: argparse.Namespace, store: StateStore, *, scout: bool = False) -> dict:
-    require_tools("git", "wt", "codex")
+    require_tools("git", "wt", CODEX_EXECUTABLE)
     worktree = validate_worktree(args.worktree, owned=not scout)
     head, tree = require_candidate(worktree, args.tree)
     role = "scout" if scout else args.role
@@ -449,7 +451,7 @@ def cmd_revise(args: argparse.Namespace, store: StateStore) -> dict:
 
 
 def cmd_next(args: argparse.Namespace, store: StateStore) -> dict:
-    require_tools("git", "wt", "codex")
+    require_tools("git", "wt", CODEX_EXECUTABLE)
     plan = args.plan.read_bytes()
     parse_plan(plan)
     read_roles(ROLES)[args.lane]

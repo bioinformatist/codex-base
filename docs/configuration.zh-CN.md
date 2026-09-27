@@ -5,6 +5,7 @@
 本页供查阅运行时设置、可选的文档服务凭据和规划能力排障。安装步骤以及 CLI、桌面端共用的工作流见 [README](../README.zh-CN.md#首次工作流)。
 
 - [Codex 原生配置](#native-codex-configuration)
+- [Codex 软件包选择](#codex-package-selection)
 - [模型选择](#model-choice)
 - [Context7 认证](#context7-authentication)
 - [原生上下文管理临时豁免](#temporary-context-waiver)
@@ -29,7 +30,7 @@ default_mode_request_user_input = true
 |---|---|
 | `plan_mode_reasoning_effort` | 提高 Plan Mode 的推理强度，不改变模型。 |
 | `context_management.experimental_mode` | 请求启用实验性原生上下文管理；它不能覆盖服务端 rollout，也不能覆盖服务端为当前账户和模型下发的能力状态。认证方式、启动模型、客户端及当前会话也必须符合资格。请按共用的[任务启动说明](../README.zh-CN.md#首次工作流)操作。 |
-| `code_mode.enabled` | 请求启用 Code Mode，需要匹配的 Code Mode companion host。Home Manager 会安装它，独立 CLI 不一定具备；缺少 host 时应设为 `false`。 |
+| `code_mode.enabled` | 请求启用 Code Mode，需要匹配的 Code Mode companion host。Home Manager 默认包包含它，替代包或独立 CLI 则不一定具备；缺少 host 时应设为 `false`。 |
 | `default_mode_request_user_input` | 让 Default Mode 可以使用结构化提问，不会自动调用 Grilling 或其他提问工作流。 |
 
 这是合并片段，不应替换整个文件，也不是每次启动要带的参数。请保留无关配置。`plan_mode_reasoning_effort` 是顶层键，三个功能开关属于 `[features]`。已有键应就地修改；若 `context_management` 或 `code_mode` 目前为布尔值，请用上面的点分形式替换，不要同时保留布尔值和表，也不要重复定义 TOML 键。
@@ -37,6 +38,18 @@ default_mode_request_user_input = true
 保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话，服务端仍可不向启动模型开放该能力。当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式规划缺少原生上下文管理时，应使用[单计划临时豁免](#temporary-context-waiver)流程，而非反复改配置。
 
 官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由已核对的 Codex [功能声明](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs)支持。
+
+<a id="codex-package-selection"></a>
+
+## Codex 软件包选择
+
+Home Manager 选项 `programs.codexBase.package` 默认使用本仓库打包的独立 Codex CLI。将它设为另一个 Nix 包后，Home Manager 会安装该包，`codex-improve` 和 `codex-doctor` 也会使用该包的 `bin/codex`：
+
+```nix
+programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
+```
+
+所选包必须提供可执行的 `bin/codex`，并自行提供所需的沙箱和 Code Mode 配套资源。此选项不会替换桌面应用内嵌的后台，也不会改变其他项目的 devShell。社区包的实际兼容性需在消费方环境中验证；仅设置该选项不能证明运行兼容。
 
 <a id="model-choice"></a>
 

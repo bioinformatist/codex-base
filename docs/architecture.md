@@ -19,10 +19,14 @@ per-user `context7_auth` adapter. Native Codex same-name configuration provides
 the override boundary. Both public third-party services receive only focused
 public lookup terms, never private or secret content.
 
-`nix/packages.nix` packages Codex, its Code Mode Host companion, Playwright CLI,
-and the single `codex-improve` wrapper with Python, Git, and Worktrunk. `nix/home-manager.nix` owns the full Linux runtime:
+`nix/packages.nix` packages the default Codex CLI and Code Mode Host, Playwright CLI,
+and `codex-improve` and `codex-doctor` wrappers that accept a Codex package. `nix/home-manager.nix` owns the full Linux runtime:
 config overlay, MCP wrappers, global instructions, rules, packages, and direct
-unnamespaced skill links. It intentionally renders no Improve profile files.
+unnamespaced skill links. Its `package` option installs one CLI package and passes
+that package's absolute `bin/codex` path to both helpers. The Improve wrapper
+passes the path through the launcher to its worker, so launcher `PATH` changes
+cannot select another CLI. The portable plugin still resolves `codex` from the
+host `PATH`. Home Manager intentionally renders no Improve profile files.
 
 The desktop SSH client starts Codex App Server on the remote host. That process
 can serve multiple chats, so installing a new binary and starting a new chat
