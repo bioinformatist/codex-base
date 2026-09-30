@@ -38,11 +38,19 @@ When running `nix eval`, `nix flake check`, or `nix build`, invoke it
 directly. Codex already sets `XDG_CACHE_HOME`; add an
 `env XDG_CACHE_HOME=...` prefix only when debugging that variable.
 
-If a GitHub or Nix fetch/update fails in a way that looks proxy-node or
-network dependent, such as API rate limits on a shared proxy IP, blocked
-downloads, DNS failures, or connection resets, treat it as an external
-blocker. Report the exact error and ask the user to switch proxy nodes
-before changing repository URLs, transports, or long-term config.
+For an authorized operation that is safe to repeat and fails with a transient
+network error, make at most three Codex-initiated retries after the first
+attempt; continue when it succeeds. Honor explicit server wait requirements
+and any lower retry limit set by the task or a skill. Count known earlier
+Codex-initiated retries against the budget even when the command wrapper
+changes; tool-internal retries are outside this budget.
+
+For authentication failures, permission denials, deterministic configuration
+errors, or remote writes with an uncertain result, diagnose or check the
+result before retrying. When retries are exhausted, report the exact error,
+attempt count, and blocked step, and continue independent work. A network
+failure alone does not authorize changing repository URLs, transport, or
+persistent configuration.
 
 When adding or updating a repo-local devShell, prefer a pinned lock that
 has been verified to enter quickly with the machine's configured

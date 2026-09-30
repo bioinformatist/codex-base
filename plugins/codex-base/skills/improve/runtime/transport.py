@@ -51,111 +51,113 @@ def run_process(argv: list[str], *, cwd: Path, env: dict[str, str], stdin: bytes
                 on_stderr: Callable[[bytes], object] | None = None) -> ProcessResult:
     """Bound output while running, kill the entire child process group on fuses."""
     started = time.monotonic()
-    input_file = tempfile.TemporaryFile()
-    input_file.write(stdin)
-    input_file.seek(0)
-    try:
-        process = subprocess.Popen(argv, cwd=cwd, env=env, stdin=input_file,
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   start_new_session=True)
-    except FileNotFoundError as exc:
-        raise BoundaryError(f"missing required command: {argv[0]}") from exc
-    finally:
-        input_file.close()
-    assert process.stdout and process.stderr
-    try:
-        if on_start is not None:
-            on_start(process.pid)
-    except BaseException:
-        _stop_group(process, signal.SIGKILL)
-        process.wait()
-        process.stdout.close()
-        process.stderr.close()
-        raise
-
-    def stop(sig: int) -> None:
-        _stop_group(process, sig)
-        if on_stop is not None:
-            on_stop(sig)
-
-    watch = selectors.DefaultSelector()
-    for stream in (process.stdout, process.stderr):
-        os.set_blocking(stream.fileno(), False)
-        watch.register(stream, selectors.EVENT_READ)
-    output = bytearray()
-    diagnostic = bytearray()
-    reason = "exit"
-    last_content = started
-    last_heartbeat = started
-    quiet_observed = False
-    terminating_at: float | None = None
     previous_handlers: dict[int, Any] = {}
     cancelled = False
-    stdout_truncated = False
 
     def cancel(_signum: int, _frame: Any) -> None:
         nonlocal cancelled
         cancelled = True
 
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            previous_handlers[sig] = signal.signal(sig, cancel)
-        except ValueError:
-            pass
     try:
-        while watch.get_map() or process.poll() is None:
-            now = time.monotonic()
-            if cancelled and terminating_at is None:
-                reason = "caller_signal"
-                stop(signal.SIGINT)
-                terminating_at = now
-            elif now - started >= deadline and terminating_at is None:
-                reason = "absolute_timeout"
-                stop(signal.SIGINT)
-                terminating_at = now
-            elif terminating_at is not None and now - terminating_at >= KILL_GRACE_SECONDS:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                previous_handlers[sig] = signal.signal(sig, cancel)
+            except ValueError:
+                pass
+        input_file = tempfile.TemporaryFile()
+        input_file.write(stdin)
+        input_file.seek(0)
+        try:
+            process = subprocess.Popen(argv, cwd=cwd, env=env, stdin=input_file,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                       start_new_session=True)
+        except FileNotFoundError as exc:
+            raise BoundaryError(f"missing required command: {argv[0]}") from exc
+        finally:
+            input_file.close()
+        assert process.stdout and process.stderr
+        try:
+            if on_start is not None:
+                on_start(process.pid)
+        except BaseException:
+            _stop_group(process, signal.SIGKILL)
+            process.wait()
+            process.stdout.close()
+            process.stderr.close()
+            raise
+
+        def stop(sig: int) -> None:
+            _stop_group(process, sig)
+            if on_stop is not None:
+                on_stop(sig)
+
+        watch = selectors.DefaultSelector()
+        for stream in (process.stdout, process.stderr):
+            os.set_blocking(stream.fileno(), False)
+            watch.register(stream, selectors.EVENT_READ)
+        output = bytearray()
+        diagnostic = bytearray()
+        reason = "exit"
+        last_content = started
+        last_heartbeat = started
+        quiet_observed = False
+        terminating_at: float | None = None
+        stdout_truncated = False
+        try:
+            while watch.get_map() or process.poll() is None:
+                now = time.monotonic()
+                if cancelled and terminating_at is None:
+                    reason = "caller_signal"
+                    stop(signal.SIGINT)
+                    terminating_at = now
+                elif now - started >= deadline and terminating_at is None:
+                    reason = "absolute_timeout"
+                    stop(signal.SIGINT)
+                    terminating_at = now
+                elif terminating_at is not None and now - terminating_at >= KILL_GRACE_SECONDS:
+                    stop(signal.SIGKILL)
+                if now - last_content >= QUIET_OBSERVATION_SECONDS:
+                    quiet_observed = True
+                if now - last_heartbeat >= HEARTBEAT_SECONDS:
+                    print("codex-improve: process active; no content logged", file=sys.stderr, flush=True)
+                    last_heartbeat = now
+                for key, _ in watch.select(timeout=0.2):
+                    chunk = os.read(key.fd, 65536)
+                    if not chunk:
+                        watch.unregister(key.fileobj)
+                        continue
+                    last_content = time.monotonic()
+                    target = output if key.fileobj is process.stdout else diagnostic
+                    limit = stdout_limit if target is output else stderr_limit
+                    accepted = chunk[:max(0, limit - len(target))]
+                    target.extend(accepted)
+                    sink = on_stdout if target is output else on_stderr
+                    if accepted and sink is not None:
+                        sink(accepted)
+                    if len(accepted) < len(chunk):
+                        if target is output:
+                            stdout_truncated = True
+                        if target is output and terminating_at is None:
+                            reason = "event_log_limit"
+                            stop(signal.SIGINT)
+                            terminating_at = time.monotonic()
+                if process.poll() is not None and not watch.get_map():
+                    break
+            status = process.wait()
+        finally:
+            # The leader may have exited while another member still owns the group.
+            if terminating_at is not None or process.poll() is None:
                 stop(signal.SIGKILL)
-            if now - last_content >= QUIET_OBSERVATION_SECONDS:
-                quiet_observed = True
-            if now - last_heartbeat >= HEARTBEAT_SECONDS:
-                print("codex-improve: process active; no content logged", file=sys.stderr, flush=True)
-                last_heartbeat = now
-            for key, _ in watch.select(timeout=0.2):
-                chunk = os.read(key.fd, 65536)
-                if not chunk:
-                    watch.unregister(key.fileobj)
-                    continue
-                last_content = time.monotonic()
-                target = output if key.fileobj is process.stdout else diagnostic
-                limit = stdout_limit if target is output else stderr_limit
-                accepted = chunk[:max(0, limit - len(target))]
-                target.extend(accepted)
-                sink = on_stdout if target is output else on_stderr
-                if accepted and sink is not None:
-                    sink(accepted)
-                if len(accepted) < len(chunk):
-                    if target is output:
-                        stdout_truncated = True
-                    if target is output and terminating_at is None:
-                        reason = "event_log_limit"
-                        stop(signal.SIGINT)
-                        terminating_at = time.monotonic()
-            if process.poll() is not None and not watch.get_map():
-                break
-        status = process.wait()
+            if process.poll() is None:
+                process.wait()
+            watch.close()
+            process.stdout.close()
+            process.stderr.close()
+        return ProcessResult(status, reason, bytes(output), bytes(diagnostic),
+                             time.monotonic() - started, quiet_observed, stdout_truncated)
     finally:
         for sig, handler in previous_handlers.items():
             signal.signal(sig, handler)
-        # The leader may have exited while another member still owns the group.
-        if terminating_at is not None or process.poll() is None:
-            stop(signal.SIGKILL)
-        if process.poll() is None:
-            process.wait()
-        watch.close()
-        process.stdout.close()
-        process.stderr.close()
-    return ProcessResult(status, reason, bytes(output), bytes(diagnostic),
-                         time.monotonic() - started, quiet_observed, stdout_truncated)
 
 
 def parse_events(raw: bytes) -> tuple[list[dict[str, Any]], dict[str, Any]]:

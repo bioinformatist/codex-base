@@ -34,11 +34,15 @@ does not necessarily replace it. Runtime updates and guidance reloads follow
 [the reload instructions](../README.md#reload-after-an-update);
 the desktop client and remote execution environment are separate installations.
 
-The managed global `AGENTS.md` stores persistent per-user Git, Nix, proxy,
-secret-handling, evidence, and working preferences. The portable plugin does
-not install it. Executor prompts retain runner-local scope, checks, STOP, and
-handoff constraints. Codex Base has no model-index or per-model global guidance
-files, and its ordinary runtime default remains Sol with medium reasoning.
+Home Manager writes the base `AGENTS.md` first and appends nonempty
+`programs.codexBase.extraInstructions` after a blank line to the user's global
+guidance, which Codex loads for every project. The base stores persistent
+per-user Git, Nix, secret-handling, evidence, and working preferences;
+environment-specific policy such as proxy handling belongs in a consuming
+module's extra instructions. The portable plugin does not install global
+guidance. Executor prompts retain runner-local scope, checks, STOP, and handoff
+constraints. Codex Base has no model-index or per-model global guidance files,
+and its ordinary runtime default remains Sol with medium reasoning.
 
 Native context-management eligibility depends on live tools and server
 capability for the signed-in account. In the desktop app, that task is a Codex chat under a

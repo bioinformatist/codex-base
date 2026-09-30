@@ -133,6 +133,7 @@ in {
     };
     githubTokenFile = lib.mkOption { type = lib.types.nullOr lib.types.path; default = null; };
     context7ApiKeyFile = lib.mkOption { type = lib.types.nullOr lib.types.path; default = null; };
+    extraInstructions = lib.mkOption { type = lib.types.lines; default = ""; };
     stopSlop.enable = lib.mkOption { type = lib.types.bool; default = true; };
     ponytail.enable = lib.mkOption { type = lib.types.bool; default = true; };
     mattPocockSkills.enable = lib.mkOption { type = lib.types.bool; default = true; };
@@ -154,7 +155,8 @@ in {
         ".agents/skills/ponytail-debt" = lib.mkIf cfg.ponytail.enable (linkSkill "ponytail-debt");
         ".agents/skills/improve" = lib.mkIf cfg.improve.enable (linkSkill "improve");
         ".agents/skills/worktrunk" = lib.mkIf cfg.improve.enable (linkSkill "worktrunk");
-        ".codex/AGENTS.md".source = ../config/AGENTS.md;
+        ".codex/AGENTS.md".text = builtins.readFile ../config/AGENTS.md
+          + lib.optionalString (cfg.extraInstructions != "") "\n${cfg.extraInstructions}";
         ".codex/rules/baseline.rules".source = ../config/baseline.rules;
       }
       (lib.mkIf cfg.mattPocockSkills.enable (lib.genAttrs [
