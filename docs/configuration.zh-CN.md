@@ -6,6 +6,7 @@
 
 - [Codex 原生配置](#native-codex-configuration)
 - [Codex 软件包选择](#codex-package-selection)
+- [全局 AGENTS 指引](#global-agents-instructions)
 - [模型选择](#model-choice)
 - [Context7 认证](#context7-authentication)
 - [原生上下文管理临时豁免](#temporary-context-waiver)
@@ -50,6 +51,22 @@ programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
 ```
 
 所选包必须提供可执行的 `bin/codex`，并自行提供所需的沙箱和 Code Mode 配套资源。此选项不会替换桌面应用内嵌的后台，也不会改变其他项目的 devShell。社区包的实际兼容性需在消费方环境中验证；仅设置该选项不能证明运行兼容。
+
+<a id="global-agents-instructions"></a>
+
+## 全局 AGENTS 指引
+
+`programs.codexBase.extraInstructions` 是 Nix 的 `lines` 选项（字符串），默认值为空。Home Manager 先写入仓库提供的基础指引；仅当附加内容非空时，才以一个空行分隔并追加到用户的全局 `.codex/AGENTS.md`。Codex 在每个项目中都会读取这份指引。代理等环境专属策略应写在消费方的 Home Manager 模块中，例如：
+
+```nix
+{ ... }: {
+  programs.codexBase.extraInstructions = ''
+    If this host's proxy blocks a fetch, report the failing URL and status.
+  '';
+}
+```
+
+此选项的多个定义通过 Nix 原生模块机制合并；需要控制它们的相对顺序时，可使用 `lib.mkBefore` 或 `lib.mkAfter`。可移植插件不安装全局指引。
 
 <a id="model-choice"></a>
 

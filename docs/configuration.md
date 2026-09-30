@@ -6,6 +6,7 @@ Use this page for runtime settings, optional documentation-service credentials, 
 
 - [Native Codex configuration](#native-codex-configuration)
 - [Codex package selection](#codex-package-selection)
+- [Global AGENTS instructions](#global-agents-instructions)
 - [Model choice](#model-choice)
 - [Context7 authentication](#context7-authentication)
 - [Temporary context-management waiver](#temporary-context-waiver)
@@ -48,6 +49,20 @@ programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
 ```
 
 The supplied package must provide an executable `bin/codex` and any sandbox or Code Mode companion resources it needs. The option does not replace the desktop application's bundled backend or change another project's devShell. Test a community package in its consuming environment before relying on it; this option alone does not establish runtime compatibility.
+
+## Global AGENTS instructions
+
+`programs.codexBase.extraInstructions` is a Nix `lines` option (a string) with an empty default. Home Manager writes the repository's base instructions to the user's global `.codex/AGENTS.md`. When the option is nonempty, it adds a blank line and the extra text after the base. Codex loads this guidance for every project. Define environment-specific policy, such as proxy handling, in a consuming Home Manager module:
+
+```nix
+{ ... }: {
+  programs.codexBase.extraInstructions = ''
+    If this host's proxy blocks a fetch, report the failing URL and status.
+  '';
+}
+```
+
+Definitions of this option merge through the native Nix module system; use `lib.mkBefore` or `lib.mkAfter` when their relative order matters. The portable plugin does not install global instructions.
 
 ## Model choice
 

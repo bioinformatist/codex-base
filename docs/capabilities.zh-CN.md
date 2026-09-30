@@ -8,7 +8,7 @@
 
 | ID | 能力 | 插件 | Nix / Home Manager | 触发条件 | 职责 | 验证方式 | 来源 |
 |---|---|---|---|---|---|---|---|
-| global-agents | 全局 AGENTS 指引 | 否 | 是 | Codex 加载受管的全局指引 | 保存用户长期适用的 Git、Nix、代理、密钥处理、证据与工作偏好；执行器自身的范围、检查、STOP 和交接约束仍留在执行器中 | 检查 Home Manager 生成的 `.codex/AGENTS.md` 并运行 Home Manager 检查 | Codex Base；可移植插件有意不安装此文件 |
+| global-agents | 全局 AGENTS 指引 | 否 | 是 | Codex 在每个项目中加载受管的全局指引 | Home Manager 先写入关于 Git、Nix、密钥处理、证据与工作偏好的基础指引，再以空行分隔并追加消费方模块中非空的 `extraInstructions`，用于代理等环境专属策略；执行器自身的范围、检查、STOP 和交接约束仍留在执行器中 | 检查 Home Manager 生成的 `.codex/AGENTS.md` 并运行 Home Manager 检查 | Codex Base；可移植插件有意不安装此文件 |
 | docs-routing | Mintlify / Context7 MCP 配置及路由 | 匿名 HTTP 默认配置及带命名空间的技能 | 本地匿名 Context7、可选的用户级认证 Context7 及无命名空间技能 | 任务需要当前版本的库、SDK、API、CLI 或云服务文档，且没有优先适用的更高权限产品专用路由 | 用精确产品和版本构造聚焦查询，独立主题分别检索；查一次 Mintlify Index，再查 `context7`（插件默认为匿名连接，但可由原生配置替换），仅在前一连接为匿名且结果不足时查可选的 `context7_auth`，最后回退至官方一手资料。只接受相关、版本匹配且来源可追溯的结果，绝不发送私有内容 | 运行插件 schema、smoke、portability 及 Home Manager 检查；Codex 原生同名配置优先于插件默认值 | Codex Base |
 | adhx | ADHX 公开 X 帖子读取器 | 带命名空间的技能 | 无命名空间技能及 curl | 用户给出相关公开 X 帖子 URL，或有边界的网页研究发现它可能实质影响一个具体技术问题 | 读取公开帖子但不搜索 X；保留所需正文、作者、时间和原始 URL，把普通讨论视为线索而非证明，并披露 Article 内容不完整或请求失败 | 用一个可丢弃的公开帖子 URL 调用 `$codex-base:adhx` 或 Nix `$adhx`，检查有边界的请求与原始 URL 引用 | 改编自 [ADHX](https://github.com/itsmemeworks/adhx) |
 | github-mcp | GitHub MCP | 否 | 是 | 需要 GitHub 仓库数据或已获授权的 GitHub 操作 | 提供已配置的 GitHub MCP 连接；其本身不会授予凭据 | 设置 GitHub 令牌文件选项后检查 Home Manager 生成的 Codex 配置 | Codex Base |
