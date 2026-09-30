@@ -662,6 +662,42 @@ class ContractsAndTransport(Fixture):
                 os.kill(pid, signal.SIGKILL)
                 self.fail("descendant survived cancellation")
 
+    def test_cancel_during_start_preserves_evidence(self):
+        ready = self.root / "ready"
+        script = ("import pathlib,signal,sys,time\n"
+                  "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+                  "print('partial-evidence', flush=True)\n"
+                  "print('partial-diagnostic', file=sys.stderr, flush=True)\n"
+                  "pathlib.Path(sys.argv[1]).touch()\n"
+                  "time.sleep(30)\n")
+        events, diagnostics = bytearray(), bytearray()
+        handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+
+        def cancel_during_start(_pid):
+            deadline = time.monotonic() + 5
+            while not ready.exists():
+                if time.monotonic() >= deadline:
+                    self.fail("child did not emit evidence before startup cancellation")
+                time.sleep(0.01)
+            os.kill(os.getpid(), signal.SIGINT)
+
+        with patch.dict(run_process.__globals__, {"KILL_GRACE_SECONDS": 0.05}):
+            try:
+                process = run_process([sys.executable, "-c", script, str(ready)],
+                                      cwd=self.repo, env=self.env, deadline=10,
+                                      on_start=cancel_during_start,
+                                      on_stdout=events.extend, on_stderr=diagnostics.extend)
+            except KeyboardInterrupt:
+                self.fail("startup cancellation bypassed the supervisor's signal handler")
+        self.assertEqual(process.reason, "caller_signal")
+        self.assertEqual(process.status, -signal.SIGKILL)
+        self.assertEqual(process.stdout, b"partial-evidence\n")
+        self.assertEqual(process.stderr, b"partial-diagnostic\n")
+        self.assertEqual(events, process.stdout)
+        self.assertEqual(diagnostics, process.stderr)
+        for sig, handler in handlers.items():
+            self.assertEqual(signal.getsignal(sig), handler)
+
     def test_cli_cancel_kills_nested_codex_group(self):
         codex_pid = self.root / "codex.pid"
         child_pid = self.root / "child.pid"
