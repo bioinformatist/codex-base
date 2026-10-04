@@ -4,7 +4,6 @@ let
   shellTools = [ pkgs.bash pkgs.coreutils pkgs.gitMinimal pkgs.gnused pkgs.jq pkgs.shellcheck-minimal ];
   python = pkgs.python3.withPackages (p: [ p.pyyaml ]);
   instructionSentinel = "Appended instruction sentinel.";
-  pluginValidator = "${inputs.codex-src}/codex-rs/skills/src/assets/samples/plugin-creator/scripts/validate_plugin.py";
   skillValidator = "${inputs.codex-src}/codex-rs/skills/src/assets/samples/skill-creator/scripts/quick_validate.py";
   hm = inputs.home-manager.lib.homeManagerConfiguration {
     inherit pkgs;
@@ -105,8 +104,11 @@ in {
     diff -ruN --no-dereference ${generatedSkills} ${srcRoot}/plugins/codex-base/skills
     touch $out
   '';
-  plugin-schema = mkTest "plugin-schema" [ python pkgs.coreutils pkgs.gnugrep pkgs.jq ] ''
-    python ${pluginValidator} ${srcRoot}/plugins/codex-base
+  plugin-schema = mkTest "plugin-schema" [ python pkgs.coreutils pkgs.gnugrep pkgs.jq packages.codex ] ''
+    export HOME="$TMPDIR/home" CODEX_HOME="$TMPDIR/codex"
+    mkdir -p "$HOME" "$CODEX_HOME"
+    codex plugin marketplace add ${srcRoot} --json > /dev/null
+    codex plugin add codex-base@bioinformatist-codex --json > /dev/null
     for skill in ${srcRoot}/plugins/codex-base/skills/*; do python ${skillValidator} "$skill"; done
     cmp ${inputs.adhx}/LICENSE ${generatedSkills}/adhx/LICENSE
     cmp ${inputs.adhx}/LICENSE ${srcRoot}/plugins/codex-base/licenses/adhx-MIT.txt
