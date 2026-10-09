@@ -80,9 +80,25 @@ for relative in \
   skills/docs-routing/agents/openai.yaml \
   skills/worktrunk/SKILL.md \
   skills/worktrunk/agents/openai.yaml \
-  skills/worktrunk/LICENSE; do
+  skills/worktrunk/LICENSE \
+  skills/retro/SKILL.md \
+  skills/retro/agents/openai.yaml \
+  skills/prototype/SKILL.md \
+  skills/prototype/agents/openai.yaml \
+  skills/prototype/LOGIC.md \
+  skills/prototype/UI.md; do
   [[ -f "$plugin_root/$relative" ]] || fail "installed plugin is missing $relative"
 done
+for skill in retro prototype; do
+  grep -Fqx '  allow_implicit_invocation: false' "$plugin_root/skills/$skill/agents/openai.yaml" \
+    || fail "installed $skill is not explicit-only"
+done
+grep -Fq '[LOGIC.md](LOGIC.md)' "$plugin_root/skills/prototype/SKILL.md" \
+  || fail "installed prototype does not link LOGIC.md"
+grep -Fq '[UI.md](UI.md)' "$plugin_root/skills/prototype/SKILL.md" \
+  || fail "installed prototype does not link UI.md"
+[[ ! -e "$plugin_root/skills/resolving-merge-conflicts" ]] \
+  || fail "installed plugin contains resolving-merge-conflicts"
 
 codex mcp list --json >"$root/mcp-defaults.json"
 jq -e '
@@ -124,6 +140,7 @@ for relative in \
   config/roles.json \
   references/executor-report.schema.json \
   references/review-verdict.schema.json \
+  references/ponytail-core.md \
   runtime/contracts.py \
   runtime/transport.py \
   runtime/git_worktree.py \

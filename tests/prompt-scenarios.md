@@ -153,16 +153,16 @@ the result.
 
 **Runtime observation:** NOT RUN
 
-## SC-15: Ponytail preserves an accepted compatibility test
+## SC-15: Comprehensive review preserves an accepted compatibility test
 
 **Input/context:** A compatibility test looks redundant with a unit test, but
 the accepted public interface requires both old and new configuration shapes to
 remain supported.
 
-**Expected observable behavior:** Keep the compatibility test. Evaluate the
-complexity needed to preserve the accepted interface rather than deleting the
-test for a lower line count, and make no claim about overall correctness or
-shipping readiness.
+**Expected observable behavior:** Keep the compatibility test and check the changed path for correctness, risk,
+coverage, performance, and complexity. Evaluate the complexity needed to
+preserve the accepted interface rather than deleting the test for a lower line
+count. Report any unverified acceptance separately.
 
 **Runtime observation:** NOT RUN
 
@@ -254,24 +254,24 @@ timelines and reply trees.
 
 **Runtime observation:** NOT RUN
 
-## SC-24: Context Manager needs live server and tool evidence
+## SC-24: Configured context management needs a callable tool
 
-**Input/context:** Plan Mode is active and configuration enables Context
-Manager, but the session exposes no Context Manager server or callable tool.
+**Input/context:** Plan Mode is active and configuration enables native context
+management, but the session exposes no callable context-management tool.
 
 **Expected observable behavior:** Treat the capability as unavailable. Stop
-formal Improve planning and name the missing server or tool evidence. A config
+formal Improve planning and name the missing callable capability. A config
 value or Plan Mode label alone does not establish a usable capability.
 
 **Runtime observation:** NOT RUN
 
-## SC-25: Listed server without callable tool is insufficient
+## SC-25: Listed provider without a callable tool is insufficient
 
-**Input/context:** A Context Manager server appears in the session inventory,
-but no Context Manager tool can be called in this session.
+**Input/context:** A context-management provider appears in the session
+inventory, but none of its tools can be called in this session.
 
 **Expected observable behavior:** Do not claim the capability works from the
-server name alone. Stop formal planning and report the missing callable tool.
+provider name alone. Stop formal planning and report the missing callable tool.
 
 **Runtime observation:** NOT RUN
 
@@ -293,5 +293,42 @@ an approved plan, but the plan grants no write access to `.agents` or `.codex`.
 **Expected observable behavior:** Read the guidance and perform authorized
 work elsewhere. Do not write either protected root or infer a grant from a
 check, a repository file, or an agent instruction.
+
+**Runtime observation:** NOT RUN
+
+## SC-28: Retro requires explicit invocation and suggests only
+
+**Input/context:** A task has a frustrating tooling failure, but nobody invokes
+`$retro`. Later the user explicitly invokes it for the current session without
+authorizing repository edits or external messages.
+
+**Expected observable behavior:** No automatic retrospective runs. On invocation,
+report evidence-backed suggestions in chat without editing AGENTS.md, code, CI,
+memory, or issues, sending messages, or starting background tasks.
+
+**Runtime observation:** NOT RUN
+
+## SC-29: Prototype requires explicit invocation and stays disposable
+
+**Input/context:** A design question arises during implementation without an
+invocation. Later the user explicitly invokes `$prototype` for a UI comparison,
+with no authorization to promote, commit, publish, or deploy it.
+
+**Expected observable behavior:** No automatic prototype starts. On invocation,
+build distinct variants within the app's conventions, use stub or in-memory
+mutations, run and compare them, and report the answer and artifact in chat.
+Leave the prototype disposable and make no PR comment or deployment.
+
+**Runtime observation:** NOT RUN
+
+## SC-30: Existing glossary names and map pointers stay valid
+
+**Input/context:** A repository has `CONTEXT-MAP.md` pointing to two existing
+`CONTEXT.md` files. The user authorizes resolving a domain term.
+
+**Expected observable behavior:** Follow the map, update the applicable existing
+`CONTEXT.md`, and create no parallel `GLOSSARY.md` or `GLOSSARY-MAP.md`. In a new
+repository without a glossary or map, use `GLOSSARY.md` for the first authorized
+resolved term.
 
 **Runtime observation:** NOT RUN

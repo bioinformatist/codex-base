@@ -36,7 +36,7 @@ let
     trust_level = "trusted"
   '') trustedProjects;
   managedConfig = pkgs.writeText "codex-base-config.toml" ''
-    model = "gpt-6-sol"
+    model = "gpt-6.1-sol"
     model_reasoning_effort = "medium"
     model_verbosity = "medium"
     plan_mode_reasoning_effort = "high"
@@ -162,7 +162,7 @@ in {
       (lib.mkIf cfg.mattPocockSkills.enable (lib.genAttrs [
         ".agents/skills/diagnosing-bugs" ".agents/skills/tdd" ".agents/skills/codebase-design"
         ".agents/skills/grilling" ".agents/skills/handoff" ".agents/skills/domain-modeling"
-        ".agents/skills/resolving-merge-conflicts"
+        ".agents/skills/retro" ".agents/skills/prototype"
         ".agents/skills/writing-for-agents" ".agents/skills/to-questionnaire"
         ".agents/skills/wait-what"
       ] (path: linkSkill (baseNameOf path))))

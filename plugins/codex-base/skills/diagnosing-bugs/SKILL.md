@@ -7,7 +7,7 @@ description: Disciplined diagnosis loop for hard bugs, regressions, flaky failur
 
 Start from a concrete symptom and gather read-only evidence. A reproduction tightens hypotheses but is not a prerequisite for inspecting relevant code, history, configuration, or logs.
 
-When exploring the codebase, read `CONTEXT.md` (if it exists) to get a clear mental model of the relevant modules, and check ADRs in the area you're touching.
+When exploring the codebase, follow an existing GLOSSARY-MAP.md or CONTEXT-MAP.md, or read the root GLOSSARY.md or CONTEXT.md when present. Check ADRs in the area you're touching.
 
 ## Redact
 
@@ -126,7 +126,7 @@ A correct seam is one where the test exercises the **real bug pattern** as it oc
 If a correct seam exists:
 
 1. Turn the minimised repro into a failing test at that seam.
-2. Watch it fail.
+2. Watch it fail. If you forced the red by mutating code or a fixture, `diff` against a pristine copy to prove the mutation landed before you trust it.
 3. Apply the fix.
 4. Watch it pass.
 5. Re-run the Phase 1 feedback loop against the original (un-minimised) scenario.

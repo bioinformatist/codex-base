@@ -1,0 +1,6 @@
+interface:
+  display_name: "Prototype"
+  short_description: "Explore one design question with a prototype"
+  default_prompt: "Use $prototype to build a disposable prototype for this design question."
+policy:
+  allow_implicit_invocation: false

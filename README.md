@@ -18,7 +18,7 @@ Codex Base combines adapted community skills with our team's workflow and enviro
 
 ## What we've done
 
-Our Improve workflow builds on the audit and planning foundations from [shadcn's Improve](https://github.com/shadcn/improve). We adapt selected skills from [Matt Pocock](https://github.com/mattpocock/skills) for requirements clarification, debugging, testing, design, and agent guidance. We also adapt and integrate [Ponytail](https://github.com/DietrichGebert/ponytail) for over-engineering review, audits, and debt tracking; [stop-slop](https://github.com/hardikpandya/stop-slop) for prose editing; and the [Playwright CLI skill](https://github.com/microsoft/playwright-cli) for browser work.
+Our Improve workflow builds on the audit and planning foundations from [shadcn's Improve](https://github.com/shadcn/improve). We adapt selected skills from [Matt Pocock](https://github.com/mattpocock/skills) for requirements clarification, debugging, testing, design, retrospectives, prototypes, and agent guidance. We also adapt and integrate [Ponytail](https://github.com/DietrichGebert/ponytail) for implementation, comprehensive change review, repository audits, and shortcut debt; [stop-slop](https://github.com/hardikpandya/stop-slop) for prose editing; and the [Playwright CLI skill](https://github.com/microsoft/playwright-cli) for browser work.
 
 Our work focuses on adapting these foundations to Codex, extending and connecting the planning, execution, and review workflow, adding documentation and bounded public-X research support, and maintaining the plugin and Nix/Home Manager environment. In this setup:
 
@@ -31,7 +31,7 @@ The [credits and licenses](docs/credits.md) describe the upstream contributions 
 
 ![How direct editing and Codex Base handle a task as its context grows](docs/assets/codex-base-workflow.svg)
 
-For bounded implementation work, the approved plan selects economy (Luna/low), standard (Sol/medium), or deep (Sol/xhigh). The coordinator does not switch models after launch; see [executor routing](docs/architecture.md#executor-routing).
+For bounded implementation work, the approved plan selects economy (Luna/low), standard (Sol 6.1/medium), or deep (Sol 6.1/xhigh). The coordinator does not switch models after launch; see [executor routing](docs/architecture.md#executor-routing).
 
 Planning and review also consume usage, so small, clear edits are usually better handled directly. Codex Base does not promise fewer tokens or lower cost for every task.
 
@@ -135,11 +135,7 @@ These instructions apply to **both installation methods**. A Codex task means on
 
 ### Start with the right model
 
-The managed default is `gpt-6-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning requires live native context management and structured questions. Check the actual tools and server capability in the current session. A model name alone does not establish either capability. Astra is an explicit choice for difficult planning, not a prerequisite or automatic escalation. See [model selection](docs/configuration.md#model-choice).
-
-<a id="temporary-context-waiver"></a>
-
-Before formal planning, verify the live tools: configured `true` values and a Plan Mode label do not prove that either capability is live. Selecting Astra does not prove that native context management is live either. If it is absent, do not repeatedly restart, rebuild, or toggle the same setting; use a session where the service actually exposes it, or ask the user to grant a [temporary per-plan waiver](docs/configuration.md#temporary-context-waiver). Structured questions and the other planning requirements still apply.
+The managed default is `gpt-6.1-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning requires built-in Plan Mode with callable native context management and structured questions in the current session. A model name, configuration flag, or Plan Mode label alone does not prove those capabilities are available. If either tool is missing, use a capable Plan Mode session; see [native Codex configuration](docs/configuration.md#native-codex-configuration) and [model selection](docs/configuration.md#model-choice). Astra is an explicit choice for difficult planning, not a prerequisite or automatic escalation.
 
 ### Plan, then authorize implementation
 

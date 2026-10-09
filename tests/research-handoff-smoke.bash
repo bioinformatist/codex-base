@@ -52,7 +52,7 @@ for arg in "$@"; do
 done
 [ -n "$final" ]
 [ -f specification.txt ] && [ ! -e runtime-acceptance.proof ]
-[[ " $* " == *' --model gpt-6-sol '* ]]
+[[ " $* " == *' --model gpt-6.1-sol '* ]]
 checkpoint=$'Research checkpoint:\nQuestion: Which source identifies the current specification?\nFinding: Version 2 is current; version 1 is retired.\nEvidence: specification.txt:1; retired-draft.txt:1\nNext: Check whether runtime-acceptance.proof exists.'
 bullet_checkpoint=$'Research checkpoint:\n- Question: What is current?\n- Finding: Version 2 is current; version 1 is retired.\n- Evidence: specification.txt:1\n- Next: Check runtime-acceptance.proof.'
 formatted_checkpoint=$'Research checkpoint:\n- **Question:** What is current?\n- **Finding:** Version 2 is current; version 1 is retired.\n- **Evidence:** `specification.txt`\n- `Next:` Check **`runtime-acceptance.proof`**.'

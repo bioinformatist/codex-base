@@ -59,6 +59,12 @@ for relative in \
   skills/worktrunk/SKILL.md \
   skills/worktrunk/agents/openai.yaml \
   skills/worktrunk/LICENSE \
+  skills/retro/SKILL.md \
+  skills/retro/agents/openai.yaml \
+  skills/prototype/SKILL.md \
+  skills/prototype/agents/openai.yaml \
+  skills/prototype/LOGIC.md \
+  skills/prototype/UI.md \
   skills/improve/scripts/codex-improve \
   skills/improve/runtime/contracts.py \
   skills/improve/runtime/transport.py \
@@ -68,6 +74,12 @@ for relative in \
   skills/improve/references/review-verdict.schema.json; do
   test -f "$installed_path/$relative"
 done
+for skill in retro prototype; do
+  grep -Fqx '  allow_implicit_invocation: false' "$installed_path/skills/$skill/agents/openai.yaml"
+done
+grep -Fq '[LOGIC.md](LOGIC.md)' "$installed_path/skills/prototype/SKILL.md"
+grep -Fq '[UI.md](UI.md)' "$installed_path/skills/prototype/SKILL.md"
+test ! -e "$installed_path/skills/resolving-merge-conflicts"
 test "$(sed -n 's/^model = "\([^"]*\)"$/\1/p' "$CODEX_HOME/config.toml")" = gpt-6-astra
 python3 -B "$installed_path/skills/improve/scripts/codex-improve" --help >/dev/null
 jq -e '.interface.composerIcon == "./assets/codex-base.svg"

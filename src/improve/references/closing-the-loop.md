@@ -54,9 +54,8 @@ replay, or provider changes. Preserve the worktree and artifacts on a stop.
 ## Stepwise executor checkpoint
 
 After each code or test changing step, run that step's named verification first.
-Then inspect only its new candidate delta for `delete`, `stdlib`, `native`,
-`yagni`, and `shrink` opportunities. Apply only semantics-preserving
-simplifications, rerun the step check and any invalidated earlier check, and
+Then apply the Ponytail implementation method to its new candidate delta.
+Preserve accepted semantics and tests; rerun the step check and any invalidated earlier check, and
 record `ponytail=lean` or `ponytail=simplified` in the step report. A finding
 that challenges a settled requirement is a STOP, not authority to weaken it.
 This in-process checkpoint does not require another agent or an additional
@@ -106,18 +105,15 @@ Capture `codex-improve candidate WORKTREE` after each implementation or
 revision. Inspect the complete candidate diff and step results. A reviewer
 must independently inspect the candidate code for each assigned check, then
 expand where concrete gaps or contradictions appear. Do not limit inspection
-to gaps claimed by an executor handoff. Use separate read-only dossiers and
-the full expected tree:
+to gaps claimed by an executor handoff. Use a read-only dossier and the full expected tree:
 
 ```console
-codex-improve review correctness WORKTREE FULL_TREE DOSSIER.md
-codex-improve review elegance WORKTREE FULL_TREE DOSSIER.md
+codex-improve review WORKTREE FULL_TREE DOSSIER.md
 codex-improve scout WORKTREE FULL_TREE DOSSIER.md
 ```
 
-The scout and review roles have no write or network access. Trigger independent
-correctness or elegance review when the plan's risk and review contract require
-it. Review output is evidence, not replacement for required deterministic
+The scout and reviewer roles have no write or network access. Run one independent
+comprehensive review for the plan's required review coverage. Review output is evidence, not replacement for required deterministic
 checks. Initial review covers the whole candidate. A later review covers the
 new delta and its gate-ledger transition, expanding to the whole candidate
 when the mapping or resulting behavior is uncertain. One narrowly deterministic

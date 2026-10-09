@@ -152,7 +152,7 @@ in {
     touch $out
   '';
   mattpocock-skills = mkTest "mattpocock-skills-contract" shellTools ''
-    expected='codebase-design diagnosing-bugs domain-modeling resolving-merge-conflicts tdd grilling handoff wait-what writing-for-agents to-questionnaire'
+    expected='codebase-design diagnosing-bugs domain-modeling tdd retro prototype grilling handoff wait-what writing-for-agents to-questionnaire'
     actual=$(jq -r '.sources[] | select(.name == "mattpocock-skills") | .includedPaths[] | split("/")[-1]' ${srcRoot}/vendor/sources.json | paste -sd ' ' -)
     test "$actual" = "$expected"
     for skill in $expected; do test -d "${generatedSkills}/$skill"; done
@@ -160,6 +160,8 @@ in {
     grep -Fq 'allow_implicit_invocation: true' ${generatedSkills}/writing-for-agents/agents/openai.yaml
     grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/to-questionnaire/agents/openai.yaml
     grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/wait-what/agents/openai.yaml
+    grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/retro/agents/openai.yaml
+    grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/prototype/agents/openai.yaml
     test "$(jq -r '.sources[] | select(.name == "ponytail") | .patched' ${srcRoot}/vendor/sources.json)" = true
     touch $out
   '';
@@ -262,35 +264,13 @@ in {
 
     root = Path('${srcRoot}')
     # Check each language's README entry point and detailed configuration guide.
-    waiver_anchor = '<a id="temporary-context-waiver"></a>'
-    waiver_image = 'docs/evidence/2026-09-12-tibo-context-management.png'
-    assert (root / waiver_image).is_file()
     for readme_name, name in [
         ('README.md', 'docs/configuration.md'),
         ('README.zh-CN.md', 'docs/configuration.zh-CN.md'),
     ]:
         readme = (root / readme_name).read_text()
-        guide = (root / name).read_text()
-        assert readme.count(waiver_anchor) == 1, readme_name
-        assert f']({name}#temporary-context-waiver)' in readme, readme_name
         assert f']({name}#native-codex-configuration)' in readme, readme_name
         assert f']({name}#context7-authentication)' in readme, readme_name
-        assert guide.count(waiver_anchor) == 1, name
-        note = guide.split(waiver_anchor, 1)[1]
-        for required in [
-            '2026-09-12',
-            '](https://x.com/thsottiaux/status/2098612714704891959)',
-            '](evidence/2026-09-12-tibo-context-management.png)',
-        ]:
-            assert required in note, (name, required)
-    for name, target in [
-        ('docs/architecture.md', '../README.md'),
-        ('docs/capabilities.md', '../README.md'),
-        ('docs/capabilities.zh-CN.md', '../README.zh-CN.md'),
-    ]:
-        document = root / name
-        assert f']({target}#temporary-context-waiver)' in document.read_text(), name
-        assert (document.parent / target).is_file(), name
 
     def ids(path):
         return [line.split('|')[1].strip() for line in path.read_text().splitlines()
@@ -300,7 +280,7 @@ in {
         'executor-routing', 'early-simplification', 'grilling',
         'ponytail-review', 'ponytail-audit', 'ponytail-debt',
         'diagnosing-bugs', 'tdd', 'codebase-design', 'domain-modeling',
-        'merge-conflicts', 'playwright', 'stop-slop', 'handoff', 'wait-what',
+        'retro', 'prototype', 'playwright', 'stop-slop', 'handoff', 'wait-what',
         'questionnaire', 'writing-agents',
     ]
     assert ids(root / 'docs/capabilities.md') == expected_ids
@@ -379,6 +359,7 @@ in {
     test -r ${generatedSkills}/improve/runtime/git_worktree.py
     test -r ${generatedSkills}/improve/references/executor-report.schema.json
     test -r ${generatedSkills}/improve/references/review-verdict.schema.json
+    test -r ${generatedSkills}/improve/references/ponytail-core.md
     test -r ${generatedSkills}/worktrunk/LICENSE
     test -r ${generatedSkills}/worktrunk/agents/openai.yaml
     touch $out
@@ -466,7 +447,7 @@ def run_merge(target: Path) -> dict:
     return tomllib.loads(target.read_text())
 
 def assert_managed(merged: dict) -> None:
-    assert merged["model"] == "gpt-6-sol"
+    assert merged["model"] == "gpt-6.1-sol"
     assert merged["model_reasoning_effort"] == "medium"
     assert merged["model_verbosity"] == "medium"
     assert merged["plan_mode_reasoning_effort"] == "high"

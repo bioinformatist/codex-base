@@ -7,7 +7,7 @@ description: Test-driven development with red-green-refactor and behavior-focuse
 
 TDD is the red → green loop. This skill is the reference that makes that loop produce tests worth keeping: what a good test is, where tests go, the anti-patterns, and the rules of the loop. Every section applies on every cycle: consult them before and during the loop, not after.
 
-When exploring the codebase, read `CONTEXT.md` (if it exists) so test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
+When exploring the codebase, follow an existing GLOSSARY-MAP.md or CONTEXT-MAP.md, or read the root GLOSSARY.md or CONTEXT.md when present, so test names and interface vocabulary match the project's domain language. Respect ADRs in the area you're touching.
 
 ## What a good test is
 
@@ -21,7 +21,7 @@ A **seam** is the public boundary you test at: the interface where you observe b
 
 **Test only at settled seams.** Before writing any test, write down the seams under test. Derive them from an accepted plan, specification, or repository evidence when those sources already settle the public boundary. Ask the user only when the seam is materially ambiguous. No test is written at an unsupported seam; this keeps testing effort on critical paths and complex logic instead of every edge case.
 
-Ask only when needed: "What's the public interface, and which seams should we test?"
+Give each proposed seam a one-line note on what it catches and what it misses. Ask only when needed: "What's the public interface, and which seams should we test?"
 
 When the shape of that interface is itself in question (how deep the module is, where the seam belongs, what the interface should expose), consult the available `codebase-design` guidance for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
 

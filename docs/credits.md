@@ -9,17 +9,13 @@ without duplicating mutable pins.
 |---|---|---|---|---|
 | worktrunk | [Worktrunk](https://github.com/max-sixty/worktrunk) | Pinned `wt` and `git-wt` Linux binaries for worktree lifecycle operations | [MIT or Apache-2.0](../plugins/codex-base/licenses/worktrunk-MIT-Apache-2.0.txt) | Unmodified release archive; the Python coordinator uses its JSON commands |
 | adhx | [ADHX](https://github.com/itsmemeworks/adhx) | Public X post reader skill and endpoint guidance | [MIT](../plugins/codex-base/licenses/adhx-MIT.txt) | Adapted for bounded discovery, selective evidence, safety, and failure handling |
-| mattpocock-skills | [Matt Pocock's skills](https://github.com/mattpocock/skills) | Engineering and productivity skills including Grilling, Handoff, TDD, domain and module design, debugging, conflict resolution, questionnaires, and agent guidance | [MIT](../plugins/codex-base/licenses/mattpocock-skills-MIT.txt) | Adapted for Codex invocation, safety, and repository conventions |
+| mattpocock-skills | [Matt Pocock's skills](https://github.com/mattpocock/skills) | Engineering and productivity skills including Grilling, Handoff, TDD, domain and module design, debugging, retrospectives, prototypes, questionnaires, and agent guidance | [MIT](../plugins/codex-base/licenses/mattpocock-skills-MIT.txt) | Adapted for Codex invocation, safety, and repository conventions |
 | shadcn-improve | [shadcn Improve](https://github.com/shadcn/improve) | Audit playbook and plan-template foundations used by the Codex Base Improve workflow | [MIT](../plugins/codex-base/licenses/shadcn-improve-MIT.txt) | Adapted and substantially extended for durable planning, isolated execution, recovery, and review |
 | stop-slop | [stop-slop](https://github.com/hardikpandya/stop-slop) | Prose-editing references used by the bundled stop-slop skill | [MIT](../plugins/codex-base/licenses/stop-slop-MIT.txt) | Adapted for Codex triggers and preservation rules |
-| ponytail | [Ponytail](https://github.com/DietrichGebert/ponytail) | Ponytail Review, Audit, and Debt skills | [MIT](../plugins/codex-base/licenses/ponytail-MIT.txt) | Adapted for Codex invocation, preservation, and reporting rules |
+| ponytail | [Ponytail](https://github.com/DietrichGebert/ponytail) | Ponytail core implementation method and Review, Audit, and Debt skills | [MIT](../plugins/codex-base/licenses/ponytail-MIT.txt) | Adapted for Codex invocation, preservation, and reporting rules |
 | playwright-cli | [Playwright CLI](https://github.com/microsoft/playwright-cli) | Headless-first Playwright skill; the full Nix surface also packages the CLI binary separately | [Apache-2.0](../plugins/codex-base/licenses/playwright-cli-Apache-2.0.txt) | Skill adapted for the Codex execution environment |
 
 The repository itself is distributed under the [MIT License](../LICENSE). Each
 bundled upstream license is retained with the portable plugin.
 
-The selected Matt Pocock and Ponytail skill bodies were reviewed against their
-upstream snapshots on 2026-09-07; no newer changes were present in the reviewed
-snapshots. This is dated review evidence, not a claim about current upstream
-HEAD. `vendor/sources.json` remains the authority for the pinned revisions,
-included paths, and patch status.
+The pinned revisions and included paths are recorded in `vendor/sources.json`.

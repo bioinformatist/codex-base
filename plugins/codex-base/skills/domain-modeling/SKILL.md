@@ -1,11 +1,11 @@
 ---
 name: domain-modeling
-description: Build and sharpen a project's domain model. Use only when actively changing glossary or ubiquitous-language terms, or recording a durable architectural decision; merely reading CONTEXT.md is not a trigger.
+description: Build and sharpen a project's domain model. Use only when actively changing glossary or ubiquitous-language terms, or recording a durable architectural decision; merely reading a glossary is not a trigger.
 ---
 
 # Domain Modeling
 
-Actively build and sharpen the project's domain model as you design. This is the *active* discipline: challenging terms, inventing edge-case scenarios, and writing the glossary and decisions down the moment they crystallise. (Merely *reading* `CONTEXT.md` for vocabulary is not this skill: that's a one-line habit any skill can do. This skill is for when you're changing the model, not just consuming it.)
+Actively build and sharpen the project's domain model as you design. This is the *active* discipline: challenging terms, inventing edge-case scenarios, and writing the glossary and decisions down the moment they crystallise. (Merely *reading* `GLOSSARY.md` for vocabulary is not this skill: that's a one-line habit any skill can do. This skill is for when you're changing the model, not just consuming it.)
 
 ## File structure
 
@@ -13,7 +13,7 @@ Most repos have a single context:
 
 ```
 /
-├── CONTEXT.md
+├── GLOSSARY.md
 ├── docs/
 │   └── adr/
 │       ├── 0001-event-sourced-orders.md
@@ -21,29 +21,29 @@ Most repos have a single context:
 └── src/
 ```
 
-If a `CONTEXT-MAP.md` exists at the root, the repo has multiple contexts. The map points to where each one lives:
+If `GLOSSARY-MAP.md` or `CONTEXT-MAP.md` exists at the root, read its pointers to find the existing contexts:
 
 ```
 /
-├── CONTEXT-MAP.md
+├── GLOSSARY-MAP.md
 ├── docs/
 │   └── adr/                          ← system-wide decisions
 ├── src/
 │   ├── ordering/
-│   │   ├── CONTEXT.md
+│   │   ├── GLOSSARY.md
 │   │   └── docs/adr/                 ← context-specific decisions
 │   └── billing/
-│       ├── CONTEXT.md
+│       ├── GLOSSARY.md
 │       └── docs/adr/
 ```
 
-Create files lazily and only with write authorization. When writing is forbidden, render the proposed glossary or ADR change in chat. If authorized and no `CONTEXT.md` exists, create one when the first term is resolved; create `docs/adr/` only when the first ADR is needed.
+Use existing GLOSSARY.md or CONTEXT.md files and their map pointers; do not migrate or duplicate them. When authorized to write and no glossary exists, create GLOSSARY.md for the first resolved term. Create docs/adr/ only for the first accepted ADR. Otherwise render the exact proposed change in chat.
 
 ## During the session
 
 ### Challenge against the glossary
 
-When the user uses a term that conflicts with the existing language in `CONTEXT.md`, call it out immediately. "Your glossary defines 'cancellation' as X, but you seem to mean Y. Which is it?"
+When a term conflicts with the existing GLOSSARY.md or CONTEXT.md language, surface the conflict. "Your glossary defines 'cancellation' as X, but you seem to mean Y. Which is it?"
 
 ### Sharpen fuzzy language
 
@@ -57,11 +57,11 @@ When domain relationships are being discussed, stress-test them with specific sc
 
 When the user states how something works, check whether the code agrees. If you find a contradiction, surface it: "Your code cancels entire Orders, but you just said partial cancellation is possible. Which is right?"
 
-### Update CONTEXT.md inline
+### Update the existing glossary inline
 
-When a term is resolved and writing is authorized, update `CONTEXT.md` right there. Otherwise render the exact proposed update in chat. Don't batch these up: capture them as they happen. Use the format in [CONTEXT-FORMAT.md](./CONTEXT-FORMAT.md).
+When a term is resolved and writing is authorized, update the existing glossary, or GLOSSARY.md for a new one. Otherwise render the exact proposed update in chat. Don't batch these up: capture them as they happen. Use the format in [GLOSSARY-FORMAT.md](./GLOSSARY-FORMAT.md).
 
-`CONTEXT.md` should be totally devoid of implementation details. Do not treat `CONTEXT.md` as a spec, a scratch pad, or a repository for implementation decisions. It is a glossary and nothing else.
+Keep the existing GLOSSARY.md or CONTEXT.md focused on domain terms, without implementation details or decisions. Use ADRs for durable decisions.
 
 ### Offer ADRs sparingly
 

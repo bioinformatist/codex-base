@@ -262,6 +262,21 @@ class GitAndWorktrunk(Fixture):
 
 
 class ContractsAndTransport(Fixture):
+    def test_phase_methods_are_loaded_from_the_skill_layout(self):
+        executor = CLI_FUNCTIONS["_executor_prompt"](b"approved plan", "a" * 40,
+                                                       "standard", grants=[])
+        review = CLI_FUNCTIONS["_review_prompt"](b"review dossier", "a" * 40)
+        self.assertIn(b"## The smallest complete change", executor)
+        self.assertNotIn(b"## 1. Understand first", executor)
+        self.assertIn(b"## 1. Understand first", review)
+        self.assertNotIn(b"## The smallest complete change", review)
+        self.assertTrue(executor.endswith(b"approved plan"))
+        self.assertTrue(review.endswith(b"review dossier"))
+        loader = CLI_FUNCTIONS["_method_resource"]
+        with patch.dict(loader.__globals__, {"SOURCE": self.root / "skills/improve"}):
+            with self.assertRaisesRegex(BoundaryError, "missing Ponytail core resource"):
+                loader("core")
+
     def test_selected_codex_survives_launcher_path_change(self):
         selected = self.root / "selected-codex"
         marker = self.root / "selected-called"
@@ -365,16 +380,19 @@ class ContractsAndTransport(Fixture):
         (worktree.path / ".agents").symlink_to("missing")
         plan = self.plan()
         # A granted dangling root is refused before invoking a model.
-        result = self.cli("review", "correctness", worktree.path, candidate(worktree)[1], plan)
+        result = self.cli("review", worktree.path, candidate(worktree)[1], plan)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["reason"], "environment_preflight_mutated_candidate")
         (worktree.path / ".agents").unlink()
         capture = self.root / "command.json"
-        result = self.cli("review", "correctness", worktree.path, candidate(worktree)[1], plan,
+        result = self.cli("review", worktree.path, candidate(worktree)[1], plan,
                           env={"FAKE_MODE": "review", "FAKE_CAPTURE": str(capture)})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["outcome"], "APPROVE")
+        self.assertEqual(json.loads(result.stdout)["role"], "reviewer")
         args = json.loads(capture.read_text())
+        self.assertEqual(args[args.index("--model") + 1], "gpt-6.1-sol")
+        self.assertIn('model_reasoning_effort="high"', args)
         self.assertIn("read-only", args)
         self.assertNotIn("workspace-write", args)
         self.assertIn("--strict-config", args)
@@ -439,7 +457,7 @@ class ContractsAndTransport(Fixture):
         self.assertFalse(record["closeout_eligible"])
 
     def test_resume_retains_review_and_scout_prompt_role_and_schema(self):
-        for kind, role in (("review", "correctness"), ("scout", "scout")):
+        for kind, role in (("review", "reviewer"), ("scout", "scout")):
             worktree = self.worktree(kind)
             probe = self.root / f"{kind}-probe.py"
             probe.write_text("import sys;sys.exit(1)\n")
@@ -472,13 +490,13 @@ class ContractsAndTransport(Fixture):
 
     def test_snapshot_rejects_private_role_change_and_review_revision(self):
         worktree = self.worktree()
-        result = self.cli("review", "correctness", worktree.path, candidate(worktree)[1],
+        result = self.cli("review", worktree.path, candidate(worktree)[1],
                           self.plan(), env={"FAKE_MODE": "review"})
         self.assertEqual(result.returncode, 0, result.stderr)
         record = json.loads(result.stdout)
         private_roles = self.root / "roles.json"
         roles = json.loads((SKILL_ROOT / "config/roles.json").read_text())
-        roles["correctness"]["initialTimeout"] += 1
+        roles["reviewer"]["initialTimeout"] += 1
         private_roles.write_text(json.dumps(roles))
         verify = CLI_FUNCTIONS["_verify_snapshot"]
         with patch.dict(verify.__globals__, {"ROLES": private_roles}):
@@ -619,7 +637,7 @@ class ContractsAndTransport(Fixture):
     def test_review_rejects_postrun_drift(self):
         worktree = self.worktree()
         tree = candidate(worktree)[1]
-        result = self.cli("review", "correctness", worktree.path, tree, self.plan(),
+        result = self.cli("review", worktree.path, tree, self.plan(),
                           env={"FAKE_MODE": "review", "FAKE_CAPTURE": "concurrent-change.txt"})
         self.assertEqual(result.returncode, 0, result.stderr)
         record = json.loads(result.stdout)

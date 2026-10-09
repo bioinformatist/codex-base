@@ -27,7 +27,7 @@ Develop each design from the same technical brief (file paths, coupling details,
 - Design 3: "Optimise for the most common caller: make the default case trivial."
 - Design 4 (if applicable): "Design around ports & adapters for cross-seam dependencies."
 
-Use both [SKILL.md](SKILL.md) vocabulary and available CONTEXT.md vocabulary so every design names things consistently with the architecture language and the project's domain language.
+Use [SKILL.md](SKILL.md) vocabulary and the existing GLOSSARY.md or CONTEXT.md vocabulary when available, so every design uses the project's established terms.
 
 Each design includes:
 

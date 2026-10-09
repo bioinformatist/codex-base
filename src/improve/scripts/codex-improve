@@ -30,6 +30,18 @@ REVIEW_SCHEMA = SOURCE / "references/review-verdict.schema.json"
 CODEX_EXECUTABLE = os.environ.get("CODEX_IMPROVE_CODEX", "codex")
 
 
+def _method_resource(kind: str) -> bytes:
+    skills = (SOURCE.parent.parent / "plugins/codex-base/skills"
+              if SOURCE.parent.name == "src" else SOURCE.parent)
+    relative = ("improve/references/ponytail-core.md" if kind == "core"
+                else "ponytail-review/SKILL.md")
+    path = skills / relative
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise BoundaryError(f"missing Ponytail {kind} resource: {path}") from exc
+
+
 def require_tools(*names: str) -> None:
     missing = [name for name in names if shutil.which(name) is None]
     if missing:
@@ -74,23 +86,24 @@ def _executor_prompt(plan: bytes, tree: str, role: str, *, grants: list[str],
               "Implement only the approved scope in this worktree; leave changes uncommitted. "
               "Do not call candidate, checkpoint, or resume, and do not launch nested agents. "
               "Run every required verification and report actual results and omitted acceptance. "
-              "After each code or test step, verify, inspect only new hunks for delete, stdlib, "
-              "native, yagni, and shrink opportunities, and simplify only when semantics and tests hold; "
-              "rerun affected checks. Record ponytail=lean or ponytail=simplified. "
+              "After each code or test step, verify and apply the Ponytail implementation method "
+              "to new hunks. Rerun affected checks after simplification; record ponytail=lean "
+              "or ponytail=simplified. "
               "For bounded research, give a Research checkpoint with Question, Finding, Evidence, "
               "and Next before changing questions. Stop on scope or contract conflict. "
               "Return the required JSON report.\n")
     if followup:
         header += f"Continuation: {followup}\n"
-    return header.encode() + b"\nApproved plan snapshot:\n" + plan
+    return (header.encode() + b"\nPonytail implementation method:\n" + _method_resource("core")
+            + b"\nApproved plan snapshot:\n" + plan)
 
 
-def _review_prompt(dossier: bytes, tree: str, role: str) -> bytes:
-    return (f"You are an independent {role} reviewer. Inspect the exact candidate tree {tree}. "
-            "Check the assigned implementation, tests, permission and STOP boundaries. "
+def _review_prompt(dossier: bytes, tree: str) -> bytes:
+    return (f"You are an independent comprehensive reviewer. Inspect the exact candidate tree {tree}. "
+            "Check the implementation, tests, permission and STOP boundaries. "
             "You may inspect candidate files needed for your checks, expanding only for concrete gaps. "
             "Put later physical or external checks in deferred_acceptance. Return the required review JSON.\n\n"
-            ).encode() + dossier
+            ).encode() + b"Ponytail review method:\n" + _method_resource("review") + b"\n" + dossier
 
 
 def _cache_env(store: StateStore, record: dict) -> tuple[dict[str, str], Path, Path, Path]:
@@ -348,7 +361,7 @@ def cmd_review(args: argparse.Namespace, store: StateStore, *, scout: bool = Fal
     require_tools("git", "wt", CODEX_EXECUTABLE)
     worktree = validate_worktree(args.worktree, owned=not scout)
     head, tree = require_candidate(worktree, args.tree)
-    role = "scout" if scout else args.role
+    role = "scout" if scout else "reviewer"
     dossier = args.dossier.read_bytes()
     if not dossier:
         raise BoundaryError("review dossier is empty")
@@ -359,7 +372,7 @@ def cmd_review(args: argparse.Namespace, store: StateStore, *, scout: bool = Fal
     record = _record(store, role=role, worktree=worktree.path, common_dir=worktree.common_dir,
                      branch=worktree.branch, head=head, tree=tree, grants=[],
                      kind="scout" if scout else "review")
-    prompt = _review_prompt(dossier, tree, role) if not scout else (
+    prompt = _review_prompt(dossier, tree) if not scout else (
         b"Scout this Improve candidate read-only. Return an executor-style JSON report.\n" + dossier)
     return start(store, record, plan, prompt)
 
@@ -518,7 +531,6 @@ def parser() -> argparse.ArgumentParser:
     scout.add_argument("tree")
     scout.add_argument("dossier", type=Path)
     review = verbs.add_parser("review", help="run an independent read-only review")
-    review.add_argument("role", choices=("correctness", "elegance"))
     review.add_argument("worktree", type=Path)
     review.add_argument("tree")
     review.add_argument("dossier", type=Path)

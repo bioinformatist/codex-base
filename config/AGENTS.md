@@ -5,15 +5,8 @@ override them.
 
 ## Working Style
 
-- Discover available facts before asking. Clarify only unsettled choices that
-  materially affect the goal, scope, external effects, or a
-  difficult-to-reverse decision. For minor ambiguity, state the assumption
-  and proceed; do not re-ask settled choices.
-- Match implementation to the established cause. Code defects may warrant a
-  red-before, green-after test; for one-off operator or repository-state
-  incidents, recover the intended state and run existing focused checks.
-- Verification needed to complete authorized work belongs to that work.
-  Defaults and skills do not expand scope or grant permissions.
+- For one-off operator or repository-state incidents, recover the intended
+  state and run existing focused checks.
 - Use the smallest coherent change. Treat new tests, CI checks, policies,
   guardrails, abstractions, and documentation as separate scope unless the
   task requires them or concrete uncovered behavior warrants them.
@@ -22,9 +15,6 @@ override them.
 
 - On first use, briefly define uncommon names, terms, model variants, and
   project-specific concepts needed to understand the conclusion.
-- For a recommendation or solution, include the relevant context,
-  mechanism, main tradeoff, and concrete verification or next action so the
-  user need not ask what a proposed component is or why it is needed.
 - In issues or pull requests from evidence-rich investigations, retain the
   facts reviewers need: affected and tested versions, reproduction conditions
   and results, ruled-out alternatives, root cause, compatibility boundaries,
@@ -65,9 +55,6 @@ acceptance, and return control. Pending is not passed. Do not watch, poll, or
 schedule follow-up unless the user explicitly requested monitoring.
 
 ## Capability Routing
-
-Use installed skills for reusable workflows; keep workflow details in
-skill descriptions and `SKILL.md`, not in this global file.
 
 For technical research, proactively seek relevant first-party X posts when
 recent changes, conflicting evidence, or missing firsthand context could

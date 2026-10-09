@@ -9,7 +9,6 @@
 - [全局 AGENTS 指引](#global-agents-instructions)
 - [模型选择](#model-choice)
 - [Context7 认证](#context7-authentication)
-- [原生上下文管理临时豁免](#temporary-context-waiver)
 - [回退运行时设置](#reverting-runtime-settings)
 
 <a id="native-codex-configuration"></a>
@@ -36,7 +35,7 @@ default_mode_request_user_input = true
 
 这是合并片段，不应替换整个文件，也不是每次启动要带的参数。请保留无关配置。`plan_mode_reasoning_effort` 是顶层键，三个功能开关属于 `[features]`。已有键应就地修改；若 `context_management` 或 `code_mode` 目前为布尔值，请用上面的点分形式替换，不要同时保留布尔值和表，也不要重复定义 TOML 键。
 
-保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话，服务端仍可不向启动模型开放该能力。当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式规划缺少原生上下文管理时，应使用[单计划临时豁免](#temporary-context-waiver)流程，而非反复改配置。
+保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话，服务端仍可不向启动模型开放该能力。当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式 Improve 规划前，应检查内置 Plan Mode 是否实际提供可调用的原生上下文管理和结构化提问工具；如果缺少任一工具，应启动具备相应能力的 Plan Mode 会话。
 
 官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由已核对的 Codex [功能声明](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs)支持。
 
@@ -72,7 +71,7 @@ programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
 
 ## 模型选择
 
-Home Manager 默认使用 `gpt-6-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改用户的模型设置。正式 Improve 规划取决于当前会话实际具备上下文管理和结构化提问能力，而不是某个模型名称。困难规划可以显式选择 Astra；模型名称或配置开关都不能证明能力可用。Improve 执行通道另有独立的角色设置，见[执行器路由](architecture.md#executor-routing)。
+Home Manager 默认使用 `gpt-6.1-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改用户的模型设置。正式 Improve 规划取决于当前会话实际具备上下文管理和结构化提问能力，而不是某个模型名称。困难规划可以显式选择 Astra；模型名称或配置开关都不能证明能力可用。Improve 执行通道另有独立的角色设置，见[执行器路由](architecture.md#executor-routing)。
 
 <a id="context7-authentication"></a>
 
@@ -108,22 +107,6 @@ programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;
 完成任一配置后，[重新加载运行时](../README.zh-CN.md#更新后重新加载)，再运行 `codex mcp list --json`。服务已注册不能证明凭据可用；一次性诊断时，可以要求 Codex 用 `context7_auth` 查询一项聚焦的公开文档。Nix stdio 适配器显示 `auth_status: "unsupported"` 属于正常现象，因为它的 API key 认证不由 Codex 管理。
 
 匿名 Context7 弹出的认证提示会暂停当前工具调用，不代表认证 fallback 已经执行。先处理或关闭提示，让调用返回后路由才能继续。
-
-<a id="temporary-context-waiver"></a>
-
-## 原生上下文管理临时豁免
-
-正式 Improve 规划缺少原生上下文管理时，请检查会话实际提供的工具，并保留已有配置。不要为绕过此次不可用而编辑本地配置、反复切换功能开关、修改技能或重建环境。
-
-如需继续，必须由用户明确授权，仅为某一指定计划及同范围审阅豁免原生上下文管理前置条件。这不是自动或全局豁免：Plan Mode、结构化提问、只读规划和其他权限边界仍须保留。例如：
-
-```text
-我批准仅为本计划及同范围审阅豁免原生上下文管理前置条件；保留 Plan Mode、结构化提问、只读规划及其他权限边界。请勿为此修改配置或全局技能。
-```
-
-豁免既不会恢复该能力，也不保证规划质量。确认会话实际恢复该能力后，新计划不再需要例外。Default Mode 中的实现、审计和普通生命周期记录不受影响。常规安装设置不是服务暂时不可用的修复办法。
-
-历史背景：**2026-09-12**，Tibo（@thsottiaux）[宣布](https://x.com/thsottiaux/status/2098612714704891959)关闭一项需要主动加入的上下文管理实验，该实验可能导致提前停止或回复较早的消息。仓库保留了[用户提供的截图](evidence/2026-09-12-tibo-context-management.png)作为辅助证据。公告没有点名具体配置项，也不能据此判断某个账户、套餐或客户端当前是否具备该能力。
 
 <a id="reverting-runtime-settings"></a>
 

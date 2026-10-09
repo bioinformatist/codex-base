@@ -71,7 +71,7 @@ in let self = rec {
   playwright-cli = pkgs.writeShellScriptBin "playwright-cli" ''
     export PATH="${pkgs.nodejs_24}/bin:$PATH"
     export npm_config_cache="''${XDG_CACHE_HOME:-$HOME/.cache}/npm"
-    exec ${pkgs.nodejs_24}/bin/npx -y @playwright/cli@0.1.19 "$@"
+    exec ${pkgs.nodejs_24}/bin/npx -y @playwright/cli@0.1.22 "$@"
   '';
   codex-improve = pkgs.lib.makeOverridable ({ codex ? self.codex }: pkgs.writeShellApplication {
     name = "codex-improve";

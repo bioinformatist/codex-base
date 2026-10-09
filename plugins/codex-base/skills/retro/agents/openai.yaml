@@ -1,0 +1,6 @@
+interface:
+  display_name: "Retro"
+  short_description: "Review a session for practical improvements"
+  default_prompt: "Use $retro to review this coding session and suggest improvements."
+policy:
+  allow_implicit_invocation: false

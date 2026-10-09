@@ -1,8 +1,7 @@
 {
   "economy": {"model":"gpt-6-luna","reasoningEffort":"low","verbosity":"medium","sandbox":"workspace-write","approval":"never","networkAccess":true,"tokenLimit":100000,"reminders":[50000,25000,10000],"initialTimeout":1200,"followupTimeout":720},
-  "standard": {"model":"gpt-6-sol","reasoningEffort":"medium","verbosity":"medium","sandbox":"workspace-write","approval":"never","networkAccess":true,"tokenLimit":120000,"reminders":[60000,30000,10000],"initialTimeout":1200,"followupTimeout":720},
-  "deep": {"model":"gpt-6-sol","reasoningEffort":"xhigh","verbosity":"medium","sandbox":"workspace-write","approval":"never","networkAccess":true,"tokenLimit":160000,"reminders":[80000,40000,15000],"initialTimeout":1800,"followupTimeout":1080},
-  "correctness": {"model":"gpt-6-sol","reasoningEffort":"high","verbosity":"medium","sandbox":"read-only","approval":"never","networkAccess":false,"tokenLimit":100000,"reminders":[50000,25000,10000],"initialTimeout":480,"followupTimeout":null},
-  "elegance": {"model":"gpt-6-sol","reasoningEffort":"high","verbosity":"medium","sandbox":"read-only","approval":"never","networkAccess":false,"tokenLimit":100000,"reminders":[50000,25000,10000],"initialTimeout":480,"followupTimeout":null},
+  "standard": {"model":"gpt-6.1-sol","reasoningEffort":"medium","verbosity":"medium","sandbox":"workspace-write","approval":"never","networkAccess":true,"tokenLimit":120000,"reminders":[60000,30000,10000],"initialTimeout":1200,"followupTimeout":720},
+  "deep": {"model":"gpt-6.1-sol","reasoningEffort":"xhigh","verbosity":"medium","sandbox":"workspace-write","approval":"never","networkAccess":true,"tokenLimit":160000,"reminders":[80000,40000,15000],"initialTimeout":1800,"followupTimeout":1080},
+  "reviewer": {"model":"gpt-6.1-sol","reasoningEffort":"high","verbosity":"medium","sandbox":"read-only","approval":"never","networkAccess":false,"tokenLimit":100000,"reminders":[50000,25000,10000],"initialTimeout":480,"followupTimeout":null},
   "scout": {"model":"gpt-6-luna","reasoningEffort":"high","verbosity":"low","sandbox":"read-only","approval":"never","networkAccess":false,"tokenLimit":null,"reminders":[],"initialTimeout":480,"followupTimeout":null}
 }
