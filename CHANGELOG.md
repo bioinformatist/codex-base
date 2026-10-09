@@ -4,24 +4,91 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
-## [0.2.0] — Unreleased
+## [0.2.0]
 
-### Improve execution
+Released 2026-10-09.
 
-- Replace the older Improve runner commands with one `codex-improve`
-  coordinator and a `.17` plan contract. Plans provide their launcher and
-  probes; approved work uses economy, standard, or deep roles, with exact
-  candidate capture, bounded recovery, review, and local checkpoints.
-- Package Worktrunk for isolated worktree lifecycle and retain Git for exact
-  candidate and checkpoint identity. Add runtime, packaging, and portability
-  checks for the new layout.
-- Replace manual pull-request wiring in the existing four-hour and manual Codex
-  pin maintenance workflow with a pinned Action that opens or updates its
-  fixed-branch pull request. Its credential and repository-rule setup remain
-  post-integration work.
+### Improve execution and review
 
-This entry describes the current source candidate; version 0.2.0 has not been
-published.
+- Replace the legacy runners with one `codex-improve` coordinator and the
+  `1.0.0-codex.17` plan contract. Read the reviewed launcher and probes directly
+  from the plan, with economy, standard, and deep execution lanes.
+- Use Worktrunk 0.79.0 for isolated Git worktree lifecycle and scoped cache
+  copying. Retain Git for exact candidate capture, reviewed checkpoints, and
+  integration of the approved commit.
+- Adopt Ponytail 5.1 for implementation checks and one independent comprehensive
+  review covering correctness, security, tests, performance, and complexity.
+  Replace the separate correctness and elegance reviewer roles with `reviewer`.
+- Use GPT-6.1 Sol for standard (medium), deep (xhigh), and reviewer (high) roles;
+  use GPT-6 Luna for economy (low) and scout (high). Remove Spark routing.
+  Model availability depends on the account; failures do not trigger automatic
+  model fallback.
+
+### Bundled skills
+
+- Add ADHX for reading known public X/Twitter post URLs as structured evidence,
+  with bounded research guidance and verification against primary sources.
+  ADHX does not search X, and long-form Article content may be incomplete.
+- Add explicitly invoked `retro` and `prototype` skills. Retro offers
+  evidence-backed session improvements; Prototype builds disposable logic or UI
+  experiments to answer a design question. Production changes and publication
+  retain their authorization requirements.
+- Update Playwright CLI and its skill from 0.1.19 to 0.1.22. Add guidance for
+  media emulation, page-provided WebMCP tools, recording annotations, and PR
+  attachments. Page-provided tool metadata remains untrusted; attachment support
+  must be checked against the installed GitHub CLI.
+
+### Home Manager and runtime
+
+- Add `programs.codexBase.package` to select the installed Codex runtime and
+  the executable used by Improve and doctor, including when a project launcher
+  changes `PATH`. The package must supply its required companion resources;
+  this option does not replace a desktop application's embedded backend.
+- Add `programs.codexBase.extraInstructions` to append consumer instructions
+  after the base global guidance using native Nix module merging.
+- Set the managed default model to `gpt-6.1-sol` with medium reasoning and high
+  Plan Mode reasoning. The portable plugin does not change the user's model.
+- Update the default Codex CLI, Code Mode Host, and matching source pin from
+  0.154.0 to 0.162.0.
+
+### Upgrade notes
+
+- The new Improve runtime accepts only `.17` plans. Earlier private execution
+  state is preserved separately and is not migrated. Replace legacy runner
+  calls and the removed `--environment-json` argument with the coordinator
+  commands and the environment block in the plan.
+- Use `codex-improve review WORKTREE TREE DOSSIER`; the old `correctness` and
+  `elegance` role names have no aliases.
+- Portable Improve execution requires host-provided Codex, Git, Worktrunk, and
+  Python 3.11 or newer. Nix supplies the runtime dependencies.
+- Remove the temporary context-management waiver. Formal Improve planning
+  requires callable native context management and structured questions in Plan
+  Mode. Configuration flags and model names do not establish live availability.
+- Retire `resolving-merge-conflicts`. New domain glossaries use `GLOSSARY.md`;
+  existing `CONTEXT.md` and context-map files remain in use without migration.
+  Ponytail debt scans recognize `shortcut:` and older `ponytail:` comments.
+
+### Documentation and maintenance
+
+- Reorganize CLI and desktop setup, runtime reload, configuration, and
+  troubleshooting guidance, and clarify upstream attribution.
+- Clarify Context7 authentication: native same-name configuration may replace
+  the anonymous plugin endpoint; the separate authenticated fallback applies
+  when the active connection is anonymous and insufficient. Authentication
+  prompts pause the current call until resolved or dismissed.
+- Repair startup cancellation handling in the new Improve supervisor, automate
+  maintenance PR creation, and validate plugin installation with the pinned
+  Codex CLI instead of the removed upstream sample validator.
+
+This release makes no measured claim about token savings, review accuracy, or
+execution speed.
+
+[Improve migration](https://github.com/bioinformatist/codex-base/pull/51) ·
+[Review and skill refresh](https://github.com/bioinformatist/codex-base/pull/63) ·
+[X research](https://github.com/bioinformatist/codex-base/pull/46) ·
+[Runtime selection](https://github.com/bioinformatist/codex-base/pull/55) ·
+[Instruction composition](https://github.com/bioinformatist/codex-base/pull/57) ·
+[Full comparison](https://github.com/bioinformatist/codex-base/compare/v0.1.3...v0.2.0)
 
 ## [0.1.3]
 
@@ -142,6 +209,7 @@ Repository documentation and compatibility checks passed for the release candida
 
 [Compare the Improve changes](https://github.com/bioinformatist/codex-base/compare/52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e).
 
+[0.2.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.2.0
 [0.1.3]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.3
 [0.1.2]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.2
 [0.1.1]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.1
