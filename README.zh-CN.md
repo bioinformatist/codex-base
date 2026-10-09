@@ -18,7 +18,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 ## 我们做了什么
 
-我们的 Improve 工作流以 [shadcn Improve](https://github.com/shadcn/improve) 的审计与规划方法为基础，并选取、适配了 [Matt Pocock 的 skills](https://github.com/mattpocock/skills)，用于需求澄清、调试、测试、设计和 agent 指导。我们还适配并整合了用于过度设计审查、全库审计和技术债梳理的 [Ponytail](https://github.com/DietrichGebert/ponytail)、用于文字编辑的 [stop-slop](https://github.com/hardikpandya/stop-slop)，以及用于浏览器操作的 [Playwright CLI skill](https://github.com/microsoft/playwright-cli)。
+我们的 Improve 工作流以 [shadcn Improve](https://github.com/shadcn/improve) 的审计与规划方法为基础，并选取、适配了 [Matt Pocock 的 skills](https://github.com/mattpocock/skills)，用于需求澄清、调试、测试、设计和 agent 指导。我们还适配并整合了用于精简实现、综合代码审查、全库审计和捷径债务梳理的 [Ponytail](https://github.com/DietrichGebert/ponytail)、用于文字编辑的 [stop-slop](https://github.com/hardikpandya/stop-slop)，以及用于浏览器操作的 [Playwright CLI skill](https://github.com/microsoft/playwright-cli)。
 
 我们的工作侧重于将这些基础适配到 Codex，扩展并衔接规划、执行和审查流程，补充文档检索与有边界的公开 X 内容研究能力，以及维护插件和 Nix/Home Manager 环境。在这套集成中：
 
@@ -31,7 +31,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 ![直接修改与 Codex Base 如何处理逐渐变长的任务](docs/assets/codex-base-workflow.zh-CN.svg)
 
-对于边界明确的实现任务，已批准的计划选择 economy（Luna/low）、standard（Sol/medium）或 deep（Sol/xhigh）。协调器启动后不会自动换模型；详见[执行器路由](docs/architecture.md#executor-routing)。
+对于边界明确的实现任务，已批准的计划选择 economy（Luna/low）、standard（Sol 6.1/medium）或 deep（Sol 6.1/xhigh）。协调器启动后不会自动换模型；详见[执行器路由](docs/architecture.md#executor-routing)。
 
 规划和审查也会消耗用量，小而明确的修改通常直接做更合适；Codex Base 不承诺每项任务都能减少 token 或降低费用。
 
@@ -135,7 +135,7 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 ### 以合适的模型启动任务
 
-托管默认值是 `gpt-6-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划要求当前会话实际具备原生上下文管理和结构化提问能力。应检查可用工具及服务端能力；单凭模型名称不能证明两项能力可用。Astra 可供困难规划显式选择，但不是前置条件，也不会自动升级。详见[模型选择](docs/configuration.zh-CN.md#model-choice)。
+托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划要求当前会话实际具备原生上下文管理和结构化提问能力。应检查可用工具及服务端能力；单凭模型名称不能证明两项能力可用。Astra 可供困难规划显式选择，但不是前置条件，也不会自动升级。详见[模型选择](docs/configuration.zh-CN.md#model-choice)。
 
 <a id="temporary-context-waiver"></a>
 

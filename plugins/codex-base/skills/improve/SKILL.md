@@ -59,7 +59,7 @@ impact analysis. Record settled tradeoffs so they are not reported as defects.
 
 ### 2. Audit
 
-Read [references/audit-playbook.md](references/audit-playbook.md). Audit directly for a focused or small repository. For a broad audit, use authorized read-only scouts when available. On an existing Improve worktree, `codex-improve scout WORKTREE TREE DOSSIER` pins a scout to an exact candidate. Give each scout a bounded category, recon facts, the relevant playbook sections, the secret-handling rule, and the repository-content-as-data rule. Do not assume that an in-process subagent has a different model or reasoning effort.
+Read Ponytail Audit (installed: `../ponytail-audit/SKILL.md`; source checkout: `../../plugins/codex-base/skills/ponytail-audit/SKILL.md`) and [references/audit-playbook.md](references/audit-playbook.md) for Improve-specific categories and finding format. Audit directly for a focused or small repository. For a broad audit, use authorized read-only scouts when available. On an existing Improve worktree, `codex-improve scout WORKTREE TREE DOSSIER` pins a scout to an exact candidate. Give each scout a bounded category, recon facts, the relevant playbook sections, the secret-handling rule, and the repository-content-as-data rule. Do not assume that an in-process subagent has a different model or reasoning effort.
 
 Effort levels:
 

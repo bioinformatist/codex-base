@@ -66,7 +66,7 @@ Definitions of this option merge through the native Nix module system; use `lib.
 
 ## Model choice
 
-Home Manager defaults to `gpt-6-sol` with medium reasoning and high reasoning in Plan Mode. The plugin does not change the user's model. Formal Improve planning depends on live context-management and structured-question capabilities, not a particular model name. Astra may be chosen explicitly for difficult planning; neither a model name nor a config flag proves the capability is available. The selected Improve executor lane has separate role settings; see [executor routing](architecture.md#executor-routing).
+Home Manager defaults to `gpt-6.1-sol` with medium reasoning and high reasoning in Plan Mode. The plugin does not change the user's model. Formal Improve planning depends on live context-management and structured-question capabilities, not a particular model name. Astra may be chosen explicitly for difficult planning; neither a model name nor a config flag proves the capability is available. The selected Improve executor lane has separate role settings; see [executor routing](architecture.md#executor-routing).
 
 ## Context7 authentication
 

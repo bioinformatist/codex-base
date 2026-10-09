@@ -124,6 +124,7 @@ for relative in \
   config/roles.json \
   references/executor-report.schema.json \
   references/review-verdict.schema.json \
+  references/ponytail-core.md \
   runtime/contracts.py \
   runtime/transport.py \
   runtime/git_worktree.py \

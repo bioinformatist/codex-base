@@ -302,15 +302,15 @@ automatic promotion to Astra, max, or ultra occurs.
 | Role | Model / effort | Token budget | Initial / follow-up seconds | Reminders |
 | --- | --- | ---: | ---: | --- |
 | economy | `gpt-6-luna` / low | 100000 | 1200 / 720 | 50000, 25000, 10000 |
-| standard | `gpt-6-sol` / medium | 120000 | 1200 / 720 | 60000, 30000, 10000 |
-| deep | `gpt-6-sol` / xhigh | 160000 | 1800 / 1080 | 80000, 40000, 15000 |
+| standard | `gpt-6.1-sol` / medium | 120000 | 1200 / 720 | 60000, 30000, 10000 |
+| deep | `gpt-6.1-sol` / xhigh | 160000 | 1800 / 1080 | 80000, 40000, 15000 |
 | scout | `gpt-6-luna` / high | none | 480 / none | none |
-| correctness, elegance | `gpt-6-sol` / high | 100000 | 480 / none | 50000, 25000, 10000 |
+| reviewer | `gpt-6.1-sol` / high | 100000 | 480 / none | 50000, 25000, 10000 |
 
 Scout verbosity is low; other roles use medium. Workers use approval `never`.
 Economy, standard, and deep use workspace-write with network access. Scout
 and reviewers use read-only with network disabled. The Home Manager main
-session defaults to Sol/medium and Plan Mode high; Astra remains an explicit
+session defaults to Sol 6.1/medium and Plan Mode high; Astra remains an explicit
 choice for difficult planning. Role settings are snapshotted from `roles.json`;
 the coordinator does not use Codex profile files or lookup keys.
 

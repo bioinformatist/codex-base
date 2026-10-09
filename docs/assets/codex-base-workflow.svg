@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img">
   <title>Reduce avoidable usage on long tasks</title>
-  <desc>A small clear task moves through direct editing; as context grows, decisions can remain only in conversation and rereading, drift, and rework consume avoidable usage. Codex Base records decisions, verifies current documentation using shared plugin and Nix routing, selects Economy, Standard, or Deep execution in the plan, verifies and simplifies each step, optionally adds risk-triggered review, and leaves a resumable checkpoint before the outcome.</desc>
+  <desc>A small clear task moves through direct editing; as context grows, decisions can remain only in conversation and rereading, drift, and rework consume avoidable usage. Codex Base records decisions, verifies current documentation using shared plugin and Nix routing, selects Economy, Standard, or Deep execution in the plan, verifies and simplifies each step, adds one independent comprehensive review, and leaves a resumable checkpoint before the outcome.</desc>
   <defs>
     <style>.bg{fill:#f8fafc}.card{fill:#fff;stroke:#64748b;stroke-width:2}.base{fill:#eff6ff;stroke:#2563eb;stroke-width:2.5}.conditional{fill:#fffbeb;stroke:#d97706;stroke-width:2;stroke-dasharray:7 5}.outcome{fill:#ecfdf5;stroke:#059669;stroke-width:2.5}.line{fill:none;stroke:#475569;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.blue-line{fill:none;stroke:#2563eb;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.title{font:700 25px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.label{font:600 17px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.small{font:14px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#334155}.tag{font:700 13px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#1d4ed8;letter-spacing:.04em}.muted{fill:#475569}.green{fill:#047857}</style>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#475569"/></marker>
@@ -34,9 +34,8 @@
   <rect class="base" x="1012" y="235" width="148" height="95" rx="12"/><text class="label" x="1086" y="256" text-anchor="middle">Verify and</text><text class="label" x="1086" y="277" text-anchor="middle">simplify</text><text class="label" x="1086" y="298" text-anchor="middle">each step</text><text class="small" x="1086" y="319" text-anchor="middle">In-process check</text>
 
   <path class="blue-line" d="M1070 330V360H950V430H928" marker-end="url(#blue-arrow)"/>
-  <path class="blue-line" d="M1100 330V480H860V498" marker-end="url(#blue-arrow)"/>
-  <text class="small" x="650" y="382">If risk warrants</text>
-  <rect class="conditional" x="650" y="390" width="275" height="80" rx="12"/><text class="label" x="787" y="421" text-anchor="middle">Add specialist review</text><text class="small" x="787" y="447" text-anchor="middle">Correctness / Elegance · optional</text>
+  <text class="small" x="650" y="382">After execution</text>
+  <rect class="base" x="650" y="390" width="275" height="80" rx="12"/><text class="label" x="787" y="421" text-anchor="middle">Comprehensive review</text><text class="small" x="787" y="447" text-anchor="middle">Correctness / risk / tests / complexity</text>
   <path class="blue-line" d="M760 470V498" marker-end="url(#blue-arrow)"/>
   <rect class="base" x="650" y="500" width="275" height="76" rx="12"/><text class="label" x="787" y="530" text-anchor="middle">Leave a resumable checkpoint</text><text class="small" x="787" y="554" text-anchor="middle">Continue · accept · integrate</text>
   <path class="blue-line" d="M925 538H958" marker-end="url(#blue-arrow)"/>

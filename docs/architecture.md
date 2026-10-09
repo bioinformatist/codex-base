@@ -84,8 +84,8 @@ its effective settings with each execution. It never looks up a Codex profile.
 ## Executor routing
 
 Improve `.17` uses the public `codex-improve` coordinator. A reviewed plan
-selects economy (Luna/low), standard (Sol/medium), or deep (Sol/xhigh). Scout
-uses Luna/high; correctness and elegance review use Sol/high. The coordinator
+selects economy (Luna/low), standard (Sol 6.1/medium), or deep (Sol 6.1/xhigh). Scout
+uses Luna/high; the comprehensive reviewer uses Sol 6.1/high. The coordinator
 reads the launcher and probes from the plan, snapshots the selected role, and
 runs one model call. It does not probe quota, switch models, or replay failures.
 The Nix closure supplies Python 3.11 or newer, Git, Codex, and Worktrunk. A

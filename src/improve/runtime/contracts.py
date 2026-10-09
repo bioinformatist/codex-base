@@ -106,7 +106,7 @@ def parse_plan(raw: bytes) -> dict[str, Any]:
 
 def read_roles(path: Path) -> dict[str, dict[str, Any]]:
     roles = strict_json(path.read_bytes())
-    required = {"economy", "standard", "deep", "correctness", "elegance", "scout"}
+    required = {"economy", "standard", "deep", "reviewer", "scout"}
     if not isinstance(roles, dict) or set(roles) != required:
         raise BoundaryError("invalid Improve roles")
     for name, role in roles.items():
@@ -115,7 +115,7 @@ def read_roles(path: Path) -> dict[str, dict[str, Any]]:
             "tokenLimit", "reminders", "initialTimeout", "followupTimeout"
         }:
             raise BoundaryError(f"invalid role: {name}")
-        if role["model"] not in ("gpt-6-sol", "gpt-6-luna") or role["reasoningEffort"] not in (
+        if role["model"] not in ("gpt-6.1-sol", "gpt-6-luna") or role["reasoningEffort"] not in (
             "low", "medium", "high", "xhigh"
         ) or role["verbosity"] not in ("low", "medium") or role["approval"] != "never":
             raise BoundaryError(f"invalid model settings: {name}")

@@ -153,16 +153,16 @@ the result.
 
 **Runtime observation:** NOT RUN
 
-## SC-15: Ponytail preserves an accepted compatibility test
+## SC-15: Comprehensive review preserves an accepted compatibility test
 
 **Input/context:** A compatibility test looks redundant with a unit test, but
 the accepted public interface requires both old and new configuration shapes to
 remain supported.
 
-**Expected observable behavior:** Keep the compatibility test. Evaluate the
-complexity needed to preserve the accepted interface rather than deleting the
-test for a lower line count, and make no claim about overall correctness or
-shipping readiness.
+**Expected observable behavior:** Keep the compatibility test and check the changed path for correctness, risk,
+coverage, performance, and complexity. Evaluate the complexity needed to
+preserve the accepted interface rather than deleting the test for a lower line
+count. Report any unverified acceptance separately.
 
 **Runtime observation:** NOT RUN
 

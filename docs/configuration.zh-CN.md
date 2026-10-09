@@ -72,7 +72,7 @@ programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
 
 ## 模型选择
 
-Home Manager 默认使用 `gpt-6-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改用户的模型设置。正式 Improve 规划取决于当前会话实际具备上下文管理和结构化提问能力，而不是某个模型名称。困难规划可以显式选择 Astra；模型名称或配置开关都不能证明能力可用。Improve 执行通道另有独立的角色设置，见[执行器路由](architecture.md#executor-routing)。
+Home Manager 默认使用 `gpt-6.1-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改用户的模型设置。正式 Improve 规划取决于当前会话实际具备上下文管理和结构化提问能力，而不是某个模型名称。困难规划可以显式选择 Astra；模型名称或配置开关都不能证明能力可用。Improve 执行通道另有独立的角色设置，见[执行器路由](architecture.md#executor-routing)。
 
 <a id="context7-authentication"></a>
 

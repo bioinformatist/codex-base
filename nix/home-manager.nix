@@ -36,7 +36,7 @@ let
     trust_level = "trusted"
   '') trustedProjects;
   managedConfig = pkgs.writeText "codex-base-config.toml" ''
-    model = "gpt-6-sol"
+    model = "gpt-6.1-sol"
     model_reasoning_effort = "medium"
     model_verbosity = "medium"
     plan_mode_reasoning_effort = "high"

@@ -648,44 +648,36 @@ pkgs.runCommand "codex-base-generated-skills" { } ''
     chmod -R u+w "$out/$name"
   done
 
-  substituteInPlace "$out/ponytail-review/SKILL.md" \
-    --replace-fail 'The diff'"'"'s best outcome is getting shorter.' 'The best outcome is the lowest supported complexity that preserves correctness, accepted behavior and interfaces, and necessary checks.' \
-    --replace-fail '✅ `L12-38: stdlib: 27-line validator class. "@" in email, 1 line, real validation is the confirmation mail.`' '✅ `L12-38: stdlib: hand-rolled URL parser for validated inputs. The standard URL parser, preserving the accepted input and error behavior.`' \
-    --replace-fail 'End with the only metric that matters: `net: -<N> lines possible.`' 'End with the supported finding count. You may estimate net lines as secondary context, never as the acceptance criterion.' \
-    --replace-fail 'If there is nothing to cut, say `Lean already. Ship.` and stop.' 'If there is nothing supported to cut, say `Lean for over-engineering. Correctness and shipping readiness were not assessed.` and stop.' \
-    --replace-fail 'Scope: over-engineering and complexity only. Correctness bugs, security holes,' 'Scope: over-engineering and complexity only. Preserve accepted interfaces, behavior, and required tests. Correctness bugs, security holes,'
+  for name in ponytail-review ponytail-audit; do
+    substituteInPlace "$out/$name/SKILL.md" \
+      --replace-fail '## 3. Check before you report' '## 3. Check before you report
 
-  sed -i '/Use when the user says "audit this$/ { N; s/"audit this\n  codebase", //; }' "$out/ponytail-audit/SKILL.md"
-  substituteInPlace "$out/ponytail-audit/SKILL.md" \
-    --replace-fail '## Hunt
-
-Deps the stdlib or platform already ships' '## Hunt
-
-Report a cut only when repository evidence supports it and the replacement preserves accepted behavior and checks.
-
-Deps the stdlib or platform already ships' \
-    --replace-fail 'End with `net: -<N> lines, -<M> deps possible.` Nothing to cut: `Lean already. Ship.`' 'End with the supported finding count; estimated lines and dependencies are secondary context. Nothing supported to cut: `Lean for over-engineering. Correctness and shipping readiness were not assessed.`' \
-    --replace-fail 'Scope: over-engineering and complexity only. Correctness bugs, security holes,' 'Scope: over-engineering and complexity only. Preserve accepted interfaces, behavior, and required tests. Correctness bugs, security holes,'
+- Preserve accepted interfaces, behavior, and required tests.'
+  done
 
   substituteInPlace "$out/ponytail-debt/SKILL.md" \
-    --replace-fail '`grep -rnE '"'"'(#|//) ?ponytail:'"'"' .`  (add other comment prefixes if your stack uses them)' '`grep -rnE --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=build --exclude-dir=dist --exclude-dir=out --exclude-dir=target --exclude-dir=.next --exclude-dir=coverage '"'"'(#|//) ?ponytail:'"'"' .` (add other comment prefixes if the stack uses them)' \
     --replace-fail 'Reads and reports only, changes nothing. To persist it, ask and it writes the
 ledger to a file (e.g. `PONYTAIL-DEBT.md`). One-shot. "stop ponytail-debt" or
 "normal mode" to revert.' 'Reads and reports only; never writes, edits, stages, or persists a ledger. One-shot. "stop ponytail-debt" or "normal mode" to revert.'
-
-  grep -Fq 'Preserve accepted interfaces, behavior, and required tests.' "$out/ponytail-review/SKILL.md"
-  grep -Fq 'Correctness and shipping readiness were not assessed.' "$out/ponytail-review/SKILL.md"
-  grep -Fq 'Preserve accepted interfaces, behavior, and required tests.' "$out/ponytail-audit/SKILL.md"
-  ! grep -Ezq '"audit this[[:space:]]+codebase"' "$out/ponytail-audit/SKILL.md"
-  grep -Fq -- '--exclude-dir=node_modules' "$out/ponytail-debt/SKILL.md"
-  grep -Fq -- '--exclude-dir=.git' "$out/ponytail-debt/SKILL.md"
-  grep -Fq 'never writes, edits, stages, or persists a ledger' "$out/ponytail-debt/SKILL.md"
 
   mkdir -p "$out/improve"
   cp -R ${srcRoot}/src/improve/. "$out/improve/"
   chmod -R u+w "$out/improve"
   rm -rf "$out/improve/tests"
   cp ${improveSource}/LICENSE.md "$out/improve/LICENSE.md"
+  awk 'BEGIN { dashes = 0 } /^---$/ && dashes < 2 { dashes++; next } dashes >= 2 { print }' \
+    ${ponytailSource}/skills/ponytail/SKILL.md > "$out/improve/references/ponytail-core.md"
+  substituteInPlace "$out/improve/references/ponytail-core.md" \
+    --replace-fail 'End your reply with one or two lines: what you skipped or did not check, and any risk the user must know.' 'Report omitted checks and material risks in the required Improve JSON report.' \
+    --replace-fail 'Active for the whole session until the user says "stop ponytail" or "normal mode". Switch level: `/ponytail lite|full|ultra`.' ""
+  grep -Fxq '## Levels' "$out/improve/references/ponytail-core.md"
+  sed -i '/^## Levels$/,$d' "$out/improve/references/ponytail-core.md"
+  sed -i '$ { /^$/d; }' "$out/improve/references/ponytail-core.md"
+  grep -Fq '## The smallest complete change' "$out/improve/references/ponytail-core.md"
+  ! grep -Fq 'Active for the whole session' "$out/improve/references/ponytail-core.md"
+  grep -Fq 'Preserve accepted interfaces, behavior, and required tests.' "$out/ponytail-review/SKILL.md"
+  grep -Fq 'Preserve accepted interfaces, behavior, and required tests.' "$out/ponytail-audit/SKILL.md"
+  grep -Fq 'never writes, edits, stages, or persists a ledger' "$out/ponytail-debt/SKILL.md"
 
   if grep -R -n -E \
     '(/codebase-design|/grilling|/domain-modeling|/improve-codebase-architecture|Agent tool|subagent_type|Claude|claude|SendMessage|show --annotate +# ask the user)' \

@@ -59,10 +59,10 @@
     {
       "name": "ponytail",
       "repository": "https://github.com/DietrichGebert/ponytail",
-      "version": "4.8.3",
-      "revision": "v4.8.3",
+      "version": "5.1.0",
+      "revision": "9cc65d03aa2da1db7121b912d03596409ee340b8",
       "license": "MIT",
-      "includedPaths": ["skills/ponytail-review", "skills/ponytail-audit", "skills/ponytail-debt"],
+      "includedPaths": ["skills/ponytail", "skills/ponytail-review", "skills/ponytail-audit", "skills/ponytail-debt"],
       "patched": true
     },
     {

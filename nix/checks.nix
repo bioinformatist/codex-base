@@ -379,6 +379,7 @@ in {
     test -r ${generatedSkills}/improve/runtime/git_worktree.py
     test -r ${generatedSkills}/improve/references/executor-report.schema.json
     test -r ${generatedSkills}/improve/references/review-verdict.schema.json
+    test -r ${generatedSkills}/improve/references/ponytail-core.md
     test -r ${generatedSkills}/worktrunk/LICENSE
     test -r ${generatedSkills}/worktrunk/agents/openai.yaml
     touch $out
@@ -466,7 +467,7 @@ def run_merge(target: Path) -> dict:
     return tomllib.loads(target.read_text())
 
 def assert_managed(merged: dict) -> None:
-    assert merged["model"] == "gpt-6-sol"
+    assert merged["model"] == "gpt-6.1-sol"
     assert merged["model_reasoning_effort"] == "medium"
     assert merged["model_verbosity"] == "medium"
     assert merged["plan_mode_reasoning_effort"] == "high"
