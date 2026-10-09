@@ -152,7 +152,7 @@ in {
     touch $out
   '';
   mattpocock-skills = mkTest "mattpocock-skills-contract" shellTools ''
-    expected='codebase-design diagnosing-bugs domain-modeling resolving-merge-conflicts tdd grilling handoff wait-what writing-for-agents to-questionnaire'
+    expected='codebase-design diagnosing-bugs domain-modeling tdd retro prototype grilling handoff wait-what writing-for-agents to-questionnaire'
     actual=$(jq -r '.sources[] | select(.name == "mattpocock-skills") | .includedPaths[] | split("/")[-1]' ${srcRoot}/vendor/sources.json | paste -sd ' ' -)
     test "$actual" = "$expected"
     for skill in $expected; do test -d "${generatedSkills}/$skill"; done
@@ -160,6 +160,8 @@ in {
     grep -Fq 'allow_implicit_invocation: true' ${generatedSkills}/writing-for-agents/agents/openai.yaml
     grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/to-questionnaire/agents/openai.yaml
     grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/wait-what/agents/openai.yaml
+    grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/retro/agents/openai.yaml
+    grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/prototype/agents/openai.yaml
     test "$(jq -r '.sources[] | select(.name == "ponytail") | .patched' ${srcRoot}/vendor/sources.json)" = true
     touch $out
   '';
@@ -278,7 +280,7 @@ in {
         'executor-routing', 'early-simplification', 'grilling',
         'ponytail-review', 'ponytail-audit', 'ponytail-debt',
         'diagnosing-bugs', 'tdd', 'codebase-design', 'domain-modeling',
-        'merge-conflicts', 'playwright', 'stop-slop', 'handoff', 'wait-what',
+        'retro', 'prototype', 'playwright', 'stop-slop', 'handoff', 'wait-what',
         'questionnaire', 'writing-agents',
     ]
     assert ids(root / 'docs/capabilities.md') == expected_ids

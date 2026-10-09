@@ -58,17 +58,17 @@
     "mattpocock-skills": {
       "flake": false,
       "locked": {
-        "lastModified": 1787581197,
-        "narHash": "sha256-N5tpUIHO2VFeJntBTl6/VLDIVpqoshwFxNJlfXXUwsQ=",
+        "lastModified": 1791449074,
+        "narHash": "sha256-1QwFBwG+gORvDvW4HM0LrZlHZKmKtWr7pUHU0MAXF2Y=",
         "owner": "mattpocock",
         "repo": "skills",
-        "rev": "6654f6b60cd9d5be8b54c6fafe44346dabeb3b76",
+        "rev": "b0618bc436ad893b3c5e84e55fba86586d34a404",
         "type": "github"
       },
       "original": {
         "owner": "mattpocock",
         "repo": "skills",
-        "rev": "6654f6b60cd9d5be8b54c6fafe44346dabeb3b76",
+        "rev": "b0618bc436ad893b3c5e84e55fba86586d34a404",
         "type": "github"
       }
     },
@@ -107,17 +107,17 @@
     "playwright-cli": {
       "flake": false,
       "locked": {
-        "lastModified": 1788277103,
-        "narHash": "sha256-pbv51ybubbjoIpKg0k7lfXfZ9Z+qdZI2lRhQeI+/mFA=",
+        "lastModified": 1790637751,
+        "narHash": "sha256-80xzHvf7BHGvoKvMdkGeNUsUrpZrpw5eryuQM8NKT/E=",
         "owner": "microsoft",
         "repo": "playwright-cli",
-        "rev": "397ee39c83a651e1314cfb010b94e8a3aac11261",
+        "rev": "b85c7a736bb473bf55b584e54a09ffa698d6d871",
         "type": "github"
       },
       "original": {
         "owner": "microsoft",
-        "ref": "v0.1.19",
         "repo": "playwright-cli",
+        "rev": "b85c7a736bb473bf55b584e54a09ffa698d6d871",
         "type": "github"
       }
     },

@@ -18,7 +18,7 @@ Codex Base combines adapted community skills with our team's workflow and enviro
 
 ## What we've done
 
-Our Improve workflow builds on the audit and planning foundations from [shadcn's Improve](https://github.com/shadcn/improve). We adapt selected skills from [Matt Pocock](https://github.com/mattpocock/skills) for requirements clarification, debugging, testing, design, and agent guidance. We also adapt and integrate [Ponytail](https://github.com/DietrichGebert/ponytail) for implementation, comprehensive change review, repository audits, and shortcut debt; [stop-slop](https://github.com/hardikpandya/stop-slop) for prose editing; and the [Playwright CLI skill](https://github.com/microsoft/playwright-cli) for browser work.
+Our Improve workflow builds on the audit and planning foundations from [shadcn's Improve](https://github.com/shadcn/improve). We adapt selected skills from [Matt Pocock](https://github.com/mattpocock/skills) for requirements clarification, debugging, testing, design, retrospectives, prototypes, and agent guidance. We also adapt and integrate [Ponytail](https://github.com/DietrichGebert/ponytail) for implementation, comprehensive change review, repository audits, and shortcut debt; [stop-slop](https://github.com/hardikpandya/stop-slop) for prose editing; and the [Playwright CLI skill](https://github.com/microsoft/playwright-cli) for browser work.
 
 Our work focuses on adapting these foundations to Codex, extending and connecting the planning, execution, and review workflow, adding documentation and bounded public-X research support, and maintaining the plugin and Nix/Home Manager environment. In this setup:
 

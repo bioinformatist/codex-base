@@ -4,11 +4,11 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-tools.url = "github:NixOS/nixpkgs/nixos-unstable";
     home-manager = { url = "github:nix-community/home-manager/release-26.05"; inputs.nixpkgs.follows = "nixpkgs"; };
-    mattpocock-skills = { url = "github:mattpocock/skills/6654f6b60cd9d5be8b54c6fafe44346dabeb3b76"; flake = false; };
+    mattpocock-skills = { url = "github:mattpocock/skills/b0618bc436ad893b3c5e84e55fba86586d34a404"; flake = false; };
     shadcn-improve = { url = "github:shadcn/improve/03369ee6d7cafbfcecc4346539b05b3dc0a603bb"; flake = false; };
     stop-slop = { url = "github:hardikpandya/stop-slop/8da1f030185bdfe8471220585162991eaeb970e9"; flake = false; };
     ponytail = { url = "github:DietrichGebert/ponytail/9cc65d03aa2da1db7121b912d03596409ee340b8"; flake = false; };
-    playwright-cli = { url = "github:microsoft/playwright-cli/v0.1.19"; flake = false; };
+    playwright-cli = { url = "github:microsoft/playwright-cli/b85c7a736bb473bf55b584e54a09ffa698d6d871"; flake = false; };
     codex-src = { url = "github:openai/codex/rust-v0.162.0"; flake = false; };
     adhx = { url = "github:itsmemeworks/adhx/2dafb9c221398372d08f8dc75e857e801089f6b1"; flake = false; };
   };

@@ -18,7 +18,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 ## 我们做了什么
 
-我们的 Improve 工作流以 [shadcn Improve](https://github.com/shadcn/improve) 的审计与规划方法为基础，并选取、适配了 [Matt Pocock 的 skills](https://github.com/mattpocock/skills)，用于需求澄清、调试、测试、设计和 agent 指导。我们还适配并整合了用于精简实现、综合代码审查、全库审计和捷径债务梳理的 [Ponytail](https://github.com/DietrichGebert/ponytail)、用于文字编辑的 [stop-slop](https://github.com/hardikpandya/stop-slop)，以及用于浏览器操作的 [Playwright CLI skill](https://github.com/microsoft/playwright-cli)。
+我们的 Improve 工作流以 [shadcn Improve](https://github.com/shadcn/improve) 的审计与规划方法为基础，并选取、适配了 [Matt Pocock 的 skills](https://github.com/mattpocock/skills)，用于需求澄清、调试、测试、设计、复盘、原型探索和 agent 指导。我们还适配并整合了用于精简实现、综合代码审查、全库审计和捷径债务梳理的 [Ponytail](https://github.com/DietrichGebert/ponytail)、用于文字编辑的 [stop-slop](https://github.com/hardikpandya/stop-slop)，以及用于浏览器操作的 [Playwright CLI skill](https://github.com/microsoft/playwright-cli)。
 
 我们的工作侧重于将这些基础适配到 Codex，扩展并衔接规划、执行和审查流程，补充文档检索与有边界的公开 X 内容研究能力，以及维护插件和 Nix/Home Manager 环境。在这套集成中：
 
