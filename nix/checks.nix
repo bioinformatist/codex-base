@@ -262,35 +262,13 @@ in {
 
     root = Path('${srcRoot}')
     # Check each language's README entry point and detailed configuration guide.
-    waiver_anchor = '<a id="temporary-context-waiver"></a>'
-    waiver_image = 'docs/evidence/2026-09-12-tibo-context-management.png'
-    assert (root / waiver_image).is_file()
     for readme_name, name in [
         ('README.md', 'docs/configuration.md'),
         ('README.zh-CN.md', 'docs/configuration.zh-CN.md'),
     ]:
         readme = (root / readme_name).read_text()
-        guide = (root / name).read_text()
-        assert readme.count(waiver_anchor) == 1, readme_name
-        assert f']({name}#temporary-context-waiver)' in readme, readme_name
         assert f']({name}#native-codex-configuration)' in readme, readme_name
         assert f']({name}#context7-authentication)' in readme, readme_name
-        assert guide.count(waiver_anchor) == 1, name
-        note = guide.split(waiver_anchor, 1)[1]
-        for required in [
-            '2026-09-12',
-            '](https://x.com/thsottiaux/status/2098612714704891959)',
-            '](evidence/2026-09-12-tibo-context-management.png)',
-        ]:
-            assert required in note, (name, required)
-    for name, target in [
-        ('docs/architecture.md', '../README.md'),
-        ('docs/capabilities.md', '../README.md'),
-        ('docs/capabilities.zh-CN.md', '../README.zh-CN.md'),
-    ]:
-        document = root / name
-        assert f']({target}#temporary-context-waiver)' in document.read_text(), name
-        assert (document.parent / target).is_file(), name
 
     def ids(path):
         return [line.split('|')[1].strip() for line in path.read_text().splitlines()

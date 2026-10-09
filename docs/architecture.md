@@ -44,8 +44,8 @@ guidance. Executor prompts retain runner-local scope, checks, STOP, and handoff
 constraints. Codex Base has no model-index or per-model global guidance files,
 and its ordinary runtime default remains Sol with medium reasoning.
 
-Native context-management eligibility depends on live tools and server
-capability for the signed-in account. In the desktop app, that task is a Codex chat under a
+Native context-management eligibility depends on callable tools in the live
+session and server capability for the signed-in account. In the desktop app, that task is a Codex chat under a
 project; entering Plan Mode or invoking Improve in an existing chat does not
 start another session. Codex Base therefore keeps Sol as its ordinary default.
 Formal Improve planning requires a session that actually exposes context
@@ -62,12 +62,9 @@ The [configuration guide](configuration.md#model-choice) records the scope
 distinctions and pinned source evidence.
 
 Formal Improve planning uses built-in Plan Mode only when the live session
-exposes native context management and structured questions. It produces one
+exposes callable native context management and structured questions. It produces one
 complete replacement in chat and creates no plan, questionnaire, handoff, or
 temporary file. A later authorized writable phase may persist that result.
-For temporary native-context-management unavailability, a user may explicitly
-grant the [per-plan waiver](../README.md#temporary-context-waiver) for one named
-plan and its same-scope review. This does not change the global prerequisites.
 Implementation, audits, and routine lifecycle bookkeeping remain available in
 Default Mode without starting a new planning workflow.
 

@@ -135,11 +135,7 @@ These instructions apply to **both installation methods**. A Codex task means on
 
 ### Start with the right model
 
-The managed default is `gpt-6.1-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning requires live native context management and structured questions. Check the actual tools and server capability in the current session. A model name alone does not establish either capability. Astra is an explicit choice for difficult planning, not a prerequisite or automatic escalation. See [model selection](docs/configuration.md#model-choice).
-
-<a id="temporary-context-waiver"></a>
-
-Before formal planning, verify the live tools: configured `true` values and a Plan Mode label do not prove that either capability is live. Selecting Astra does not prove that native context management is live either. If it is absent, do not repeatedly restart, rebuild, or toggle the same setting; use a session where the service actually exposes it, or ask the user to grant a [temporary per-plan waiver](docs/configuration.md#temporary-context-waiver). Structured questions and the other planning requirements still apply.
+The managed default is `gpt-6.1-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning requires built-in Plan Mode with callable native context management and structured questions in the current session. A model name, configuration flag, or Plan Mode label alone does not prove those capabilities are available. If either tool is missing, use a capable Plan Mode session; see [native Codex configuration](docs/configuration.md#native-codex-configuration) and [model selection](docs/configuration.md#model-choice). Astra is an explicit choice for difficult planning, not a prerequisite or automatic escalation.
 
 ### Plan, then authorize implementation
 

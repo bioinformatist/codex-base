@@ -135,11 +135,7 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 ### 以合适的模型启动任务
 
-托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划要求当前会话实际具备原生上下文管理和结构化提问能力。应检查可用工具及服务端能力；单凭模型名称不能证明两项能力可用。Astra 可供困难规划显式选择，但不是前置条件，也不会自动升级。详见[模型选择](docs/configuration.zh-CN.md#model-choice)。
-
-<a id="temporary-context-waiver"></a>
-
-正式规划前应核对会话实际提供的工具：配置值为 `true` 或界面显示 Plan Mode，都不能证明能力已经可用；选择 Astra 同样不能证明原生上下文管理已经可用。缺少该能力时，不要反复重启、重建或切换同一配置；应改用服务端实际开放该能力的会话，或请用户明确授予[单计划临时豁免](docs/configuration.zh-CN.md#temporary-context-waiver)。结构化提问和其他规划要求仍须满足。
+托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划要求当前会话的内置 Plan Mode 实际提供可调用的原生上下文管理和结构化提问工具。单凭模型名称、配置开关或 Plan Mode 标识不能证明能力可用。如果缺少任一工具，应使用具备该能力的 Plan Mode 会话；参阅[原生 Codex 配置](docs/configuration.zh-CN.md#native-codex-configuration)和[模型选择](docs/configuration.zh-CN.md#model-choice)。困难规划可以显式选择 Astra，但这不是前置条件，也不会自动升级。
 
 ### 先规划，再授权实现
 

@@ -9,7 +9,6 @@ Use this page for runtime settings, optional documentation-service credentials, 
 - [Global AGENTS instructions](#global-agents-instructions)
 - [Model choice](#model-choice)
 - [Context7 authentication](#context7-authentication)
-- [Temporary context-management waiver](#temporary-context-waiver)
 - [Reverting runtime settings](#reverting-runtime-settings)
 
 ## Native Codex configuration
@@ -34,7 +33,7 @@ default_mode_request_user_input = true
 
 This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level; the three feature toggles belong in `[features]`. Update existing keys in place. Replace existing boolean `context_management` or `code_mode` entries with the dotted form above; do not keep both a boolean and table form or duplicate a TOML key.
 
-After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend, and the service can still withhold the capability from the starting model. Consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. Missing native context management during formal planning is handled through the [per-plan waiver](#temporary-context-waiver), not repeated configuration changes.
+After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend, and the service can still withhold the capability from the starting model. Consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. Before formal Improve planning, check that built-in Plan Mode exposes callable native context management and structured questions. If either is missing, start a capable Plan Mode session.
 
 The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers context management, Code Mode, and Plan Mode effort. The Default Mode question flag is supported by the verified Codex [feature declaration](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs).
 
@@ -100,22 +99,6 @@ Keep the plaintext key out of Nix source and the Nix store. Manage the file with
 After either change, [reload the runtime](../README.md#reload-after-an-update) and run `codex mcp list --json`. Registration alone does not prove that the credential works. For a one-time diagnostic, ask Codex to use `context7_auth` for a focused public documentation lookup. An `auth_status` of `unsupported` is normal for the Nix stdio adapter because Codex does not manage its API-key authentication.
 
 An authentication prompt opened by anonymous Context7 pauses that tool call; it is not evidence that the authenticated fallback ran. Resolve or dismiss the prompt so the call can return and routing can continue.
-
-<a id="temporary-context-waiver"></a>
-
-## Temporary context-management waiver
-
-If formal Improve planning lacks native context management, check the session's live tools and preserve existing configuration. Do not edit local configuration, repeatedly toggle features, modify skills, or rebuild the environment to work around this unavailability.
-
-To continue, the user must explicitly waive only the native context-management prerequisite for one named plan and its same-scope review. This is not an automatic or global waiver: Plan Mode, structured questions, read-only planning, and all other authorization boundaries remain required. For example:
-
-```text
-I approve waiving the native context-management prerequisite only for this plan and its same-scope review. Keep Plan Mode, structured questions, read-only planning, and all other authorization boundaries. Do not change configuration or global skills for this waiver.
-```
-
-A waiver neither restores the capability nor guarantees planning quality. Once live availability is verified, new plans need no exception. Default Mode implementation, audits, and routine lifecycle bookkeeping are unaffected. Normal installation settings are not a fix for temporary service unavailability.
-
-Historical context: on **2026-09-12**, Tibo (@thsottiaux) [announced](https://x.com/thsottiaux/status/2098612714704891959) disabling an opt-in context-management experiment that could cause early stops or replies to older messages. A [user-provided screenshot](evidence/2026-09-12-tibo-context-management.png) is retained as supporting evidence. The announcement identifies no configuration key and does not establish current access for a particular account, subscription, or client.
 
 ## Reverting runtime settings
 

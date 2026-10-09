@@ -254,24 +254,24 @@ timelines and reply trees.
 
 **Runtime observation:** NOT RUN
 
-## SC-24: Context Manager needs live server and tool evidence
+## SC-24: Configured context management needs a callable tool
 
-**Input/context:** Plan Mode is active and configuration enables Context
-Manager, but the session exposes no Context Manager server or callable tool.
+**Input/context:** Plan Mode is active and configuration enables native context
+management, but the session exposes no callable context-management tool.
 
 **Expected observable behavior:** Treat the capability as unavailable. Stop
-formal Improve planning and name the missing server or tool evidence. A config
+formal Improve planning and name the missing callable capability. A config
 value or Plan Mode label alone does not establish a usable capability.
 
 **Runtime observation:** NOT RUN
 
-## SC-25: Listed server without callable tool is insufficient
+## SC-25: Listed provider without a callable tool is insufficient
 
-**Input/context:** A Context Manager server appears in the session inventory,
-but no Context Manager tool can be called in this session.
+**Input/context:** A context-management provider appears in the session
+inventory, but none of its tools can be called in this session.
 
 **Expected observable behavior:** Do not claim the capability works from the
-server name alone. Stop formal planning and report the missing callable tool.
+provider name alone. Stop formal planning and report the missing callable tool.
 
 **Runtime observation:** NOT RUN
 
