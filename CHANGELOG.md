@@ -31,26 +31,9 @@ Released 2026-10-15.
   unrelated MCP settings are preserved. Plugin updates do not delete native
   Codex configuration; review obsolete native entries manually.
 - Explain model-provided context defaults and conditional 500K budgeting in
-  English and Chinese. Context-window and auto-compaction overrides remain
-  unset by Codex Base, and existing user overrides are preserved. These docs
-  do not guarantee a particular window or live context-management capability.
-
-### Runtime and compatibility
-
-- Update the default Codex CLI, Code Mode Host, and matching source pin from
-  0.162.0 to 0.162.1.
-- Keep the Improve `.17` plan contract and Home Manager option interfaces.
-  A consumer that selects `programs.codexBase.package` continues to obtain its
-  executable from that separately selected package; a skills or module update
-  alone does not upgrade it.
-- Reload the executing runtime and open a new session after updating so it can
-  discover the installed skills; see the [reload instructions](README.md#reload-after-an-update).
-
-This release makes no measured claim about execution speed, token savings,
-or review accuracy.
+  English and Chinese.
 
 [Engineering skills and Mintlify retirement](https://github.com/bioinformatist/codex-base/pull/66) ·
-[Runtime update](https://github.com/bioinformatist/codex-base/pull/65) ·
 [Full comparison](https://github.com/bioinformatist/codex-base/compare/v0.2.0...v0.3.0)
 
 ## [0.2.0]
