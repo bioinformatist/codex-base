@@ -4,6 +4,38 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
+## [0.3.0]
+
+Released 2026-10-15.
+
+### Engineering skills
+
+- Add `benchmark-checklist` for designing, reviewing, and reporting measured
+  performance comparisons; `blast-radius` for tracing a change's effects beyond
+  its diff; and `deprecation-and-migration` for retiring systems, APIs, features,
+  or persisted data and configuration. All three are available in the portable
+  plugin and Home Manager, with focused automatic triggers and explicit
+  invocation.
+- Adapt the skills from pstack and Addy Osmani's agent-skills, preserving MIT
+  licenses and pinned source provenance.
+- Update Ponytail from 5.1.0 to 5.2.0. Its debt scan now respects Git ignore
+  rules across stacks, including dependencies, build output, and caches.
+
+### Documentation services and configuration
+
+- Remove retired Mintlify Index from plugin and Home Manager defaults. Route
+  documentation lookups through Context7, its optional authenticated fallback,
+  and official primary sources.
+- Home Manager removes a persisted `mintlify_index` table only when it exactly
+  matches the complete former default. Customized or incomplete tables and
+  unrelated MCP settings are preserved. Plugin updates do not delete native
+  Codex configuration; review obsolete native entries manually.
+- Explain model-provided context defaults and conditional 500K budgeting in
+  English and Chinese.
+
+[Engineering skills and Mintlify retirement](https://github.com/bioinformatist/codex-base/pull/66) ·
+[Full comparison](https://github.com/bioinformatist/codex-base/compare/v0.2.0...v0.3.0)
+
 ## [0.2.0]
 
 Released 2026-10-09.
@@ -209,6 +241,7 @@ Repository documentation and compatibility checks passed for the release candida
 
 [Compare the Improve changes](https://github.com/bioinformatist/codex-base/compare/52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e).
 
+[0.3.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.3.0
 [0.2.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.2.0
 [0.1.3]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.3
 [0.1.2]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.2
