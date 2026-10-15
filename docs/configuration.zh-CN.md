@@ -73,11 +73,35 @@ programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
 
 Home Manager 默认使用 `gpt-6.1-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改用户的模型设置。正式 Improve 规划取决于当前会话实际具备上下文管理和结构化提问能力，而不是某个模型名称。困难规划可以显式选择 Astra；模型名称或配置开关都不能证明能力可用。Improve 执行通道另有独立的角色设置，见[执行器路由](architecture.md#executor-routing)。
 
+## 模型上下文默认值
+
+Codex Base 不设置 `model_context_window` 和
+`model_auto_compact_token_limit`，并保留用户覆盖值。Codex 从模型目录读取
+每个模型的默认值：在线元数据可以刷新内置目录，离线时可能使用缓存或内置
+数据；显式配置覆盖会改变有效结果。模型支持的最大窗口不一定是默认窗口；
+接收服务端更大的默认值不需要修改目录或增加 Codex Base 选项。
+
+若某模型默认窗口为 500,000 token，传统的 95% 可用预算为 475,000，90%
+自动压缩阈值为 450,000。这只是条件示例，不保证所有账户或模型都获得 500K。
+原生上下文管理可能在达到阈值前主动重组上下文；窗口大小不能证明当前会话
+具备上下文管理能力。
+
+显示窗口与预期不符时，依次检查：实际执行的二进制及版本（包括桌面或 SSH
+App Server）、所选模型、在线或缓存/内置目录、有效配置及启动覆盖，最后在
+重新加载运行时后创建新对话。不要自动删除用户覆盖值。
+[模型管理器源码](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/models-manager/src/manager.rs)
+和[协议公式](https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/protocol/src/openai_models.rs#L514-L536)
+解释了目录解析和传统预算；另见官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。
+
+更新消费方的 `codex-base` 输入会更新模块与技能。若消费方覆盖了
+`programs.codexBase.package`，可执行文件则跟随另选的软件包及其锁文件。
+应分别检查两条继承路径，不能假定更新技能也升级了 Codex。
+
 <a id="context7-authentication"></a>
 
 ## Context7 认证
 
-Mintlify 和 Context7 通过 MCP（Codex 连接外部工具的协议）提供公开文档。两种安装方式共用相同的路由技能：先查 Mintlify，必要时使用 Context7，匿名结果不足时再用认证 Context7 fallback，最后回退到官方一手资料。原生配置可以覆盖插件的同名端点。查询只能包含聚焦的公开检索词，不能包含密钥或私有内容。
+Context7 通过 MCP（Codex 连接外部工具的协议）提供公开文档。两种安装方式共用相同的路由技能：先查 Context7，匿名结果不足时再用认证 Context7 fallback，最后回退到官方一手资料。原生配置可以覆盖插件的同名端点。查询只能包含聚焦的公开检索词，不能包含密钥或私有内容。
 
 匿名 Context7 无需账户。认证属于可选的用户级配置，Codex Base 不会内置共享密钥。
 
@@ -115,3 +139,11 @@ programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;
 保留无关配置，将 `plan_mode_reasoning_effort` 恢复为先前的值。要禁用这些功能，应明确将 `context_management.experimental_mode`、`code_mode.enabled` 和 `default_mode_request_user_input` 设为 `false`。从覆盖层删除键或回退源码，不会清除已经写入 `config.toml` 的值。
 
 Home Manager 用户还应在激活前撤销托管覆盖层中的对应设置，否则激活时会再次写入托管值。有效配置改变后，按[重新加载说明](../README.zh-CN.md#更新后重新加载)操作。
+
+## 已退役的 Mintlify 默认配置
+
+Home Manager 仅在 `mcp_servers.mintlify_index` 整张表精确匹配旧默认值时
+删除它：URL 为 `https://index.mintlify.com/mcp`，`required = false`，
+`startup_timeout_sec = 30`，`tool_timeout_sec = 120`。任何值改变或额外字段
+都会保留。若不再需要，请手动审查并删除自定义或仅插件用户的原生配置项；
+更新插件不会删除原生配置。

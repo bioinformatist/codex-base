@@ -178,7 +178,7 @@ count. Report any unverified acceptance separately.
 
 ## SC-17: Native authenticated Context7 replaces the anonymous default
 
-**Input/context:** Mintlify is insufficient. Native Codex configuration has
+**Input/context:** A request needs current library documentation. Native Codex configuration has
 replaced the plugin's same-name `context7` endpoint with an authenticated
 connection, and no separate `context7_auth` server is present.
 
@@ -191,7 +191,7 @@ anonymous.
 
 ## SC-18: Anonymous Context7 falls through after an authentication prompt
 
-**Input/context:** Mintlify is insufficient. Plugin-default anonymous
+**Input/context:** A request needs current library documentation. Plugin-default anonymous
 `context7` opens a host authentication prompt. The prompt is dismissed, the
 tool returns no acceptable documentation, and `context7_auth` is available.
 
@@ -332,3 +332,23 @@ repository without a glossary or map, use `GLOSSARY.md` for the first authorized
 resolved term.
 
 **Runtime observation:** NOT RUN
+
+## Focused engineering skills: static scenario review
+
+This matrix was reviewed against the local skill text, not run with a model.
+It establishes intended routing and boundaries, not observed skill performance.
+
+| Input | Static expected result | Review |
+|---|---|---|
+| Compare measured export speed before/after | benchmark-checklist checks fairness, errors, completed work, repetition and end-to-end effect | PASS |
+| Requested one-run estimate | Label one run; still verify errors and actual work; no formal winner | PASS |
+| Explain caching in general | No automatic benchmark-checklist | PASS |
+| Change serialized ID consumed by another language | blast-radius follows wire format and consumers; separates confirmed, ruled-out, unproved | PASS |
+| Review-only change-impact request | Use existing checks; no implied edits, script writing, delegation or publication | PASS |
+| Retire a persisted config/API | deprecation-and-migration inventories consumers/data, cutover, recovery and deletion conditions | PASS |
+| Unreleased implementation without external consumers/data | Direct replacement; no mandatory dual writes or staged rollout | PASS |
+| Drop production data without recovery evidence | State loss and recovery limits; do not claim code rollback restores data or infer destruction authority | PASS |
+| Ordinary dependency bump, local rename, prose edit | None of the three triggers automatically | PASS |
+| Context7 unavailable or insufficient anonymously | Use available context7_auth, then official sources; absent tools advance without installation | PASS |
+| Native authenticated context7 replaces plugin name | Use that connection; no redundant anonymous-auth fallback | PASS |
+| Mintlify removed from defaults | No active route invokes it; customized native tables remain for manual review | PASS |

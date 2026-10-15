@@ -4,12 +4,12 @@
 `codex-base@bioinformatist-codex` 安装的内容；“Nix”还包括 Home Manager
 模块、软件包、全局配置及无命名空间的技能链接。显式与条件触发是有意设计：
 安装本身不会运行任何技能。“插件”和“Nix”两列只说明 Codex Base 会提供或
-配置什么。用户也可以自行配置 Mintlify 或 Context7，或通过其他插件获得相应配置。
+配置什么。用户也可以自行配置 Context7，或通过其他插件获得相应配置。
 
 | ID | 能力 | 插件 | Nix / Home Manager | 触发条件 | 职责 | 验证方式 | 来源 |
 |---|---|---|---|---|---|---|---|
 | global-agents | 全局 AGENTS 指引 | 否 | 是 | Codex 在每个项目中加载受管的全局指引 | Home Manager 先写入关于 Git、Nix、密钥处理、证据与工作偏好的基础指引，再以空行分隔并追加消费方模块中非空的 `extraInstructions`，用于代理等环境专属策略；执行器自身的范围、检查、STOP 和交接约束仍留在执行器中 | 检查 Home Manager 生成的 `.codex/AGENTS.md` 并运行 Home Manager 检查 | Codex Base；可移植插件有意不安装此文件 |
-| docs-routing | Mintlify / Context7 MCP 配置及路由 | 匿名 HTTP 默认配置及带命名空间的技能 | 本地匿名 Context7、可选的用户级认证 Context7 及无命名空间技能 | 任务需要当前版本的库、SDK、API、CLI 或云服务文档，且没有优先适用的更高权限产品专用路由 | 用精确产品和版本构造聚焦查询，独立主题分别检索；查一次 Mintlify Index，再查 `context7`（插件默认为匿名连接，但可由原生配置替换），仅在前一连接为匿名且结果不足时查可选的 `context7_auth`，最后回退至官方一手资料。只接受相关、版本匹配且来源可追溯的结果，绝不发送私有内容 | 运行插件 schema、smoke、portability 及 Home Manager 检查；Codex 原生同名配置优先于插件默认值 | Codex Base |
+| docs-routing | Context7 MCP 配置及路由 | 匿名 HTTP 默认配置及带命名空间的技能 | 本地匿名 Context7、可选的用户级认证 Context7 及无命名空间技能 | 任务需要当前版本的库、SDK、API、CLI 或云服务文档，且没有优先适用的更高权限产品专用路由 | 用精确产品和版本构造聚焦查询，独立主题分别检索；查询 `context7`（插件默认为匿名连接，但可由原生配置替换），仅在前一连接为匿名且结果不足时查可选的 `context7_auth`，最后回退至官方一手资料。只接受相关、版本匹配且来源可追溯的结果，绝不发送私有内容 | 运行插件 schema、smoke、portability 及 Home Manager 检查；Codex 原生同名配置优先于插件默认值 | Codex Base |
 | adhx | ADHX 公开 X 帖子读取器 | 带命名空间的技能 | 无命名空间技能及 curl | 用户给出相关公开 X 帖子 URL，或有边界的网页研究发现它可能实质影响一个具体技术问题 | 读取公开帖子但不搜索 X；保留所需正文、作者、时间和原始 URL，把普通讨论视为线索而非证明，并披露 Article 内容不完整或请求失败 | 用一个可丢弃的公开帖子 URL 调用 `$codex-base:adhx` 或 Nix `$adhx`，检查有边界的请求与原始 URL 引用 | 改编自 [ADHX](https://github.com/itsmemeworks/adhx) |
 | github-mcp | GitHub MCP | 否 | 是 | 需要 GitHub 仓库数据或已获授权的 GitHub 操作 | 提供已配置的 GitHub MCP 连接；其本身不会授予凭据 | 设置 GitHub 令牌文件选项后检查 Home Manager 生成的 Codex 配置 | Codex Base |
 | improve | Improve 顾问、协调器与审查器 | 是 | 是 | 插件中显式调用 `$codex-base:improve ...`，或在 Nix 环境调用 `$improve ...`；正式规划要求内置 Plan Mode 实际提供可调用的原生上下文管理和结构化提问工具。参阅[原生 Codex 配置](configuration.zh-CN.md#native-codex-configuration)。实现、审计和普通生命周期记录不受此规划门槛限制 | 先查清事实，只询问仍未确定且影响实质结果的选择；在对话中给出完整的替换计划且不写文件；仅在之后获准的阶段持久化或委派；逐步简化并管理审查与检查点边界 | 以只读方式运行 `$codex-base:improve quick`；Nix 提供 `codex-improve` 和 `$improve` | 改编自 [shadcn-improve](https://github.com/shadcn/improve)，由 Codex Base 维护 |
@@ -31,6 +31,9 @@
 | wait-what | Wait What | 是 | 是 | 在插件中显式调用 `$codex-base:wait-what`，或在 Nix 环境调用 `$wait-what` | 使用当前对话的语言改述材料，保留事实、约束、限定条件与不确定性，且不创建文件 | 对可丢弃的难懂文字调用任一形式并检查对话回复 | 改编自 [mattpocock-skills](https://github.com/mattpocock/skills) |
 | questionnaire | To Questionnaire | 是 | 是 | 显式要求生成一份交给他人回答的问卷 | 获准写入时，生成一份安全且不重名的临时 Markdown 问卷；禁止写入时，在对话中完整输出。任何情况下都不代为发送或索要密钥等秘密值 | 用临时知识缺口调用 `$codex-base:to-questionnaire` 或 Nix `$to-questionnaire`，核验输出模式 | 改编自 [mattpocock-skills](https://github.com/mattpocock/skills) |
 | writing-agents | Writing for Agents | 是 | 是 | 正在编写技能、`AGENTS.md` 等大段供智能体读取的指引 | 让智能体指引易于发现、边界清晰且节省上下文 | 对临时指引调用 `$codex-base:writing-for-agents` 或 Nix `$writing-for-agents` | 改编自 [mattpocock-skills](https://github.com/mattpocock/skills) |
+| benchmark-checklist | Benchmark Checklist | 是 | 是 | 设计、审阅或报告实际性能对比 | 检查公平性、错误、实际完成的工作、重复测量、瓶颈证据及端到端意义；区分快速估计和正式对比 | 静态场景和插件打包检查；可显式调用 `$codex-base:benchmark-checklist` 或 Nix `$benchmark-checklist` | Lauren Tan 的 pstack，MIT |
+| blast-radius | Blast Radius | 是 | 是 | 实际改动涉及接口、序列化、数据、配置、缓存、生命周期或跨语言边界，或显式要求影响分析 | 复用现有检查，追踪调用者之外的破坏风险，区分已确认、已排除和未证明 | 静态场景和插件打包检查；可显式调用 `$codex-base:blast-radius` 或 Nix `$blast-radius` | Lauren Tan 的 pstack，MIT |
+| deprecation-and-migration | Deprecation and Migration | 是 | 是 | 弃用有消费者或保留数据的接口、系统，或显式要求迁移审阅 | 清点消费者和数据，安排切换与恢复顺序，明确删除条件；仅在共存需要时分阶段 | 静态场景和插件打包检查；可显式调用 `$codex-base:deprecation-and-migration` 或 Nix `$deprecation-and-migration` | Addy Osmani 的 agent-skills，MIT |
 
 准确的来源与许可证信息见[致谢](credits.md)。修订版本与收录路径仍以
 `vendor/sources.json` 为机器可读的唯一事实来源。

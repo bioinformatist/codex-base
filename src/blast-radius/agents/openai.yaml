@@ -1,0 +1,6 @@
+interface:
+  display_name: "Blast Radius"
+  short_description: "Trace breakage beyond the changed code"
+  default_prompt: "Use $blast-radius for this change impact analysis."
+policy:
+  allow_implicit_invocation: true

@@ -24,6 +24,7 @@ Our work focuses on adapting these foundations to Codex, extending and connectin
 
 - Formal planning resolves material choices and produces a complete plan in chat. An authorized implementation phase can then persist it and delegate bounded work.
 - Implementation consults current documentation; an isolated executor verifies and simplifies each changing step. Reviews and checkpoints identify the candidate they cover so work can be resumed and assessed.
+- Focused automatic skills vet measured benchmarks, trace change impact, and plan deprecation cutovers; explicit invocation is also available. They adapt Lauren Tan’s pstack and Addy Osmani’s agent-skills methods.
 - Shared skills cover documentation lookup, debugging, testing, design, and prose review. The [capability catalog](docs/capabilities.md) lists their triggers and installation requirements.
 - ADHX reads relevant public X post URLs supplied by users or found through bounded web research; it is not an X search service, and long-form Article content may be incomplete.
 
@@ -67,7 +68,7 @@ Choose the plugin to add the portable workflow to an existing Codex setup, or Ho
 | Engineering skills | Namespaced, such as `$codex-base:improve` | Unnamespaced, such as `$improve` |
 | Improve CLI | `python3 -B skills/improve/scripts/codex-improve` with host dependencies | Packaged `codex-improve` plus `wt` |
 | Global guidance and GitHub MCP | No | Yes |
-| Mintlify / Context7 documentation services | Anonymous HTTP defaults | HTTP Mintlify, local anonymous Context7, and optional per-user authentication |
+| Context7 documentation services | Anonymous HTTP defaults | Local anonymous Context7, and optional per-user authentication |
 | Codex, Code Mode Host, Node, Playwright CLI | No | Default Codex package with Code Mode Host, plus pinned Node and Playwright CLI; Codex package can be replaced |
 
 #### Codex plugin
@@ -111,7 +112,7 @@ This describes the default package; to supply another CLI package, see [Codex pa
 
 Home Manager supplies the runtime defaults. For a plugin-only installation, follow [Native Codex configuration](docs/configuration.md#native-codex-configuration) to request the planning capabilities and configure Code Mode if its companion host is available. Then follow [Reload after an update](#reload-after-an-update).
 
-Both installations provide Mintlify and Context7 for public documentation lookup. The plugin uses anonymous Mintlify Index and Context7 HTTP endpoints; Home Manager uses HTTP Mintlify and local Context7. Start with these anonymous defaults. Optional user-owned authentication and its verification are covered in [Context7 authentication](docs/configuration.md#context7-authentication). Native Codex configuration overrides same-name plugin defaults. Send only focused public lookup terms to these third-party services, never secrets, private code, full prompts, or non-public internal content.
+Both installations provide Context7 for public documentation lookup. The plugin uses an anonymous HTTP endpoint; Home Manager uses local Context7. Start with these anonymous defaults. Optional user-owned authentication and its verification are covered in [Context7 authentication](docs/configuration.md#context7-authentication). Native Codex configuration overrides same-name plugin defaults. Send only focused public lookup terms to Context7, never secrets, private code, full prompts, or non-public internal content.
 
 On the execution host, check the registered services:
 
@@ -119,7 +120,7 @@ On the execution host, check the registered services:
 codex mcp list --json
 ```
 
-A plugin-only installation with no native overrides should list `mintlify_index` and `context7`, with no `context7_auth`. Registration does not prove that a service or credential works.
+A plugin-only installation with no native overrides should list `context7`, with no `context7_auth`. Registration does not prove that a service or credential works.
 
 Start a new Codex task and try a harmless skill invocation:
 

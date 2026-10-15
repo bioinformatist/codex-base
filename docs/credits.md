@@ -14,6 +14,8 @@ without duplicating mutable pins.
 | stop-slop | [stop-slop](https://github.com/hardikpandya/stop-slop) | Prose-editing references used by the bundled stop-slop skill | [MIT](../plugins/codex-base/licenses/stop-slop-MIT.txt) | Adapted for Codex triggers and preservation rules |
 | ponytail | [Ponytail](https://github.com/DietrichGebert/ponytail) | Ponytail core implementation method and Review, Audit, and Debt skills | [MIT](../plugins/codex-base/licenses/ponytail-MIT.txt) | Adapted for Codex invocation, preservation, and reporting rules |
 | playwright-cli | [Playwright CLI](https://github.com/microsoft/playwright-cli) | Headless-first Playwright skill; the full Nix surface also packages the CLI binary separately | [Apache-2.0](../plugins/codex-base/licenses/playwright-cli-Apache-2.0.txt) | Skill adapted for the Codex execution environment |
+| pstack | [Lauren Tan’s pstack](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack) | Benchmark checklist and blast-radius methods | [MIT](../plugins/codex-base/licenses/pstack-MIT.txt) | Concise local adaptations; no upstream orchestration framework |
+| addyosmani-agent-skills | [Addy Osmani’s agent-skills](https://github.com/addyosmani/agent-skills/tree/aeac41d4d005999432bb7312f7ff06383a91d59d) | Deprecation and migration method | [MIT](../plugins/codex-base/licenses/addyosmani-agent-skills-MIT.txt) | Local adaptation with conditional staging and honest data recovery limits |
 
 The repository itself is distributed under the [MIT License](../LICENSE). Each
 bundled upstream license is retained with the portable plugin.

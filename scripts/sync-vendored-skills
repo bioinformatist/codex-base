@@ -9,7 +9,7 @@ case "${1:-}" in
 esac
 
 repo="$(git rev-parse --show-toplevel)"
-generated="$(nix build --no-link --print-out-paths "$repo#generated-skills")"
+generated="$(nix build --no-link --print-out-paths "path:$repo#generated-skills")"
 target="$repo/plugins/codex-base/skills"
 
 if [ "$check" -eq 1 ]; then

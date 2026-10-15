@@ -615,6 +615,9 @@ EOF
   '';
   skills = {
     docs-routing = srcRoot + "/src/docs-routing";
+    benchmark-checklist = srcRoot + "/src/benchmark-checklist";
+    blast-radius = srcRoot + "/src/blast-radius";
+    deprecation-and-migration = srcRoot + "/src/deprecation-and-migration";
     diagnosing-bugs = diagnosingBugsSkill;
     tdd = tddSkill;
     codebase-design = codebaseDesignSkill;
@@ -720,7 +723,7 @@ pkgs.runCommand "codex-base-generated-skills" { } ''
   substituteInPlace "$out/ponytail-debt/SKILL.md" \
     --replace-fail 'Reads and reports only, changes nothing. To persist it, ask and it writes the
 ledger to a file (e.g. `PONYTAIL-DEBT.md`). One-shot. "stop ponytail-debt" or
-"normal mode" to revert.' 'Reads and reports only; never writes, edits, stages, or persists a ledger. One-shot. "stop ponytail-debt" or "normal mode" to revert.'
+"normal mode" to revert.' 'Reads and reports only; never writes, edits, stages, or persists a ledger. One-shot.'
 
   mkdir -p "$out/improve"
   cp -R ${srcRoot}/src/improve/. "$out/improve/"

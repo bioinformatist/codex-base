@@ -114,6 +114,15 @@ in {
     cmp ${inputs.adhx}/LICENSE ${srcRoot}/plugins/codex-base/licenses/adhx-MIT.txt
     test "$(jq -r '.sources[] | select(.name == "adhx") | .revision' ${srcRoot}/vendor/sources.json)" = "2dafb9c221398372d08f8dc75e857e801089f6b1"
     test "$(jq -r '.sources[] | select(.name == "adhx") | .includedPaths | join(" ")' ${srcRoot}/vendor/sources.json)" = "skills/adhx LICENSE"
+    for skill in benchmark-checklist blast-radius deprecation-and-migration; do
+      cmp ${srcRoot}/src/$skill/SKILL.md ${generatedSkills}/$skill/SKILL.md
+      cmp ${srcRoot}/src/$skill/LICENSE ${generatedSkills}/$skill/LICENSE
+      grep -Fqx '  allow_implicit_invocation: true' ${generatedSkills}/$skill/agents/openai.yaml
+    done
+    cmp ${srcRoot}/src/benchmark-checklist/LICENSE ${srcRoot}/plugins/codex-base/licenses/pstack-MIT.txt
+    cmp ${srcRoot}/src/blast-radius/LICENSE ${srcRoot}/plugins/codex-base/licenses/pstack-MIT.txt
+    cmp ${srcRoot}/src/deprecation-and-migration/LICENSE ${srcRoot}/plugins/codex-base/licenses/addyosmani-agent-skills-MIT.txt
+    cmp ${inputs.ponytail}/LICENSE ${srcRoot}/plugins/codex-base/licenses/ponytail-MIT.txt
     grep -Fqx 'name: adhx' ${generatedSkills}/adhx/SKILL.md
     grep -Fq 'allow_implicit_invocation: true' ${generatedSkills}/adhx/agents/openai.yaml
     grep -Fq 'Use $adhx ' ${generatedSkills}/adhx/agents/openai.yaml
@@ -126,10 +135,6 @@ in {
     servers = json.loads((plugin / '.mcp.json').read_text())
     expected = {
         'mcpServers': {
-            'mintlify_index': {
-                'type': 'http',
-                'url': 'https://index.mintlify.com/mcp',
-            },
             'context7': {
                 'type': 'http',
                 'url': 'https://mcp.context7.com/mcp',
@@ -148,7 +153,7 @@ in {
       ${srcRoot}/.github/PULL_REQUEST_TEMPLATE.md ${srcRoot}/docs \
       ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json \
       ${srcRoot}/plugins/codex-base/assets ${srcRoot}/vendor
-    test "$(find ${srcRoot}/plugins/codex-base/licenses -type f | wc -l)" -eq 7
+    test "$(find ${srcRoot}/plugins/codex-base/licenses -type f | wc -l)" -eq 9
     touch $out
   '';
   mattpocock-skills = mkTest "mattpocock-skills-contract" shellTools ''
@@ -163,6 +168,22 @@ in {
     grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/retro/agents/openai.yaml
     grep -Fq 'allow_implicit_invocation: false' ${generatedSkills}/prototype/agents/openai.yaml
     test "$(jq -r '.sources[] | select(.name == "ponytail") | .patched' ${srcRoot}/vendor/sources.json)" = true
+    root="$TMPDIR/debt-scan"
+    mkdir -p "$root"
+    cd "$root"
+    git init -q
+    printf 'ignored/\n' > .gitignore
+    mkdir ignored
+    printf '# shortcut: hidden, never\n' > ignored/cache.py
+    printf '# shortcut: bounded, upgrade when needed\n' > visible.py
+    scan=$(sed -n "s/^\`\(git grep [^\`]*\)\`.*/\1/p" ${generatedSkills}/ponytail-debt/SKILL.md)
+    test -n "$scan"
+    test "$(eval "$scan")" = 'visible.py:1:# shortcut: bounded, upgrade when needed'
+    rm visible.py
+    status=0
+    result=$(eval "$scan") || status=$?
+    test "$status" -eq 1
+    test -z "$result"
     touch $out
   '';
   shellcheck = mkTest "all-shell-scripts" shellTools ''
@@ -282,6 +303,7 @@ in {
         'diagnosing-bugs', 'tdd', 'codebase-design', 'domain-modeling',
         'retro', 'prototype', 'playwright', 'stop-slop', 'handoff', 'wait-what',
         'questionnaire', 'writing-agents',
+        'benchmark-checklist', 'blast-radius', 'deprecation-and-migration',
     ]
     assert ids(root / 'docs/capabilities.md') == expected_ids
     assert ids(root / 'docs/capabilities.zh-CN.md') == expected_ids
@@ -369,6 +391,9 @@ in {
     assert builtins.hasAttr ".agents/skills/improve" files;
     assert builtins.hasAttr ".agents/skills/worktrunk" files;
     assert builtins.hasAttr ".agents/skills/adhx" files;
+    assert builtins.hasAttr ".agents/skills/benchmark-checklist" files;
+    assert builtins.hasAttr ".agents/skills/blast-radius" files;
+    assert builtins.hasAttr ".agents/skills/deprecation-and-migration" files;
     assert builtins.hasAttr ".agents/skills/docs-routing" files;
     assert builtins.hasAttr ".agents/skills/writing-for-agents" files;
     assert builtins.hasAttr ".agents/skills/to-questionnaire" files;
@@ -377,6 +402,9 @@ in {
     assert builtins.hasAttr ".codex/rules/baseline.rules" files;
     assert !(builtins.hasAttr ".agents/skills/improve" filesOff);
     assert !(builtins.hasAttr ".agents/skills/worktrunk" filesOff);
+    assert builtins.hasAttr ".agents/skills/benchmark-checklist" filesOff;
+    assert builtins.hasAttr ".agents/skills/blast-radius" filesOff;
+    assert builtins.hasAttr ".agents/skills/deprecation-and-migration" filesOff;
     assert builtins.hasAttr ".agents/skills/docs-routing" filesOff;
     assert builtins.hasAttr ".agents/skills/adhx" filesOff;
     assert !(builtins.hasAttr ".agents/skills/stop-slop" filesOff);
@@ -403,11 +431,6 @@ in {
         '/run/secrets/context7' \
         'writable_roots = ["/home/tester/.cache/codex-shell","/tmp/writable"]' \
         '[mcp_servers.github]' \
-        '[mcp_servers.mintlify_index]
-url = "https://index.mintlify.com/mcp"
-required = false
-startup_timeout_sec = 30
-tool_timeout_sec = 120' \
         '[mcp_servers.context7_auth]'; do
         found=1
         while IFS= read -r closure_path; do
@@ -416,6 +439,7 @@ tool_timeout_sec = 120' \
         test "$found" -eq 0
       done
 python - <<'PY'
+import json
 import os
 import stat
 import subprocess
@@ -447,6 +471,9 @@ def run_merge(target: Path) -> dict:
     return tomllib.loads(target.read_text())
 
 def assert_managed(merged: dict) -> None:
+    assert "mintlify_index" not in merged.get("mcp_servers", {})
+    assert "model_context_window" not in merged
+    assert "model_auto_compact_token_limit" not in merged
     assert merged["model"] == "gpt-6.1-sol"
     assert merged["model_reasoning_effort"] == "medium"
     assert merged["model_verbosity"] == "medium"
@@ -475,6 +502,23 @@ with tempfile.TemporaryDirectory() as td:
     assert merged["features"]["shell_snapshot"] is False
     assert merged["features"]["code_mode"]["default_exec_yield_time_ms"] == 250
     assert merged["history"] == {"file": "persisted.log"}
+
+    # Only the exact legacy table is retired; custom tables and context overrides survive.
+    legacy = {"url": "https://index.mintlify.com/mcp", "required": False,
+              "startup_timeout_sec": 30, "tool_timeout_sec": 120}
+    tables = [legacy | changes for changes in [{}, {"url": "https://custom.example/mcp"},
+              {"required": True}, {"startup_timeout_sec": 31}, {"tool_timeout_sec": 121}, {"enabled": True}]]
+    tables += [{key: value for key, value in legacy.items() if key != missing} for missing in legacy]
+    for table in tables:
+        fixture = Path(td) / "legacy.toml"
+        fixture.write_text('model_context_window = 123456\nmodel_auto_compact_token_limit = 100000\n[history]\nfile = "keep"\n[mcp_servers.mintlify_index]\n' +
+                           "".join(f"{key} = {json.dumps(value)}\n" for key, value in table.items()))
+        result = run_merge(fixture)
+        assert result["model_context_window"] == 123456
+        assert result["model_auto_compact_token_limit"] == 100000
+        assert result["history"] == {"file": "keep"}
+        assert result["mcp_servers"].get("mintlify_index") == (None if table == legacy else table)
+        assert run_merge(fixture) == result
 
     repeated = run_merge(existing_path)
     assert_managed(repeated)

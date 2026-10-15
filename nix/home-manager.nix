@@ -70,12 +70,6 @@ let
     [mcp_servers.github]
     command = "${githubMcp}/bin/github-mcp-server"
 
-    [mcp_servers.mintlify_index]
-    url = "https://index.mintlify.com/mcp"
-    required = false
-    startup_timeout_sec = 30
-    tool_timeout_sec = 120
-
     [mcp_servers.context7]
     command = "${toolPkgs.context7-mcp}/bin/context7-mcp"
     required = false
@@ -110,6 +104,11 @@ let
                   merge(dst[key], value)
               else:
                   dst[key] = value
+      servers = target.get("mcp_servers", {})
+      legacy = {"url": "https://index.mintlify.com/mcp", "required": False,
+                "startup_timeout_sec": 30, "tool_timeout_sec": 120}
+      if servers.get("mintlify_index") == legacy:
+          del servers["mintlify_index"]
       merge(target, managed)
       target_path.parent.mkdir(parents=True, exist_ok=True)
       fd, tmp = tempfile.mkstemp(prefix=".config.toml.", dir=target_path.parent, text=True)
@@ -147,6 +146,9 @@ in {
     home.file = lib.mkMerge [
       {
         ".agents/skills/docs-routing" = linkSkill "docs-routing";
+        ".agents/skills/benchmark-checklist" = linkSkill "benchmark-checklist";
+        ".agents/skills/blast-radius" = linkSkill "blast-radius";
+        ".agents/skills/deprecation-and-migration" = linkSkill "deprecation-and-migration";
         ".agents/skills/playwright-cli" = linkSkill "playwright-cli";
         ".agents/skills/adhx" = linkSkill "adhx";
         ".agents/skills/stop-slop" = lib.mkIf cfg.stopSlop.enable (linkSkill "stop-slop");
