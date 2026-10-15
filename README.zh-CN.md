@@ -24,6 +24,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 - 正式规划先解决重要选择，在对话中给出完整计划；之后获准的实现阶段可以持久化计划，并委派边界明确的工作。
 - 实现前查证当前文档，隔离执行器验证并简化每个改动步骤；审查和检查点明确对应的候选版本，让工作可以续接和评估。
+- 聚焦的自动技能用于核验基准测量、追踪改动影响和规划弃用迁移，也可显式调用；方法改编自 Lauren Tan 的 pstack 和 Addy Osmani 的 agent-skills。
 - 共享技能覆盖文档检索、调试、测试、设计和文字审阅。[详细能力目录](docs/capabilities.zh-CN.md)列出了它们的触发方式和安装要求。
 - ADHX 可读取用户提供或有边界的网页研究发现的相关公开 X 帖子 URL；它不能搜索 X，长文 Article 内容也可能不完整。
 
@@ -67,7 +68,7 @@ Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed�
 | 工程技能 | 带命名空间，例如 `$codex-base:improve` | 无命名空间，例如 `$improve` |
 | Improve CLI | 使用主机依赖运行 `python3 -B skills/improve/scripts/codex-improve` | 提供 `codex-improve` 和 `wt` |
 | 全局指引与 GitHub MCP | 无 | 有 |
-| Mintlify / Context7 文档服务 | 匿名 HTTP 默认配置 | HTTP Mintlify、本地匿名 Context7 和可选的用户级认证 |
+| Context7 文档服务 | 匿名 HTTP 默认配置 | 本地匿名 Context7 和可选的用户级认证 |
 | Codex、Code Mode Host、Node、Playwright CLI | 不安装 | 默认 Codex 包含 Code Mode Host，Node 和 Playwright CLI 固定版本；Codex 包可替换 |
 
 #### Codex 插件
@@ -111,7 +112,7 @@ Nix / Home Manager 完整环境当前固定 Codex 0.162.1 和 Code Mode Host。
 
 Home Manager 已提供运行时默认配置。仅安装插件时，请按 [Codex 原生配置](docs/configuration.zh-CN.md#native-codex-configuration)启用规划所需能力，并在具备 companion host 时配置 Code Mode。随后按[更新后重新加载](#更新后重新加载)操作。
 
-两种安装方式都提供 Mintlify 和 Context7，用于查询公开文档。插件使用匿名的 Mintlify Index 与 Context7 HTTP 端点；Home Manager 使用 HTTP Mintlify 和本地 Context7。可以先使用这些匿名默认配置；可选的用户级认证及验证方式见 [Context7 认证](docs/configuration.zh-CN.md#context7-authentication)。Codex 原生配置中的同名项优先于插件默认值。只向这两家第三方服务发送聚焦的公开检索词，绝不能发送密钥、私有代码、完整提示词或非公开内部内容。
+两种安装方式都提供 Context7，用于查询公开文档。插件使用匿名 HTTP 端点；Home Manager 使用本地 Context7。可以先使用这些匿名默认配置；可选的用户级认证及验证方式见 [Context7 认证](docs/configuration.zh-CN.md#context7-authentication)。Codex 原生配置中的同名项优先于插件默认值。只向 Context7 发送聚焦的公开检索词，绝不能发送密钥、私有代码、完整提示词或非公开内部内容。
 
 在执行主机上检查已注册的服务：
 
@@ -119,7 +120,7 @@ Home Manager 已提供运行时默认配置。仅安装插件时，请按 [Codex
 codex mcp list --json
 ```
 
-没有原生覆盖配置、仅安装插件的环境应列出 `mintlify_index` 和 `context7`，不应有 `context7_auth`。服务已注册不代表服务或凭据已经可用。
+没有原生覆盖配置、仅安装插件的环境应列出 `context7`，不应有 `context7_auth`。服务已注册不代表服务或凭据已经可用。
 
 新建 Codex 任务，试一次无副作用的技能调用：
 

@@ -89,6 +89,10 @@ for relative in \
   skills/prototype/UI.md; do
   [[ -f "$plugin_root/$relative" ]] || fail "installed plugin is missing $relative"
 done
+for skill in benchmark-checklist blast-radius deprecation-and-migration; do
+  for file in SKILL.md agents/openai.yaml LICENSE; do test -f "$plugin_root/skills/$skill/$file"; done
+  grep -Fqx '  allow_implicit_invocation: true' "$plugin_root/skills/$skill/agents/openai.yaml"
+done
 for skill in retro prototype; do
   grep -Fqx '  allow_implicit_invocation: false' "$plugin_root/skills/$skill/agents/openai.yaml" \
     || fail "installed $skill is not explicit-only"
@@ -102,7 +106,7 @@ grep -Fq '[UI.md](UI.md)' "$plugin_root/skills/prototype/SKILL.md" \
 
 codex mcp list --json >"$root/mcp-defaults.json"
 jq -e '
-  length == 2
+  length == 1
   and all(.[];
     .enabled == true
     and .transport.type == "streamable_http"
@@ -112,28 +116,15 @@ jq -e '
     .name == "context7"
     and .transport.url == "https://mcp.context7.com/mcp"
   )
-  and any(.[];
-    .name == "mintlify_index"
-    and .transport.url == "https://index.mintlify.com/mcp"
-  )
   and all(.[]; .name != "context7_auth")
 ' "$root/mcp-defaults.json" >/dev/null
-codex mcp add mintlify_index --url https://mintlify.example.invalid/mcp >/dev/null
 codex mcp add context7 --url https://context7.example.invalid/mcp >/dev/null
+codex mcp add context7_auth --url https://auth.example.invalid/mcp >/dev/null
 codex mcp list --json >"$root/mcp-overridden.json"
-jq -e '
-  length == 2
-  and ([.[] | select(.name == "mintlify_index")] | length == 1)
-  and ([.[] | select(.name == "context7")] | length == 1)
-  and any(.[];
-    .name == "mintlify_index"
-    and .transport.url == "https://mintlify.example.invalid/mcp"
-  )
-  and any(.[];
-    .name == "context7"
-    and .transport.url == "https://context7.example.invalid/mcp"
-  )
-' "$root/mcp-overridden.json" >/dev/null
+jq -e 'length == 2
+  and ([.[] | select(.name == "context7") | .transport.url] == ["https://context7.example.invalid/mcp"])
+  and ([.[] | select(.name == "context7_auth") | .transport.url] == ["https://auth.example.invalid/mcp"])
+  and all(.[]; .name != "mintlify_index")' "$root/mcp-overridden.json" >/dev/null
 
 for relative in \
   SKILL.md \

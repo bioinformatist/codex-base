@@ -60,8 +60,8 @@
     {
       "name": "ponytail",
       "repository": "https://github.com/DietrichGebert/ponytail",
-      "version": "5.1.0",
-      "revision": "9cc65d03aa2da1db7121b912d03596409ee340b8",
+      "version": "5.2.0",
+      "revision": "2961b52fc1fe6a5a87c7a959a79512e5c2f3ffe5",
       "license": "MIT",
       "includedPaths": ["skills/ponytail", "skills/ponytail-review", "skills/ponytail-audit", "skills/ponytail-debt"],
       "patched": true
@@ -73,6 +73,22 @@
       "revision": "b85c7a736bb473bf55b584e54a09ffa698d6d871",
       "license": "Apache-2.0",
       "includedPaths": ["skills/playwright-cli"],
+      "patched": true
+    },
+    {
+      "name": "pstack",
+      "repository": "https://github.com/cursor/plugins",
+      "revision": "6ce45c59b9301a638c1fe1a7b8dc2a82b650898f",
+      "license": "MIT",
+      "includedPaths": ["pstack/skills/benchmark-checklist/SKILL.md", "pstack/skills/blast-radius/SKILL.md", "pstack/LICENSE"],
+      "patched": true
+    },
+    {
+      "name": "addyosmani-agent-skills",
+      "repository": "https://github.com/addyosmani/agent-skills",
+      "revision": "aeac41d4d005999432bb7312f7ff06383a91d59d",
+      "license": "MIT",
+      "includedPaths": ["skills/deprecation-and-migration/SKILL.md", "LICENSE"],
       "patched": true
     }
   ]

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Deprecation and Migration"
+  short_description: "Plan safe retirement and consumer cutovers"
+  default_prompt: "Use $deprecation-and-migration for this deprecation or migration."
+policy:
+  allow_implicit_invocation: true

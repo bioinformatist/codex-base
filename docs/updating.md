@@ -75,3 +75,12 @@ either localized sentence is missing, duplicated, or malformed.
 Configuring `MAINTENANCE_PAT`, activating the repository ruleset, and manually
 dispatching the real workflow are post-integration acceptance tasks. They are
 not part of source implementation or worktree verification.
+
+Local engineering adaptations live under `src/benchmark-checklist`,
+`src/blast-radius`, and `src/deprecation-and-migration`; update their immutable
+source records and retained MIT notices together. The sync CLI uses an explicit
+path source so new untracked local files participate without staging them.
+For the same complete source in local checks, use `nix flake check
+"path:$PWD" --allow-import-from-derivation` when Git filtering would omit files.
+Module/skill inheritance and an overridden Codex package remain separate; see
+[model context defaults](configuration.md#model-context-defaults).

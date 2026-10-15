@@ -67,9 +67,39 @@ Definitions of this option merge through the native Nix module system; use `lib.
 
 Home Manager defaults to `gpt-6.1-sol` with medium reasoning and high reasoning in Plan Mode. The plugin does not change the user's model. Formal Improve planning depends on live context-management and structured-question capabilities, not a particular model name. Astra may be chosen explicitly for difficult planning; neither a model name nor a config flag proves the capability is available. The selected Improve executor lane has separate role settings; see [executor routing](architecture.md#executor-routing).
 
+## Model context defaults
+
+Codex Base leaves `model_context_window` and `model_auto_compact_token_limit`
+unset and preserves user overrides. Codex resolves per-model defaults from its
+model catalog: online model metadata can refresh the bundled catalog, while
+cached or bundled data may apply offline. Explicit configuration overrides can
+change the effective result. A model’s maximum supported window is not
+necessarily its default; receiving a larger server default requires no catalog
+patch or new Codex Base option.
+
+For a model default of 500,000 tokens, the conventional 95% usable budget is
+475,000 and the 90% auto-compaction threshold is 450,000. This is a conditional
+example, not a guarantee that every account or model receives 500K. Native
+context management can reorganize context proactively before that threshold;
+the window size does not prove live context-management eligibility.
+
+When the displayed window differs, check in order: the actual executing binary
+and version (including a desktop or SSH App Server), selected model, online versus
+cached/bundled catalog, effective config and launch overrides, then a new chat
+after reloading the runtime. Do not delete user overrides automatically.
+The [model manager source](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/models-manager/src/manager.rs)
+and [protocol formulas](https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/protocol/src/openai_models.rs#L514-L536)
+explain this resolution and conventional budgeting; see also the official
+[configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
+
+Updating a consuming configuration’s `codex-base` input updates its module and
+skills. If it overrides `programs.codexBase.package`, the executable follows that
+separately selected package and lock. Check both inheritance paths before
+assuming a skills update also upgraded Codex.
+
 ## Context7 authentication
 
-Mintlify and Context7 supply public documentation over MCP, Codex's protocol for connecting external tools. Both installations use the same routing skill: Mintlify first, then Context7 when necessary, an authenticated Context7 fallback if the anonymous result is insufficient, and finally official primary sources. Native configuration can replace a plugin's same-name endpoint. Queries must contain only focused public lookup terms, never secrets or private content.
+Context7 supplies public documentation over MCP, Codex's protocol for connecting external tools. Both installations use the same routing skill: Context7 first, an authenticated Context7 fallback if the anonymous result is insufficient, and finally official primary sources. Native configuration can replace a plugin's same-name endpoint. Queries must contain only focused public lookup terms, never secrets or private content.
 
 Anonymous Context7 needs no account. Authentication is optional and belongs to each user; Codex Base never bundles a shared key.
 
@@ -105,3 +135,12 @@ An authentication prompt opened by anonymous Context7 pauses that tool call; it 
 Preserve unrelated configuration and restore `plan_mode_reasoning_effort` to its previous value. Explicitly set `context_management.experimental_mode`, `code_mode.enabled`, and `default_mode_request_user_input` to `false` when disabling these features. Deleting keys from an overlay or reverting source does not remove values already persisted in `config.toml`.
 
 Home Manager users must also reverse the managed overlay before activation, or activation will set the managed values again. Follow the [reload instructions](../README.md#reload-after-an-update) after changing the effective configuration.
+
+## Retired Mintlify default
+
+Home Manager removes `mcp_servers.mintlify_index` only when its complete table
+exactly matches the old default: URL `https://index.mintlify.com/mcp`,
+`required = false`, `startup_timeout_sec = 30`, and `tool_timeout_sec = 120`.
+Any changed value or additional field is preserved. Review and remove custom
+or plugin-only native entries manually if no longer needed; updating the plugin
+does not delete native configuration.

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Benchmark Checklist"
+  short_description: "Vet measured performance comparisons"
+  default_prompt: "Use $benchmark-checklist for this performance comparison."
+policy:
+  allow_implicit_invocation: true
