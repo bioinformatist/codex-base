@@ -102,9 +102,12 @@ elif mode == 'empty':
 elif mode == 'oversized':
     final.write_text('x'*65537)
 elif mode == 'review':
-    final.write_text(json.dumps({'verdict':'APPROVE','summary':'Checked','findings':[],
+    report = {'verdict':'APPROVE','summary':'Checked','findings':[],
       'coverage':[{'check':'fixture','status':'PASS','evidence':'fixture'}],
-      'review_blockers':[],'deferred_acceptance':[]}))
+      'review_blockers':[],'deferred_acceptance':[]}
+    if os.environ.get('FAKE_REVIEW_REPORT'):
+        report = json.loads(os.environ['FAKE_REVIEW_REPORT'])
+    final.write_text(json.dumps(report))
 else:
     final.write_text(json.dumps({'status':'COMPLETE','steps':['done'],
       'stoppedBecause':None,'filesChanged':[],'notes':[]}))
@@ -396,6 +399,42 @@ class ContractsAndTransport(Fixture):
         self.assertIn("read-only", args)
         self.assertNotIn("workspace-write", args)
         self.assertIn("--strict-config", args)
+
+    def test_review_separates_deferred_ci_and_retains_validation_error(self):
+        worktree = self.worktree()
+        tree = candidate(worktree)[1]
+        report = {
+            "verdict": "APPROVE", "summary": "Implementation checked", "findings": [],
+            "coverage": [{"check": "implementation", "status": "PASS", "evidence": "inspected"}],
+            "review_blockers": [],
+            "deferred_acceptance": [{
+                "check": "CI", "owner": "maintainer", "reason": "runs after publication",
+                "evidence_required": "passing CI for the reviewed candidate",
+            }],
+        }
+
+        def review():
+            result = self.cli("review", worktree.path, tree, self.plan(),
+                              env={"FAKE_MODE": "review", "FAKE_REVIEW_REPORT": json.dumps(report)})
+            return result, json.loads(result.stdout)
+
+        result, record = review()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(record["outcome"], "APPROVE")
+        self.assertEqual(record["report"], report)
+
+        report["coverage"].append({"check": "CI", "status": "BLOCKED", "evidence": "not run yet"})
+        result, record = review()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual((record["outcome"], record["reason"]),
+                         ("INCONCLUSIVE", "invalid_final_output"))
+        self.assertEqual(record["validation_error"], "APPROVE verdict contradicts findings")
+        self.assertIsNone(record["report"])
+        self.assertTrue(record["closeout_eligible"])
+        self.assertEqual(record["output_candidate_tree"], tree)
+        self.assertEqual(json.loads(Path(record["artifacts"]["final"]).read_text()), report)
+        status = json.loads(self.cli("status", record["id"]).stdout)
+        self.assertEqual(status["validation_error"], record["validation_error"])
 
     def test_transport_budget_corruption_timeout_signal_and_cap(self):
         for mode, expected in (("budget", "rollout_budget_exhausted"),
