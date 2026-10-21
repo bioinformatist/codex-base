@@ -124,15 +124,29 @@ checks and reviews. Other changes return to bounded revision or planning.
 Record exactly one main-agent implementation outcome: `APPROVE`, `REVISE`,
 `BLOCK`, or `INCONCLUSIVE`. Approval requires complete scope, gate, and review
 evidence. A stale plan, STOP condition, altered requirement, missing authority,
-or unsound approach blocks and returns to planning. An inconclusive review
-stays inconclusive; report its reason and artifact paths. Preserve the
-uncommitted candidate for review. Do not treat implementation approval as
+or unsound approach blocks and returns to planning. Preserve an inconclusive
+runtime record and its original report; report its reason, `validation_error`
+when present, and artifact paths.
+
+For `invalid_final_output`, the main agent may finish implementation review
+without another model call when the exact candidate is unchanged and the raw
+report supplies complete review evidence. For example, an otherwise approving
+report may have duplicated plan-deferred CI in `BLOCKED` coverage. Verify that
+the affected checks were explicitly deferred, all current gates passed, and no
+finding or review blocker remains unresolved. Record the original error,
+supporting evidence and separate main-agent outcome in the review dossier.
+Missing or ambiguous evidence still prevents approval. This reconciliation
+needs no new permission under the existing implementation authorization;
+another model call still follows the approval rule above.
+
+Preserve the uncommitted candidate. Implementation approval does not imply
 integration or external acceptance.
 
 ## Checkpoint, dependencies, and acceptance
 
-After all required reviews approve the exact candidate, and after any required
-commit approval, the main agent may create one local checkpoint:
+After all required reviews approve the exact candidate, including any
+evidence-based reconciliation above, and after any required commit approval,
+the main agent may create one local checkpoint:
 
 ```console
 codex-improve checkpoint WORKTREE FULL_TREE --message 'type: summary'

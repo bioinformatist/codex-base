@@ -196,7 +196,7 @@ def parse_events(raw: bytes) -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
 
 def classify(process: ProcessResult, final_raw: bytes, *, report_kind: str) -> tuple[str, str, Any, dict[str, Any]]:
-    """Return (outcome, raw reason, valid report, content-free metrics)."""
+    """Return (outcome, raw reason, valid report, metrics with validation detail)."""
     try:
         events, metrics = parse_events(process.stdout)
     except BoundaryError:
@@ -226,7 +226,8 @@ def classify(process: ProcessResult, final_raw: bytes, *, report_kind: str) -> t
     try:
         report = strict_json(final_raw)
         report = validate_executor(report) if report_kind == "executor" else validate_review(report)
-    except BoundaryError:
+    except BoundaryError as exc:
+        metrics["validation_error"] = str(exc)
         return "INCONCLUSIVE", "invalid_final_output", None, metrics
     if report_kind == "executor":
         return report["status"], "completed", report, metrics

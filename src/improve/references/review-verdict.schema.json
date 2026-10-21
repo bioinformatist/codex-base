@@ -14,6 +14,7 @@
   "properties": {
     "verdict": {
       "type": "string",
+      "description": "Current implementation review only. APPROVE requires no findings or review blockers and PASS for every coverage entry. Deferred acceptance may remain pending.",
       "enum": [
         "APPROVE",
         "REVISE",
@@ -78,6 +79,7 @@
     },
     "coverage": {
       "type": "array",
+      "description": "Checks required for the current implementation review. Put later CI, integration or physical acceptance only in deferred_acceptance; do not duplicate them here as BLOCKED.",
       "minItems": 1,
       "items": {
         "type": "object",
@@ -134,6 +136,7 @@
     },
     "deferred_acceptance": {
       "type": "array",
+      "description": "Later checks explicitly deferred by the approved plan. These may remain pending with an APPROVE verdict; missing current implementation evidence belongs in coverage or review_blockers instead.",
       "items": {
         "type": "object",
         "additionalProperties": false,

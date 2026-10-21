@@ -102,7 +102,11 @@ def _review_prompt(dossier: bytes, tree: str) -> bytes:
     return (f"You are an independent comprehensive reviewer. Inspect the exact candidate tree {tree}. "
             "Check the implementation, tests, permission and STOP boundaries. "
             "You may inspect candidate files needed for your checks, expanding only for concrete gaps. "
-            "Put later physical or external checks in deferred_acceptance. Return the required review JSON.\n\n"
+            "Coverage contains only checks required for the current implementation review. "
+            "Put CI, integration and physical checks explicitly deferred by the approved plan only in "
+            "deferred_acceptance, never also in coverage as BLOCKED. "
+            "APPROVE requires no findings or review blockers and PASS for every coverage entry; "
+            "deferred_acceptance may remain pending. Return the required review JSON.\n\n"
             ).encode() + b"Ponytail review method:\n" + _method_resource("review") + b"\n" + dossier
 
 
@@ -155,6 +159,7 @@ def _finish(store: StateStore, record: dict, outcome: str, reason: str,
                 metrics["classified_reason"] = reason
             outcome, reason = "STOPPED", "postrun_candidate_drift"
     record.update(phase="finished", outcome=outcome, reason=reason)
+    record["validation_error"] = metrics.pop("validation_error", None) if metrics is not None else None
     record["report"] = report
     record["closeout_eligible"] = (outcome == "INCONCLUSIVE" and reason in (
         "rollout_budget_exhausted", "absolute_timeout", "empty_final_output",
@@ -502,9 +507,11 @@ def cmd_next(args: argparse.Namespace, store: StateStore) -> dict:
 def cmd_status(args: argparse.Namespace, store: StateStore) -> object:
     if args.execution_id:
         record = store.load(args.execution_id)
-        return {key: record[key] for key in ("id", "kind", "role", "phase", "outcome", "reason",
-                                              "worktree", "candidate_tree", "output_candidate_tree",
-                                              "report", "artifacts", "closeout_eligible", "parent")}
+        result = {key: record[key] for key in ("id", "kind", "role", "phase", "outcome", "reason",
+                                             "worktree", "candidate_tree", "output_candidate_tree",
+                                             "report", "artifacts", "closeout_eligible", "parent")}
+        result["validation_error"] = record.get("validation_error")
+        return result
     records = []
     for location in sorted(store.executions.iterdir()):
         if location.is_symlink() or not location.is_dir():
