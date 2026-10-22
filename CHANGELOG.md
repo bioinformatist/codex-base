@@ -4,6 +4,25 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
+## [0.3.1]
+
+Released 2026-10-21.
+
+### Improve review closeout
+
+- Clarify that current review coverage and deferred acceptance are separate,
+  so future CI or deployment checks do not block approval of a completed
+  implementation.
+- Preserve the specific validation error in review execution records and
+  status output when a report is rejected.
+- Allow the main coordinator to close out an unchanged candidate from complete
+  review evidence when an otherwise approving report duplicates deferred checks
+  as blockers. Keep the original inconclusive result and report alongside the
+  coordinator's recorded outcome.
+
+[Improve fix](https://github.com/bioinformatist/codex-base/pull/69) ·
+[Full comparison](https://github.com/bioinformatist/codex-base/compare/v0.3.0...v0.3.1)
+
 ## [0.3.0]
 
 Released 2026-10-15.
@@ -241,6 +260,7 @@ Repository documentation and compatibility checks passed for the release candida
 
 [Compare the Improve changes](https://github.com/bioinformatist/codex-base/compare/52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e).
 
+[0.3.1]: https://github.com/bioinformatist/codex-base/releases/tag/v0.3.1
 [0.3.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.3.0
 [0.2.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.2.0
 [0.1.3]: https://github.com/bioinformatist/codex-base/releases/tag/v0.1.3
