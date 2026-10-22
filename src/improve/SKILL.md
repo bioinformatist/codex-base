@@ -82,6 +82,10 @@ Read [references/planning-contract.md](references/planning-contract.md) and [ref
 Before writing or dispatching a triggered plan, apply the planning contract's
 Route checkpoint requirements.
 
+During the existing planning assessment, select verification under the
+planning contract's **Verification selection** rules. Use `bend-proof` only
+for selected Bend proof work or an existing proof contract; it supplements review.
+
 Make each plan the smallest complete integration, rollback, and acceptance
 unit. Consider whether independently landable parts need different executor
 lanes, but split only when every resulting plan has standalone value, exact

@@ -149,6 +149,11 @@ Enter built-in Plan Mode with `/plan` or Shift+Tab in the CLI; the desktop compo
 
 Improve discovers facts, asks about material unresolved choices, and presents the complete replacement plan in chat. Planning creates no plan, questionnaire, handoff, or temporary files. Once you accept the plan, authorize implementation in Default Mode; that later writable phase can persist the plan and execute it.
 
+During planning, Improve selects verification for the task. Ordinary work uses
+review and necessary tests; suitable Bend modules can add `bend-proof` machine
+proofs with explicit properties and coverage limits. Proofs supplement review.
+Both installation methods include the skill; neither installs Bend or Lean.
+
 Default Mode implementation, audits, and routine lifecycle bookkeeping do not require a new formal-planning workflow. Use individual skills directly when a task does not need formal planning; see the [capability catalog](docs/capabilities.md).
 
 ## Reload after an update

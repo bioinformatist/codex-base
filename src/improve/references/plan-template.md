@@ -155,6 +155,20 @@ plan BLOCKED; after approval add its paths and checks to this plan.>
 
 ## Verification and acceptance contract
 
+### Stronger verification (conditional)
+
+<Omit this section for ordinary verification. When selected during planning,
+fill every field; existing project proof contracts remain binding even when
+this section is omitted.>
+
+- **Selection and properties**: <reason, exact properties, preconditions, domain boundaries; why properties exclude materially wrong results>
+- **Implementation correspondence**: <delivered paths/symbols, proof imports and transitive implementation links; reference-model distinction and uncovered behavior>
+- **Property ownership and scope**: <target-project laws/proofs/tests, allowed edits and protected property paths; agreed property changes require explicit plan revision>
+- **Procedure and limits**: <tool versions/provenance, cwd and literal commands, success/failure diagnostics and exit criteria, task budget; STOP/report unfinished work without gate downgrade>
+- **Evidence binding**: <existing gate IDs below, candidate and environment identity, invalidation triggers including imported code/properties; no separate evidence schema>
+
+### Required checks
+
 <Classify every check once. Implementation gates pass before review approval;
 deferred acceptance is only for behavior this agent/environment cannot exercise;
 observations are non-blocking without an explicit threshold and transition.>

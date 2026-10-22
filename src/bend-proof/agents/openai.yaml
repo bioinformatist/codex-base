@@ -1,0 +1,6 @@
+interface:
+  display_name: "Bend Proof"
+  short_description: "Check selected Bend properties with proofs"
+  default_prompt: "Use $bend-proof to verify this Bend module against its agreed laws and report the proof boundaries."
+policy:
+  allow_implicit_invocation: true

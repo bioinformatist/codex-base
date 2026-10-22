@@ -69,6 +69,12 @@ Include Question, Finding and certainty, exact Evidence pointer, and Next.
 The final JSON report still uses the executor schema. Treat interim findings
 as leads for selective verification, not as proof of an unrun check.
 
+For selected proof work or an existing project proof contract, preserve agreed
+properties and their imports to the delivered implementation. The executor
+must not weaken laws, bypass imports, or downgrade a gate to obtain a pass.
+Use the existing STOP/report and explicit plan-revision path for failed proofs,
+counterexamples, missing tools, or exhausted task budgets.
+
 ## Recover or revise an exact candidate
 
 When an initial execution is `INCONCLUSIVE`, `closeout_eligible` only permits
@@ -114,7 +120,10 @@ codex-improve scout WORKTREE FULL_TREE DOSSIER.md
 
 The scout and reviewer roles have no write or network access. Run one independent
 comprehensive review for the plan's required review coverage. Review output is evidence, not replacement for required deterministic
-checks. Initial review covers the whole candidate. A later review covers the
+checks. For proof work, the reviewer checks property sufficiency and assumptions,
+imports to the delivered implementation, current candidate/environment evidence,
+and unproved behavior. A passing proof of a reference model does not prove the
+original implementation. Initial review covers the whole candidate. A later review covers the
 new delta and its gate-ledger transition, expanding to the whole candidate
 when the mapping or resulting behavior is uncertain. One narrowly deterministic
 main-agent repair of a failed implementation gate is allowed only within the
