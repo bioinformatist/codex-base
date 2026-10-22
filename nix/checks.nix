@@ -110,6 +110,10 @@ in {
     codex plugin marketplace add ${srcRoot} --json > /dev/null
     codex plugin add codex-base@bioinformatist-codex --json > /dev/null
     for skill in ${srcRoot}/plugins/codex-base/skills/*; do python ${skillValidator} "$skill"; done
+    for file in SKILL.md agents/openai.yaml references/minimal-example.md; do
+      cmp ${srcRoot}/src/bend-proof/$file ${generatedSkills}/bend-proof/$file
+    done
+    grep -Fqx '  allow_implicit_invocation: true' ${generatedSkills}/bend-proof/agents/openai.yaml
     cmp ${inputs.adhx}/LICENSE ${generatedSkills}/adhx/LICENSE
     cmp ${inputs.adhx}/LICENSE ${srcRoot}/plugins/codex-base/licenses/adhx-MIT.txt
     test "$(jq -r '.sources[] | select(.name == "adhx") | .revision' ${srcRoot}/vendor/sources.json)" = "2dafb9c221398372d08f8dc75e857e801089f6b1"
@@ -297,7 +301,7 @@ in {
         return [line.split('|')[1].strip() for line in path.read_text().splitlines()
                 if line.startswith('| ') and not line.startswith('| ID ') and not line.startswith('|---')]
     expected_ids = [
-        'global-agents', 'docs-routing', 'adhx', 'github-mcp', 'improve',
+        'global-agents', 'docs-routing', 'adhx', 'github-mcp', 'improve', 'bend-proof',
         'executor-routing', 'early-simplification', 'grilling',
         'ponytail-review', 'ponytail-audit', 'ponytail-debt',
         'diagnosing-bugs', 'tdd', 'codebase-design', 'domain-modeling',
@@ -395,6 +399,7 @@ in {
     assert builtins.hasAttr ".agents/skills/blast-radius" files;
     assert builtins.hasAttr ".agents/skills/deprecation-and-migration" files;
     assert builtins.hasAttr ".agents/skills/docs-routing" files;
+    assert builtins.hasAttr ".agents/skills/bend-proof" files;
     assert builtins.hasAttr ".agents/skills/writing-for-agents" files;
     assert builtins.hasAttr ".agents/skills/to-questionnaire" files;
     assert builtins.hasAttr ".agents/skills/wait-what" files;
@@ -406,6 +411,7 @@ in {
     assert builtins.hasAttr ".agents/skills/blast-radius" filesOff;
     assert builtins.hasAttr ".agents/skills/deprecation-and-migration" filesOff;
     assert builtins.hasAttr ".agents/skills/docs-routing" filesOff;
+    assert builtins.hasAttr ".agents/skills/bend-proof" filesOff;
     assert builtins.hasAttr ".agents/skills/adhx" filesOff;
     assert !(builtins.hasAttr ".agents/skills/stop-slop" filesOff);
     assert !(builtins.hasAttr ".agents/skills/diagnosing-bugs" filesOff);
@@ -426,6 +432,9 @@ in {
     assert pkgs.lib.hasInfix ''if [ -L "$configFile" ]; then rm -f "$configFile"; fi'' activation;
     mkTest "home-manager-contract" (shellTools ++ [ python ]) ''
       test -x ${hm.activationPackage}/activate
+      for file in SKILL.md agents/openai.yaml references/minimal-example.md; do
+        cmp ${files.".agents/skills/bend-proof".source}/$file ${generatedSkills}/bend-proof/$file
+      done
       for expected in \
         '/run/secrets/github' \
         '/run/secrets/context7' \

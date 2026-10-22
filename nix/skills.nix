@@ -615,6 +615,7 @@ EOF
   '';
   skills = {
     docs-routing = srcRoot + "/src/docs-routing";
+    bend-proof = srcRoot + "/src/bend-proof";
     benchmark-checklist = srcRoot + "/src/benchmark-checklist";
     blast-radius = srcRoot + "/src/blast-radius";
     deprecation-and-migration = srcRoot + "/src/deprecation-and-migration";

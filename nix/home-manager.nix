@@ -146,6 +146,7 @@ in {
     home.file = lib.mkMerge [
       {
         ".agents/skills/docs-routing" = linkSkill "docs-routing";
+        ".agents/skills/bend-proof" = linkSkill "bend-proof";
         ".agents/skills/benchmark-checklist" = linkSkill "benchmark-checklist";
         ".agents/skills/blast-radius" = linkSkill "blast-radius";
         ".agents/skills/deprecation-and-migration" = linkSkill "deprecation-and-migration";

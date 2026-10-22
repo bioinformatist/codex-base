@@ -352,3 +352,20 @@ It establishes intended routing and boundaries, not observed skill performance.
 | Context7 unavailable or insufficient anonymously | Use available context7_auth, then official sources; absent tools advance without installation | PASS |
 | Native authenticated context7 replaces plugin name | Use that connection; no redundant anonymous-auth fallback | PASS |
 | Mintlify removed from defaults | No active route invokes it; customized native tables remain for manual review | PASS |
+
+## Verification selection and Bend proofs: static scenario review
+
+Reviewed against Improve's planning contract, conditional plan section,
+execution/review instructions, and `bend-proof` skill/reference. These are
+static content checks, not observed model routing or obedience.
+
+| Input | Static expected result | Static review | Runtime observation |
+|---|---|---|---|
+| Ordinary config, docs, UI, or low-risk logic | Existing reviewer and necessary tests; no extra verification form or per-subtask model call | PASS | NOT RUN |
+| Suitable module already in Bend with a precise property | Select in existing planning; specify assumptions, implementation/import correspondence, protected paths, tool commands, budget, and existing gate IDs | PASS | NOT RUN |
+| Prove a Rust/TS reference model | Report only the model's proof; original implementation remains unproved without correspondence evidence | PASS | NOT RUN |
+| Floating-point error issue described as mathematical/pure | Label alone does not select Bend; require actual arithmetic and environment coverage | PASS | NOT RUN |
+| Sorter always returns an empty list but output is sorted | Reject ordering alone as insufficient; also require preservation of input elements | PASS | NOT RUN |
+| Weaken a law, bypass the implementation import, reuse stale evidence, or silently downgrade a failed proof gate | Gate remains unsatisfied; preserve diagnostics and use STOP/explicit plan revision | PASS | NOT RUN |
+| Later task touches a project with agreed laws/proofs | Existing proof contract and gates remain binding even without a new stronger-verification section | PASS | NOT RUN |
+| Missing Bend/Lean, exhausted budget, or failing counterexample | Report unfinished gate and stop affected step; no automatic install, language migration, or replacement of reviewer | PASS | NOT RUN |

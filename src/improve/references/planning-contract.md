@@ -324,6 +324,49 @@ change. The coordinator does not automatically escalate or retry.
 
 ## Verification and acceptance
 
+### Verification selection
+
+Select verification once during the existing planning and decomposition
+assessment, without a separate model call per subtask. Consider whether a
+concrete property warrants stronger verification, whether its assumptions and
+boundaries can be stated precisely, whether the method covers the delivered
+implementation, and whether tool and maintenance costs fit the task.
+Ordinary configuration, documentation, UI, and low-risk logic keep reviewer
+and necessary tests; omit the extra plan section when no upgrade is selected.
+Existing project laws, proofs, and gates remain binding on later tasks.
+
+For a suitable module already implemented in Bend, `bend-proof` can add
+machine-checked proofs to review and tests. Read that skill when selecting
+this route. Mathematical or pure-function labels alone do not select Bend;
+for example, a floating-point error problem needs evidence about its actual
+arithmetic and environment. A separately proved Rust/TypeScript reference
+model is evidence about that model, not a proof of the original implementation.
+Language migration and dependency installation require their own authority.
+
+Only when upgrading verification, include the template's conditional
+**Stronger verification** section. Record:
+
+- the selection reason, properties, preconditions, and domain boundaries;
+- the exact delivered implementation, proof/import correspondence, and
+  uncovered behavior; check that properties exclude wrong implementations
+  (sorted output alone admits a sorter that always returns an empty list);
+- allowed implementation/test paths and protected law/property/proof paths;
+  keep these assets in the target project. Changing an agreed property requires
+  an explicit plan revision, not an executor edit to obtain a pass;
+- tool versions and provenance, exact commands and working directories,
+  success/failure criteria, task budget, and handling of unfinished work;
+- the existing gate-ledger IDs, candidate evidence, environment identity, and
+  complete invalidation triggers, including imported implementation and laws.
+
+Use the current gate, STOP, plan-revision, and report mechanisms. Failure,
+missing dependencies, exhausted budget, or a counterexample leaves the gate
+unsatisfied; report the evidence and stop the affected step rather than
+silently weakening a property or substituting a weaker check. Proofs supplement
+the independent reviewer; they do not replace review of property sufficiency,
+implementation correspondence, or unproved behavior.
+
+### Gate classification and evidence
+
 Classify every required check before execution. A check belongs to exactly one
 of these classes:
 

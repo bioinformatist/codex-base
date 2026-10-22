@@ -7,6 +7,9 @@ references are copied into the generated Improve skill. The current execution
 contract version is declared in `src/improve/SKILL.md`.
 
 `src/docs-routing` is the canonical first-party documentation-routing skill.
+`src/bend-proof` owns the optional Bend proof guidance and verified example;
+target projects own their implementation, laws, proofs, and tests. Bend and
+Lean are not bundled or installed by either distribution surface.
 `src/benchmark-checklist`, `src/blast-radius`, and
 `src/deprecation-and-migration` hold concise local MIT adaptations.
 `nix/skills.nix` owns its deterministic construction alongside the other skills. The sync command

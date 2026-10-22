@@ -78,6 +78,9 @@ for relative in \
   skills/adhx/LICENSE \
   skills/docs-routing/SKILL.md \
   skills/docs-routing/agents/openai.yaml \
+  skills/bend-proof/SKILL.md \
+  skills/bend-proof/agents/openai.yaml \
+  skills/bend-proof/references/minimal-example.md \
   skills/worktrunk/SKILL.md \
   skills/worktrunk/agents/openai.yaml \
   skills/worktrunk/LICENSE \
@@ -89,6 +92,7 @@ for relative in \
   skills/prototype/UI.md; do
   [[ -f "$plugin_root/$relative" ]] || fail "installed plugin is missing $relative"
 done
+grep -Fqx '  allow_implicit_invocation: true' "$plugin_root/skills/bend-proof/agents/openai.yaml"
 for skill in benchmark-checklist blast-radius deprecation-and-migration; do
   for file in SKILL.md agents/openai.yaml LICENSE; do test -f "$plugin_root/skills/$skill/$file"; done
   grep -Fqx '  allow_implicit_invocation: true' "$plugin_root/skills/$skill/agents/openai.yaml"
