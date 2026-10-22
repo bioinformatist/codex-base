@@ -4,6 +4,30 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
+## [0.4.0]
+
+Released 2026-10-22.
+
+### Verification selection and Bend proofs
+
+- Improve selects stronger verification during planning when the properties,
+  implementation coverage, and task cost justify it. Selected tasks record
+  their properties, tools, protected files, and acceptance gates in the plan.
+- Add the optional `bend-proof` skill to the portable plugin and Home Manager
+  for checking agreed properties of Bend modules, with a verified positive
+  example and a failing implementation. Proof work uses separately prepared
+  tools.
+- Bind proof results to the delivered implementation and current inputs.
+  Preserve agreed laws and imports, and keep failed proof gates unsatisfied
+  instead of weakening properties or silently substituting a weaker check.
+- Separate ordinary checking from the independent BendTT `--verdict` check.
+  The kernel checks translated proof terms; translation, compiler, and runtime
+  correctness remain outside the verdict. A separately proved Bend model does
+  not prove an existing Rust or TypeScript implementation.
+
+[Verification selection and Bend proof skill](https://github.com/bioinformatist/codex-base/pull/72) ·
+[Full comparison](https://github.com/bioinformatist/codex-base/compare/v0.3.1...v0.4.0)
+
 ## [0.3.1]
 
 Released 2026-10-21.
@@ -260,6 +284,7 @@ Repository documentation and compatibility checks passed for the release candida
 
 [Compare the Improve changes](https://github.com/bioinformatist/codex-base/compare/52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e).
 
+[0.4.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.4.0
 [0.3.1]: https://github.com/bioinformatist/codex-base/releases/tag/v0.3.1
 [0.3.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.3.0
 [0.2.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.2.0
