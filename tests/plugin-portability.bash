@@ -144,14 +144,14 @@ for relative in \
 done
 
 cmp "$repo/plugins/codex-base/skills/improve/config/roles.json" "$improve/config/roles.json"
-for profile in \
-  improve-scout improve-executor improve-executor-spark improve-executor-luna-low improve-executor-deep \
-  improve-reviewer improve-elegance-reviewer; do
-  [[ ! -e "$improve/$profile.config.toml" ]] \
-    || fail "installed plugin contains legacy profile $profile.config.toml"
-done
+if compgen -G "$improve/*.config.toml" >/dev/null; then
+  fail "installed plugin contains runtime profile files"
+fi
 
-python3 -B "$improve/scripts/codex-improve" --help >/dev/null
+python3 -S -B "$improve/scripts/codex-improve" --help >/dev/null
+python3 -m venv "$root/venv"
+"$root/venv/bin/python3" -m pip install --disable-pip-version-check -r "$improve/requirements-visual.txt"
+export PATH="$root/venv/bin:$PATH"
 CODEX_IMPROVE_SKILL_ROOT="$improve" python3 -B "$repo/tests/improve/test_runtime.py"
 
 printf 'non-Nix plugin portability passed with Codex %s\n' "$codex_version"

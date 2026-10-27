@@ -12,12 +12,13 @@ import stat
 import tempfile
 import fcntl
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from git_worktree import BoundaryError
 
-CONTRACT = "1.0.0-codex.17"
+CONTRACT = "1.0.0-codex.18"
+WRITE_LANES = ("economy", "standard", "deep", "writer")
 PLAN_LIMIT = 1024 * 1024
 ENV_LIMIT = 16 * 1024
 FINAL_LIMIT = 64 * 1024
@@ -53,6 +54,35 @@ def _integer(value: Any, minimum: int, maximum: int) -> bool:
     return type(value) is int and minimum <= value <= maximum
 
 
+def _strings(value: Any, *, required: bool = False) -> bool:
+    return isinstance(value, list) and (not required or bool(value)) and all(
+        _argument(item) for item in value
+    ) and len(value) == len(set(value))
+
+
+def relative_path(value: Any) -> bool:
+    return _argument(value) and not PurePosixPath(value).is_absolute() and not any(
+        part in ("", ".", "..") for part in value.split("/")
+    ) and "\\" not in value
+
+
+def _plan_block(lines: list[str], name: str) -> Any:
+    opening = [i for i, line in enumerate(lines) if line == f"```json codex-improve-{name}"]
+    if len(opening) != 1:
+        raise BoundaryError(f"plan must contain exactly one {name} block")
+    try:
+        end = lines.index("```", opening[0] + 1)
+    except ValueError as exc:
+        raise BoundaryError(f"{name} block is unterminated") from exc
+    payload = "\n".join(lines[opening[0] + 1:end]).encode()
+    if len(payload) > ENV_LIMIT:
+        raise BoundaryError(f"{name} block exceeds 16 KiB")
+    value = strict_json(payload)
+    if not isinstance(value, dict) or type(value.get("version")) is not int or value["version"] != 1:
+        raise BoundaryError(f"{name} version must be 1")
+    return value
+
+
 def parse_plan(raw: bytes) -> dict[str, Any]:
     if not raw or len(raw) > PLAN_LIMIT:
         raise BoundaryError("plan size is invalid")
@@ -63,22 +93,9 @@ def parse_plan(raw: bytes) -> dict[str, Any]:
     declared = [line for line in lines if line.startswith("- **Improve contract**:")]
     if declared != [f"- **Improve contract**: `{CONTRACT}`"]:
         raise BoundaryError(f"plan must declare exactly one {CONTRACT} contract")
-    opening = [i for i, line in enumerate(lines) if line == "```json codex-improve-environment"]
-    if len(opening) != 1:
-        raise BoundaryError("plan must contain exactly one environment block")
-    start = opening[0]
-    try:
-        end = lines.index("```", start + 1)
-    except ValueError as exc:
-        raise BoundaryError("environment block is unterminated") from exc
-    payload = "\n".join(lines[start + 1:end]).encode()
-    if len(payload) > ENV_LIMIT:
-        raise BoundaryError("environment block exceeds 16 KiB")
-    value = strict_json(payload)
+    value = _plan_block(lines, "environment")
     if not isinstance(value, dict) or not set(value) <= {"version", "launcher", "probes", "cache"}:
         raise BoundaryError("invalid environment fields")
-    if type(value.get("version")) is not int or value["version"] != 1:
-        raise BoundaryError("environment version must be 1")
     launcher = value.get("launcher")
     if not isinstance(launcher, list) or not 1 <= len(launcher) <= 32 or not all(
         _argument(arg) for arg in launcher
@@ -101,12 +118,76 @@ def parse_plan(raw: bytes) -> dict[str, Any]:
     ):
         raise BoundaryError("invalid environment cache scope")
     value["cache"] = cache
-    return value
+    routing = _plan_block(lines, "routing")
+    if not {"version", "lane", "writePaths", "requiredEvidence"} <= set(routing) or not set(routing) <= {
+        "version", "lane", "writePaths", "requiredEvidence", "inputs"
+    } or routing["lane"] not in (*WRITE_LANES, "scout", "visual", "reviewer"):
+        raise BoundaryError("invalid plan routing")
+    paths = routing["writePaths"]
+    if not _strings(paths, required=routing["lane"] in WRITE_LANES) or not all(
+        relative_path(path) and path.split("/")[0] != ".git" for path in paths
+    ) or (routing["lane"] not in WRITE_LANES and paths):
+        raise BoundaryError("invalid routing writePaths")
+    if not _strings(routing["requiredEvidence"]):
+        raise BoundaryError("invalid requiredEvidence")
+    inputs = routing.setdefault("inputs", {})
+    if not isinstance(inputs, dict) or not set(inputs) <= {"writer", "visual", "imageLimits"}:
+        raise BoundaryError("invalid routing inputs")
+    if routing["lane"] == "writer":
+        materials = inputs.get("writer")
+        if not isinstance(materials, dict) or set(materials) != {
+            "facts", "conclusions", "audience", "language", "terminology", "preserve", "scope", "acceptance"
+        } or not all(_text(materials[key]) for key in ("audience", "language")) or not all(
+            _strings(materials[key], required=True) for key in (
+                "conclusions", "preserve", "scope", "acceptance"
+            )
+        ) or not _strings(materials["terminology"]):
+            raise BoundaryError("writer requires complete settled materials")
+        if not isinstance(materials["facts"], list) or not materials["facts"] or any(
+            not isinstance(fact, dict) or set(fact) != {"fact", "source"} or not all(
+                _text(item) for item in fact.values()
+            ) for fact in materials["facts"]
+        ):
+            raise BoundaryError("writer facts require sources")
+    if "visual" in inputs:
+        visual = inputs["visual"]
+        if not isinstance(visual, dict) or set(visual) != {"executionId", "inputIds", "report"} or not (
+            _text(visual["executionId"]) and _strings(visual["inputIds"], required=True)
+            and type(visual["report"]) is bool
+        ):
+            raise BoundaryError("invalid required visual inputs")
+    if "imageLimits" in inputs:
+        limits = inputs["imageLimits"]
+        if not isinstance(limits, dict) or set(limits) != {"count", "perImageBytes", "totalBytes"} or not all(
+            type(item) is int and item > 0 for item in limits.values()
+        ):
+            raise BoundaryError("invalid reviewed image limits")
+    gates = _plan_block(lines, "gates")
+    if set(gates) != {"version", "gates"} or not isinstance(gates["gates"], list):
+        raise BoundaryError("invalid plan gates")
+    ids = []
+    for gate in gates["gates"]:
+        if not isinstance(gate, dict) or set(gate) != {
+            "id", "class", "kind", "check", "invalidatedBy", "environment", "conditions"
+        } or not all(_text(gate[key]) for key in ("id", "check", "environment", "conditions")) or not (
+            re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", gate["id"])
+            and gate["class"] in ("implementation gate", "deferred acceptance", "observation")
+            and gate["kind"] in ("check", "review")
+            and _strings(gate["invalidatedBy"], required=True)
+        ):
+            raise BoundaryError("invalid gate entry")
+        ids.append(gate["id"])
+    if len(ids) != len(set(ids)) or not set(routing["requiredEvidence"]) <= set(ids):
+        raise BoundaryError("duplicate or unknown required gate ID")
+    if any(gate["class"] == "implementation gate" and gate["id"] not in routing["requiredEvidence"]
+           for gate in gates["gates"]):
+        raise BoundaryError("implementation gates must be requiredEvidence")
+    return {"environment": value, "routing": routing, "gates": gates["gates"]}
 
 
 def read_roles(path: Path) -> dict[str, dict[str, Any]]:
     roles = strict_json(path.read_bytes())
-    required = {"economy", "standard", "deep", "reviewer", "scout"}
+    required = {*WRITE_LANES, "reviewer", "scout", "visual"}
     if not isinstance(roles, dict) or set(roles) != required:
         raise BoundaryError("invalid Improve roles")
     for name, role in roles.items():
@@ -115,14 +196,14 @@ def read_roles(path: Path) -> dict[str, dict[str, Any]]:
             "tokenLimit", "reminders", "initialTimeout", "followupTimeout"
         }:
             raise BoundaryError(f"invalid role: {name}")
-        if role["model"] not in ("gpt-6.1-sol", "gpt-6-luna") or role["reasoningEffort"] not in (
+        if role["model"] not in ("gpt-6.1-sol", "gpt-6-luna", "gpt-6.1-terra") or role["reasoningEffort"] not in (
             "low", "medium", "high", "xhigh"
         ) or role["verbosity"] not in ("low", "medium") or role["approval"] != "never":
             raise BoundaryError(f"invalid model settings: {name}")
-        writable = name in ("economy", "standard", "deep")
+        writable = name in WRITE_LANES
         if role["sandbox"] != ("workspace-write" if writable else "read-only") or role[
             "networkAccess"
-        ] is not writable:
+        ] is not (writable and name != "writer"):
             raise BoundaryError(f"invalid role permissions: {name}")
         if role["tokenLimit"] is not None and not _integer(role["tokenLimit"], 1, 1000000):
             raise BoundaryError(f"invalid role budget: {name}")
@@ -263,7 +344,7 @@ class StateStore:
         parent_info = state_home.lstat()
         if not stat.S_ISDIR(parent_info.st_mode) or parent_info.st_uid != os.getuid():
             raise BoundaryError("state home is not a physical user-owned directory")
-        self.root = private_dir(state_home / "codex-improve-v17")
+        self.root = private_dir(state_home / "codex-improve-v18")
         self.executions = private_dir(self.root / "executions")
         self.worktrees = private_dir(self.root / "worktrees")
         self.cache = private_dir(self.root / "cache")
@@ -325,7 +406,7 @@ class StateStore:
         if empty or not hmac.compare_digest(mac, hmac.new(self.key, payload, hashlib.sha256).hexdigest().encode()):
             raise BoundaryError("private record authentication failed")
         record = strict_json(payload)
-        if not isinstance(record, dict) or record.get("id") != execution_id:
+        if not isinstance(record, dict) or record.get("id") != execution_id or record.get("contract") != CONTRACT:
             raise BoundaryError("private record identity mismatch")
         if digest(private_read(location / "plan.md")) != record.get("plan_hash") or digest(
             private_read(location / "prompt.txt")

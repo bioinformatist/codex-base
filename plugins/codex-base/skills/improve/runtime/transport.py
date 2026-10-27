@@ -195,7 +195,7 @@ def parse_events(raw: bytes) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return events, {"usage_observed": usage is not None, "token_usage": usage, **counts}
 
 
-def classify(process: ProcessResult, final_raw: bytes, *, report_kind: str) -> tuple[str, str, Any, dict[str, Any]]:
+def classify(process: ProcessResult, final_raw: bytes, *, report_kind: str, images: list[dict] = ()) -> tuple[str, str, Any, dict[str, Any]]:
     """Return (outcome, raw reason, valid report, metrics with validation detail)."""
     try:
         events, metrics = parse_events(process.stdout)
@@ -225,18 +225,22 @@ def classify(process: ProcessResult, final_raw: bytes, *, report_kind: str) -> t
         return "INCONCLUSIVE", "final_output_limit", None, metrics
     try:
         report = strict_json(final_raw)
-        report = validate_executor(report) if report_kind == "executor" else validate_review(report)
+        if report_kind == "visual":
+            from visual import validate_visual
+            report = validate_visual(report, images)
+        else:
+            report = validate_executor(report) if report_kind == "executor" else validate_review(report)
     except BoundaryError as exc:
         metrics["validation_error"] = str(exc)
         return "INCONCLUSIVE", "invalid_final_output", None, metrics
-    if report_kind == "executor":
+    if report_kind in ("executor", "visual"):
         return report["status"], "completed", report, metrics
     return report["verdict"], "completed", report, metrics
 
 
 def codex_command(role: dict[str, Any], *, cwd: Path, schema: Path, final: Path,
                   grants: list[str], cache_root: Path, cargo: Path, npm: Path,
-                  xdg: Path, codex_executable: str = "codex") -> list[str]:
+                  xdg: Path, codex_executable: str = "codex", images: list[Path] = ()) -> list[str]:
     args = [codex_executable, "exec", "--strict-config", "--ephemeral", "--json",
             "--model", role["model"],
             "-c", f'model_reasoning_effort={json.dumps(role["reasoningEffort"])}',
@@ -260,11 +264,13 @@ def codex_command(role: dict[str, Any], *, cwd: Path, schema: Path, final: Path,
         ) + " }"
         args.extend(["-c", 'default_permissions="improve-executor-runtime"',
                      "-c", f"permissions.improve-executor-runtime.filesystem={toml_inline}",
-                     "-c", "permissions.improve-executor-runtime.network.enabled=true"])
+                     "-c", f"permissions.improve-executor-runtime.network.enabled={str(role['networkAccess']).lower()}"])
         for key, value in (("CARGO_HOME", cargo), ("npm_config_cache", npm), ("XDG_CACHE_HOME", xdg)):
             args.extend(["-c", f"shell_environment_policy.set.{key}={json.dumps(str(value))}"])
     else:
         args.extend(["--sandbox", "read-only", "-c", "sandbox_workspace_write.network_access=false"])
+    for path in images:
+        args.extend(["--image", str(path)])
     args.extend(["--output-schema", str(schema), "--output-last-message", str(final),
                  "-C", str(cwd), "-"])
     return args

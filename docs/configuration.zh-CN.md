@@ -35,7 +35,7 @@ default_mode_request_user_input = true
 
 这是合并片段，不应替换整个文件，也不是每次启动要带的参数。请保留无关配置。`plan_mode_reasoning_effort` 是顶层键，三个功能开关属于 `[features]`。已有键应就地修改；若 `context_management` 或 `code_mode` 目前为布尔值，请用上面的点分形式替换，不要同时保留布尔值和表，也不要重复定义 TOML 键。
 
-保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话，服务端仍可不向启动模型开放该能力。当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式 Improve 规划前，应检查内置 Plan Mode 是否实际提供可调用的原生上下文管理和结构化提问工具；如果缺少任一工具，应启动具备相应能力的 Plan Mode 会话。
+保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话，服务端仍可不向启动模型开放该能力。当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式 Improve 规划前，应核实 Astra、内置 Plan Mode 及实际可调用的原生上下文管理和结构化提问工具；独立 Astra 计划审查允许使用只读 Default Mode，但同样需要两项原生能力；如果缺少任一工具，应启动具备相应能力的 Plan Mode 会话。
 
 官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由已核对的 Codex [功能声明](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs)支持。
 
@@ -71,7 +71,7 @@ programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
 
 ## 模型选择
 
-Home Manager 默认使用 `gpt-6.1-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改用户的模型设置。正式 Improve 规划取决于当前会话实际具备上下文管理和结构化提问能力，而不是某个模型名称。困难规划可以显式选择 Astra；模型名称或配置开关都不能证明能力可用。Improve 执行通道另有独立的角色设置，见[执行器路由](architecture.md#executor-routing)。
+Home Manager 默认使用 `gpt-6.1-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改用户的模型设置。正式 Improve 规划要求 Astra、内置 Plan Mode 及实际可调用的原生上下文管理和结构化提问工具。独立 Astra 计划审查可使用只读 Default Mode，但同样需要两项能力。high 推理强度和 Code Mode 是建议；模型名称或配置开关本身不能证明能力可用。Improve 执行通道另有独立的角色设置，见[执行器路由](architecture.md#executor-routing)。
 
 ## 模型上下文默认值
 
@@ -140,10 +140,6 @@ programs.codexBase.context7ApiKeyFile = /run/secrets/context7-api-key;
 
 Home Manager 用户还应在激活前撤销托管覆盖层中的对应设置，否则激活时会再次写入托管值。有效配置改变后，按[重新加载说明](../README.zh-CN.md#更新后重新加载)操作。
 
-## 已退役的 Mintlify 默认配置
+## 保留用户配置
 
-Home Manager 仅在 `mcp_servers.mintlify_index` 整张表精确匹配旧默认值时
-删除它：URL 为 `https://index.mintlify.com/mcp`，`required = false`，
-`startup_timeout_sec = 30`，`tool_timeout_sec = 120`。任何值改变或额外字段
-都会保留。若不再需要，请手动审查并删除自定义或仅插件用户的原生配置项；
-更新插件不会删除原生配置。
+Home Manager 合并受管配置值，同时保留无关的用户配置表、自定义 MCP 和上下文窗口覆盖值。已退役的 Mintlify 条目需要用户自行检查并在不再需要时删除；更新不会自动清理它们。

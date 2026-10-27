@@ -52,9 +52,11 @@ Native context-management eligibility depends on callable tools in the live
 session and server capability for the signed-in account. In the desktop app, that task is a Codex chat under a
 project; entering Plan Mode or invoking Improve in an existing chat does not
 start another session. Codex Base therefore keeps Sol as its ordinary default.
-Formal Improve planning requires a session that actually exposes context
-management and structured questions. Astra is an explicit choice for difficult
-planning; its name is not capability evidence.
+Formal Improve planning requires Astra in built-in Plan Mode with callable
+native context management and structured questions. Independent Astra plan
+review may use read-only Default Mode with both capabilities. Trusted current
+session metadata and callable tools establish availability; a model name or
+configuration flag alone does not.
 
 In the CLI, ordinary `/model` selection changes the current chat and attempts
 to persist defaults. `/new` uses effective defaults plus explicit launch
@@ -65,7 +67,7 @@ Sol as the persistent default can start a one-off Astra invocation with
 The [configuration guide](configuration.md#model-choice) records the scope
 distinctions and pinned source evidence.
 
-Formal Improve planning uses built-in Plan Mode only when the live session
+Formal Improve planning uses Astra and built-in Plan Mode only when the live session
 exposes callable native context management and structured questions. It produces one
 complete replacement in chat and creates no plan, questionnaire, handoff, or
 temporary file. A later authorized writable phase may persist that result.
@@ -84,12 +86,36 @@ its effective settings with each execution. It never looks up a Codex profile.
 
 ## Executor routing
 
-Improve `.17` uses the public `codex-improve` coordinator. A reviewed plan
-selects economy (Luna/low), standard (Sol 6.1/medium), or deep (Sol 6.1/xhigh). Scout
-uses Luna/high; the comprehensive reviewer uses Sol 6.1/high. The coordinator
-reads the launcher and probes from the plan, snapshots the selected role, and
-runs one model call. It does not probe quota, switch models, or replay failures.
-The Nix closure supplies Python 3.11 or newer, Git, Codex, and Worktrunk. A
-portable plugin install requires these host commands. Worktrunk manages
-worktrees; Git owns exact candidate and checkpoint operations. The plugin
-changes neither the user's main model nor native Codex configuration.
+Improve `.18` uses the public `codex-improve` coordinator and private state in
+`codex-improve-v18`. It rejects older contracts without migrating or resuming
+old tasks. Every plan declares environment, routing, and gate blocks; an
+explicit CLI lane must agree with the plan.
+
+The seven roles are economy (Luna/low), standard (Sol 6.1/medium), deep
+(Sol 6.1/xhigh), writer (Terra/low), scout (Luna/high), visual (Terra/medium),
+and reviewer (Sol 6.1/high). Writer is offline and requires settled facts,
+sources, technical conclusions, audience, terminology, semantic constraints,
+write paths, and acceptance. Atomic code and documentation changes stay with
+one engineering executor. Scout, visual, and reviewer are read-only. Actual
+Git differences are checked against write paths through execution, follow-up,
+review, and checkpoint; this is a diff check rather than per-path OS protection.
+Protected roots retain their explicit-grant rules.
+
+The Nix closure supplies Python, Git, Codex, Worktrunk, and Pillow 12.3.0.
+Portable users supply the host tools and install `requirements-visual.txt` in a
+temporary venv for image work; Pillow is imported lazily and never installed
+automatically. Native `--image` carries bounded static PNG/JPEG originals from
+private snapshots. The caller supplies and verifies collection records for
+candidate images; unbound observations cannot satisfy a candidate gate. Image
+limits default to eight inputs, 20 MiB each and 50 MiB total; a reviewed plan
+may override them. Images and private paths stay out of ordinary metrics.
+
+Review binds the original plan, role, grants, exact candidate, method, reviewer
+settings, and required evidence. A new review invalidates the preceding
+approval. Reconciliation retains the original result and records supported
+finding dispositions. Changed support artifacts invalidate approval reuse.
+Checkpoints require current matching approval; integration also binds the
+caller-verified target HEAD and precomputed merge tree. Worktrunk manages
+worktrees and Git owns candidate and checkpoint operations. The coordinator
+does not probe quota, switch models, or replay started calls. The plugin changes
+neither the main model nor native Codex configuration.

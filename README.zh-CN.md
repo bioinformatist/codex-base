@@ -32,7 +32,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 ![直接修改与 Codex Base 如何处理逐渐变长的任务](docs/assets/codex-base-workflow.zh-CN.svg)
 
-对于边界明确的实现任务，已批准的计划选择 economy（Luna/low）、standard（Sol 6.1/medium）或 deep（Sol 6.1/xhigh）。协调器启动后不会自动换模型；详见[执行器路由](docs/architecture.md#executor-routing)。
+对于边界明确的实现任务，已批准的计划选择 economy（Luna/low）、standard（Sol 6.1/medium）、deep（Sol 6.1/xhigh），或面向材料充分且可独立验收写作的 writer（Terra/low）。只读 visual 角色使用 Terra/medium 处理原图。协调器启动后不会自动换模型；详见[执行器路由](docs/architecture.md#executor-routing)。
 
 规划和审查也会消耗用量，小而明确的修改通常直接做更合适；Codex Base 不承诺每项任务都能减少 token 或降低费用。
 
@@ -55,7 +55,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 SSH 连接请按官方[连接说明](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host)配置。只在桌面客户端上安装，不会配置远端主机。
 
-Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq 和 Codex。可移植 Improve 执行还要求 Python 3.11 或更新版本以及 Worktrunk（`wt`）；Nix 闭包提供 Python、Git、Codex 和 Worktrunk。Windows 用户可以在兼容的 Codex CLI 环境中使用可移植技能；完整 Improve 执行器和 Nix/Home Manager 环境需要 Linux，例如 WSL2。WSL 仓库应放在其 Linux 文件系统内（例如 `~/src`，不要放在 `/mnt/c`）。本仓库不提供原生 Windows Improve 执行器或 Windows CI。
+Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq 和 Codex。可移植 Improve 执行还要求 Python 3.11 或更新版本以及 Worktrunk（`wt`）；Nix 闭包提供 Python、Git、Codex、Worktrunk 和 Pillow。可移植图片任务需要在临时虚拟环境中按 `skills/improve/requirements-visual.txt` 安装 Pillow 12.3.0；无图路径不需要它。Windows 用户可以在兼容的 Codex CLI 环境中使用可移植技能；完整 Improve 执行器和 Nix/Home Manager 环境需要 Linux，例如 WSL2。WSL 仓库应放在其 Linux 文件系统内（例如 `~/src`，不要放在 `/mnt/c`）。本仓库不提供原生 Windows Improve 执行器或 Windows CI。
 
 <a id="选择安装方式"></a>
 
@@ -136,7 +136,7 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 ### 以合适的模型启动任务
 
-托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划要求当前会话的内置 Plan Mode 实际提供可调用的原生上下文管理和结构化提问工具。单凭模型名称、配置开关或 Plan Mode 标识不能证明能力可用。如果缺少任一工具，应使用具备该能力的 Plan Mode 会话；参阅[原生 Codex 配置](docs/configuration.zh-CN.md#native-codex-configuration)和[模型选择](docs/configuration.zh-CN.md#model-choice)。困难规划可以显式选择 Astra，但这不是前置条件，也不会自动升级。
+托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划要求 Astra 与内置 Plan Mode，且当前会话实际提供可调用的原生上下文管理和结构化提问工具。单凭模型名称、配置开关或 Plan Mode 标识不能证明能力可用。如果缺少任一工具，应使用具备该能力的 Plan Mode 会话；参阅[原生 Codex 配置](docs/configuration.zh-CN.md#native-codex-configuration)和[模型选择](docs/configuration.zh-CN.md#model-choice)。独立 Astra 计划审查员可以使用只读 Default Mode，但同样需要两项原生能力。high 推理强度和 Code Mode 是建议；协调器不会修改主模型。
 
 ### 先规划，再授权实现
 
@@ -156,6 +156,9 @@ Improve 在规划时按任务选择验证方式。普通工作使用审查和必
 Default Mode 中的实现、审计和普通生命周期记录不需要重新走正式规划流程。不需要正式规划的任务可以直接使用相应技能，见[详细能力目录](docs/capabilities.zh-CN.md)。
 
 ## 更新后重新加载
+
+> [!WARNING]
+> 每次更新前，必须完成并收尾所有 Improve 任务。更新后不迁移或续跑旧任务；新任务必须使用 .18 契约。
 
 先[更新已安装的插件或激活使用该模块的 Nix 配置](docs/updating.md#applying-an-update)；仅重启不会获取新文件。等相关任务执行完毕后，重新加载实际执行任务的运行时：
 
