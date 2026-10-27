@@ -1,9 +1,9 @@
 # Improve Planning Contract
 
-Contract version: `1.0.0-codex.17`
+Contract version: `1.0.0-codex.18`
 
-Version `.17` uses the public `codex-improve` coordinator. It accepts only `.17`
-plans and reads the execution environment from the plan itself. Older private
+Version `.18` uses the public `codex-improve` coordinator. It accepts only `.18`
+plans and reads routing, gates, and the execution environment from the plan itself. Older private
 execution state is retained separately and is not migrated.
 
 ## Planning session prerequisites
@@ -18,7 +18,7 @@ created or replaced.
 ## Execution environment contract
 
 Every new plan, revision dossier, and recovery dossier declares exactly one
-`- **Improve contract**: `1.0.0-codex.17`` line and contains exactly one fenced
+`- **Improve contract**: `1.0.0-codex.18`` line and contains exactly one fenced
 `json codex-improve-environment` block. The coordinator reads the block from
 the plan. There is no `--environment-json` option and no duplicate payload.
 A malformed or different contract fails before execution.
@@ -292,35 +292,51 @@ state lineage exists only through an explicit handoff in the later plan.
 
 ## Executor routing
 
-Every plan records `Executor lane: economy | standard | deep` and the concrete
-routing evidence. One call starts one role; a started call is not replayed with
-a different model. `--lane` on execute or next selects the approved lane.
-Recovery and revision retain the authenticated role. Scout and review have
-separate read-only roles. No Spark probe, quota lookup, fallback routing, or
-automatic promotion to Astra, max, or ultra occurs.
+Every plan has one version-1 `json codex-improve-routing` block and one
+version-1 `json codex-improve-gates` block, as shown in the template. The routing
+block contains `lane`, `writePaths`, `requiredEvidence`, and optional `inputs`.
+The coordinator uses this lane when `--lane` is absent; an explicit lane must
+agree. Only execute/next may select a new writable lane from a new approved
+plan. Recovery and revision preserve the original role and grants.
 
-| Role | Model / effort | Token budget | Initial / follow-up seconds | Reminders |
-| --- | --- | ---: | ---: | --- |
-| economy | `gpt-6-luna` / low | 100000 | 1200 / 720 | 50000, 25000, 10000 |
-| standard | `gpt-6.1-sol` / medium | 120000 | 1200 / 720 | 60000, 30000, 10000 |
-| deep | `gpt-6.1-sol` / xhigh | 160000 | 1800 / 1080 | 80000, 40000, 15000 |
-| scout | `gpt-6-luna` / high | none | 480 / none | none |
-| reviewer | `gpt-6.1-sol` / high | 100000 | 480 / none | 50000, 25000, 10000 |
+| Role | Model / effort | Permissions | Budget / initial / follow-up seconds |
+|---|---|---|---|
+| economy | gpt-6-luna / low | write, network | 100000 / 1200 / 720 |
+| standard | gpt-6.1-sol / medium | write, network | 120000 / 1200 / 720 |
+| deep | gpt-6.1-sol / xhigh | write, network | 160000 / 1800 / 1080 |
+| writer | gpt-6.1-terra / low | write, offline | 100000 / 1200 / 720 |
+| reviewer | gpt-6.1-sol / high | read-only, offline | 100000 / 480 / none |
+| scout | gpt-6-luna / high | read-only, offline | none / 480 / none |
+| visual | gpt-6.1-terra / medium | read-only, offline | none / 480 / none |
 
-Scout verbosity is low; other roles use medium. Workers use approval `never`.
-Economy, standard, and deep use workspace-write with network access. Scout
-and reviewers use read-only with network disabled. The Home Manager main
-session defaults to Sol 6.1/medium and Plan Mode high; Astra remains an explicit
-choice for difficult planning. Role settings are snapshotted from `roles.json`;
-the coordinator does not use Codex profile files or lookup keys.
+Role settings live in `config/roles.json` and are snapshotted. Unavailable
+models or unsupported efforts block; there is no automatic fallback and no
+change to the global main model. Formal planning uses Astra as required above.
 
-Use economy when the approved implementation is bounded and decisions are
-settled. Use standard for broader work; use deep when cross-layer reasoning or
-large instruction contracts need its larger budget. Record why the chosen
-lane fits the exact task. Split only independently valuable, checkpointable
-units; never split solely to choose a cheaper model. A selected lane in a
-later revision may differ when its complete routing evidence supports the
-change. The coordinator does not automatically escalate or retry.
+`writePaths` contains repository-relative file names or globs. The coordinator
+compares the execution baseline with the actual Git difference, including both
+rename endpoints, additions, deletions, and type/mode changes. It checks at
+finish, candidate capture, review, checkpoint, and follow-up. Violations retain
+the worktree and evidence and refuse success; this is a difference check, not
+OS-level per-path write protection. `.git` remains read-only, and `.agents` or
+`.codex` still require explicit grants regardless of writePaths.
+
+Writer is only for independently acceptable writing from sufficient settled
+materials. `inputs.writer` contains `facts` (objects with `fact` and `source`),
+`conclusions`, `audience`, `language`, `terminology`, `preserve`, `scope`, and
+`acceptance`. Arrays other than terminology must be nonempty; audience and
+language are strings. Missing or conflicting materials stop work. Writer does
+no new research or delegation and invents no commitments. Code and documents
+that must ship together belong to the same engineering executor.
+
+Each gate has stable `id`, `class` (implementation gate, deferred acceptance,
+observation), `kind` (check or review), `check`, `invalidatedBy`, `environment`,
+and `conditions`. `requiredEvidence` lists gate IDs and includes all
+implementation gates. Check gates need artifact evidence before review; review
+gates are satisfied by independent coverage. The gate block replaces duplicate
+required-check and gate-definition tables. Dossiers record actual results and
+candidate transitions. Bind evidence to full candidate, environment, plan, and
+input identity; unknown invalidation mappings invalidate it.
 
 ## Verification and acceptance
 
@@ -447,7 +463,7 @@ reviewer conclusions.
 After all required implementation reviews approve the exact candidate, and
 after any approval required for a commit, the main agent may create one local
 checkpoint with
-`codex-improve checkpoint WORKTREE EXPECTED_TREE --message "type: summary"`. The
+`codex-improve checkpoint EXECUTION_ID EXPECTED_TREE --message "type: summary"`. The
 expected tree must be the full reviewed candidate tree. The helper stages that
 complete tree and runs normal commit hooks against an internal local ref. It
 atomically advances the Improve branch only after verifying the resulting
@@ -521,7 +537,9 @@ action, not permission to publish, integrate, or chain plans automatically.
 
 ## Convergence protocol
 
-For `plan` and `review-plan`, run an internal loop in this order:
+For `plan` and `review-plan`, perform this sequence. Steps 1–3 belong to the
+main advisor; steps 4–6 require an independent Astra context given the complete
+exact revision, baseline, decisions, and evidence under the live prerequisites:
 
 1. **Draft** — write or refresh the complete plan and its anchors.
 2. **Coverage** — map every user decision, verified fact, derivation, assumption,
@@ -530,7 +548,7 @@ For `plan` and `review-plan`, run an internal loop in this order:
 3. **Zero-context** — verify the executor and every later acceptance operator
    can act using only the plan, listed repository evidence, and any conditional
    Operational handoff.
-4. **Logic** — check precedence, dependencies, lifecycle, STOP conditions,
+4. **Independent Astra review — Logic** — check precedence, dependencies, lifecycle, STOP conditions,
    verification, rollback, and acceptance for contradictions.
 5. **Necessity** — first test the plan as a whole: every triggered Route
    checkpoint must have Fresh evidence that supports its Route claim and must use the
@@ -544,7 +562,11 @@ For `plan` and `review-plan`, run an internal loop in this order:
 6. **Elegance** — remove duplication and incidental detail without weakening
    operational semantics.
 
-Repeat until the result is exactly one of:
+The main advisor opens and verifies each finding, preserving accepted anchors.
+After revision, repeat the independent review for affected semantics; when the
+impact is uncertain review the complete revision. Record the exact revision,
+reviewer provenance, findings dispositions, and verdict. Self-review alone
+cannot produce READY. Repeat until the result is exactly one of:
 
 - `READY` — the plan is complete, internally consistent, and executable at its
   recorded baseline; or

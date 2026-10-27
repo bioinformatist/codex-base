@@ -75,7 +75,7 @@ in let self = rec {
   '';
   codex-improve = pkgs.lib.makeOverridable ({ codex ? self.codex }: pkgs.writeShellApplication {
     name = "codex-improve";
-    runtimeInputs = [ pkgs.python3 pkgs.gitMinimal worktrunk ];
+    runtimeInputs = [ (pkgs.python3.withPackages (p: [ p.pillow ])) pkgs.gitMinimal worktrunk ];
     text = ''
       export CODEX_IMPROVE_CODEX=${pkgs.lib.escapeShellArg "${codex}/bin/codex"}
       exec python3 -B ${skills}/improve/scripts/codex-improve "$@"

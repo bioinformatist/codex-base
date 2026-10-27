@@ -1,0 +1,81 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "inputIds",
+    "observations",
+    "unchecked",
+    "stoppedBecause"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "COMPLETE",
+        "STOPPED"
+      ]
+    },
+    "inputIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputId",
+          "location",
+          "observation",
+          "inference",
+          "comparison",
+          "uncertainty"
+        ],
+        "properties": {
+          "inputId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "inference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "comparison": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uncertainty": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "unchecked": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "stoppedBecause": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

@@ -1,8 +1,9 @@
-"""Focused .17 runtime fixtures: real Git/Worktrunk and fake native Codex."""
+"""Focused .18 runtime fixtures: real Git/Worktrunk and fake native Codex."""
 
 from __future__ import annotations
 
 import json
+import io
 import os
 import runpy
 import stat
@@ -14,6 +15,7 @@ import signal
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,11 +24,12 @@ RUNTIME = SKILL_ROOT / "runtime"
 CLI = SKILL_ROOT / "scripts/codex-improve"
 sys.path.insert(0, str(RUNTIME))
 
-from contracts import StateStore, parse_plan, read_roles
-from git_worktree import (BoundaryError, candidate, checkpoint, copy_ignored,
+from contracts import StateStore, digest, parse_plan, read_roles
+from git_worktree import (BoundaryError, candidate, check_write_paths, checkpoint, copy_ignored,
                           create_worktree, git, integrate_exact, require_candidate,
                           require_oid, validate_worktree, wt)
 from transport import ProcessResult, classify, codex_command, run_process
+from visual import decode, import_images, image_paths, validate_visual
 
 with patch.dict(os.environ):
     os.environ.pop("CODEX_IMPROVE_CODEX", None)
@@ -103,11 +106,17 @@ elif mode == 'oversized':
     final.write_text('x'*65537)
 elif mode == 'review':
     report = {'verdict':'APPROVE','summary':'Checked','findings':[],
-      'coverage':[{'check':'fixture','status':'PASS','evidence':'fixture'}],
+      'coverage':[{'check':'scope','status':'PASS','evidence':'fixture'}],
       'review_blockers':[],'deferred_acceptance':[]}
     if os.environ.get('FAKE_REVIEW_REPORT'):
         report = json.loads(os.environ['FAKE_REVIEW_REPORT'])
     final.write_text(json.dumps(report))
+elif mode == 'visual':
+    ids = [pathlib.Path(args[i+1]).name for i, arg in enumerate(args) if arg == '--image']
+    final.write_text(json.dumps({'status':'COMPLETE','inputIds':ids,'observations':[
+      {'inputId':i,'location':'whole frame','observation':'Unique observation: a red rectangle',
+       'inference':'none','comparison':'none','uncertainty':'none'} for i in ids],
+      'unchecked':[],'stoppedBecause':None}))
 else:
     final.write_text(json.dumps({'status':'COMPLETE','steps':['done'],
       'stoppedBecause':None,'filesChanged':[],'notes':[]}))
@@ -118,27 +127,90 @@ else:
     def worktree(self, name="fixture"):
         return create_worktree(self.repo, f"codex/improve-{name}", self.base, self.store.worktrees)
 
+    def review_execution(self, worktree, **plan_options):
+        worktree = validate_worktree(worktree)
+        plan = self.plan(**plan_options).read_bytes()
+        record = CLI_FUNCTIONS["_record"](self.store, role="standard", worktree=worktree.path,
+            common_dir=worktree.common_dir,branch=worktree.branch,head=worktree.head,
+            tree=candidate(worktree)[1],grants=[],kind="execute")
+        with patch.dict(CLI_FUNCTIONS["start"].__globals__, {"launch": lambda _store, item: item}):
+            record = CLI_FUNCTIONS["start"](self.store, record, plan, b"fixture execution")
+        record.update(output_head=worktree.head,output_candidate_tree=record["candidate_tree"],
+                      phase="finished",outcome="COMPLETE")
+        self.store.save(record)
+        return record
+
+    def visual_execution(self, worktree):
+        from PIL import Image
+        Image.new("RGB", (12, 8), "red").save(self.root / "image.png")
+        manifest = self.root / "inputs.json"
+        manifest.write_text(json.dumps({"version":1,"images":[{
+            "path":"image.png","purpose":"reference","source":"synthetic fixture"}]}))
+        return json.loads(self.cli("visual", worktree.path, candidate(worktree)[1],
+            self.plan(lane="visual", paths=[]), "--inputs", manifest,
+            env={"FAKE_MODE":"visual"}, check=True).stdout)
+
+    def revise_report(self):
+        return {"verdict":"REVISE","summary":"One issue", "findings":[{
+            "check":"scope","severity":"medium","location":"tracked.txt:1","claim":"Wrong result",
+            "evidence":"fixture","action":"Fix result"}],
+            "coverage":[{"check":"scope","status":"FAIL","evidence":"One issue"}],
+            "review_blockers":[],"deferred_acceptance":[]}
+
+    def review_dossier(self, record, evidence=None):
+        path=self.root/("review-"+record["id"]+".json")
+        path.write_text(json.dumps({"version":1,"executionId":record["id"],"head":record["output_head"],
+            "tree":record["output_candidate_tree"],"evidence":evidence or [],"notes":"inspect complete scope"}))
+        return path
+
     def cli(self, *args, env=None, check=False):
         values = dict(self.env)
         if env:
             values.update(env)
         result = run(sys.executable, "-B", CLI, *args, env=values, check=False)
         if check and result.returncode:
-            record = json.loads(result.stdout)
-            diagnostics = Path(record["artifacts"]["diagnostics"]).read_text()
+            record = json.loads(result.stdout) if result.stdout else {}
+            diagnostics = (Path(record["artifacts"]["diagnostics"]).read_text()
+                           if record.get("artifacts") else "")
             self.fail(f"CLI failed: {result.stdout}\n{result.stderr}\n{diagnostics}")
         return result
 
-    def plan(self, probes=None, contract="1.0.0-codex.17", launcher=None):
+    def plan(self, probes=None, contract="1.0.0-codex.18", launcher=None, lane="standard",
+             paths=None, inputs=None, gates=None):
         plan = self.root / "plan.md"
         plan.write_text(f"- **Improve contract**: `{contract}`\n"
                         "```json codex-improve-environment\n" +
                         json.dumps({"version": 1, "launcher": launcher or ["env"], "probes": probes or []}) +
-                        "\n```\n")
+                        "\n```\n```json codex-improve-routing\n" +
+                        json.dumps({"version":1,"lane":lane,"writePaths": ["*"] if paths is None else paths,
+                                    "requiredEvidence":[gate["id"] for gate in (gates or []) if gate["class"] == "implementation gate"],
+                                    "inputs":inputs or {}}) +
+                        "\n```\n```json codex-improve-gates\n" +
+                        json.dumps({"version":1,"gates":gates or []}) + "\n```\n")
         return plan
 
 
 class GitAndWorktrunk(Fixture):
+    def test_scope_covers_rename_deletion_and_mode_and_protected_paths(self):
+        worktree = self.worktree()
+        base = candidate(worktree)[1]
+        (worktree.path / "tracked.txt").rename(worktree.path / "renamed.txt")
+        tree = candidate(worktree)[1]
+        with self.assertRaisesRegex(BoundaryError, "outside authenticated"):
+            check_write_paths(worktree, base, tree, ["renamed.txt"], [])
+        check_write_paths(worktree, base, tree, ["tracked.txt", "renamed.txt"], [])
+        (worktree.path / "renamed.txt").rename(worktree.path / "tracked.txt")
+        (worktree.path / "tracked.txt").chmod(0o755)
+        tree = candidate(worktree)[1]
+        with self.assertRaises(BoundaryError):
+            check_write_paths(worktree, base, tree, ["other.txt"], [])
+        (worktree.path / ".agents").mkdir()
+        (worktree.path / ".agents/x").write_text("protected")
+        tree = candidate(worktree)[1]
+        with self.assertRaises(BoundaryError):
+            check_write_paths(worktree, base, tree, ["*"], [])
+        check_write_paths(worktree, base, tree, ["*"], [".agents"])
+
     def test_scout_accepts_existing_checkouts_without_mutating_them(self):
         linked = self.root / "unrelated"
         detached = self.root / "detached"
@@ -170,8 +242,9 @@ class GitAndWorktrunk(Fixture):
                 self.assertEqual((git(path, "rev-parse", "HEAD"), index.read_bytes(),
                                   (path / "tracked.txt").read_bytes(),
                                   (path / "untracked.txt").read_bytes()), before)
-                self.assertEqual(self.cli("checkpoint", path, tree,
-                                          "--message", "feat: blocked").returncode, 2)
+                rejected = self.cli("checkpoint", record["id"], tree, "--message", "feat: blocked")
+                self.assertEqual(rejected.returncode, 2)
+                self.assertIn("writable execution", rejected.stderr)
         tree = candidate(validate_worktree(self.repo, owned=False))[1]
         self.assertEqual(self.cli("scout", self.repo,
                                   git(self.repo, "rev-parse", "HEAD^{tree}"), dossier).returncode, 2)
@@ -265,6 +338,345 @@ class GitAndWorktrunk(Fixture):
 
 
 class ContractsAndTransport(Fixture):
+    def test_latest_review_invalidates_approval(self):
+        blocked = self.revise_report()
+        blocked.update(verdict="BLOCK", review_blockers=[{"item":"Missing context","impact":"Cannot finish"}])
+        blocked["coverage"][0]["status"] = "BLOCKED"
+        for outcome, env in (("REVISE", {"FAKE_MODE":"review", "FAKE_REVIEW_REPORT":json.dumps(self.revise_report())}),
+                             ("BLOCK", {"FAKE_MODE":"review", "FAKE_REVIEW_REPORT":json.dumps(blocked)}),
+                             ("INCONCLUSIVE", {"FAKE_MODE":"budget"})):
+            with self.subTest(outcome=outcome):
+                worktree = self.worktree(outcome)
+                (worktree.path / "tracked.txt").write_text("changed\n")
+                execution = self.review_execution(worktree.path)
+                dossier = self.review_dossier(execution)
+                first = json.loads(self.cli("review", execution["id"], execution["output_candidate_tree"],
+                    dossier, env={"FAKE_MODE":"review"}, check=True).stdout)
+                cached = json.loads(self.cli("review", execution["id"], execution["output_candidate_tree"],
+                    dossier, env={"FAKE_MODE":"budget"}, check=True).stdout)
+                self.assertEqual(cached["id"], first["id"])
+                data = json.loads(dossier.read_text())
+                data["notes"] = "New inspection found a defect"
+                dossier.write_text(json.dumps(data))
+                result = self.cli("review", execution["id"], execution["output_candidate_tree"], dossier, env=env)
+                self.assertEqual(result.returncode, 1 if outcome == "INCONCLUSIVE" else 0, result.stderr)
+                latest = json.loads(result.stdout)
+                self.assertEqual((first["outcome"], latest["outcome"], latest["parent"]),
+                                 ("APPROVE", outcome, first["id"]))
+                self.assertNotIn("approval", self.store.load(execution["id"]))
+                rejected = self.cli("checkpoint", execution["id"], execution["output_candidate_tree"],
+                                    "--message", "test: obsolete approval")
+                self.assertEqual(rejected.returncode, 2, rejected.stdout)
+                self.assertIn("approval", rejected.stderr)
+
+    def test_review_binds_current_reviewer_settings(self):
+        worktree = self.worktree()
+        (worktree.path / "tracked.txt").write_text("changed\n")
+        execution = self.review_execution(worktree.path)
+        dossier = self.review_dossier(execution)
+        first = json.loads(self.cli("review", execution["id"], execution["output_candidate_tree"],
+            dossier, env={"FAKE_MODE":"review"}, check=True).stdout)
+        roles = read_roles(SKILL_ROOT / "config/roles.json")
+        roles["reviewer"]["reasoningEffort"] = "medium"
+        private_roles = self.root / "roles.json"
+        private_roles.write_text(json.dumps(roles))
+        cmd = CLI_FUNCTIONS["cmd_review"]
+        args = SimpleNamespace(execution_id=execution["id"], tree=execution["output_candidate_tree"],
+                               dossier=dossier, retry_of=None, retry_authorized=False)
+        with patch.dict(cmd.__globals__, {"ROLES":private_roles,
+                "launch": lambda store, record: CLI_FUNCTIONS["_worker"](store, record["id"])}), \
+             patch.dict(os.environ, self.env):
+            with self.assertRaisesRegex(BoundaryError, "stale"):
+                CLI_FUNCTIONS["cmd_checkpoint"](SimpleNamespace(
+                    execution_id=execution["id"], tree=args.tree, message="test: stale settings",
+                    integrate_oid=None, target=None, expected_target=None), self.store)
+            with patch.dict(os.environ, {"FAKE_MODE":"review"}):
+                second = cmd(args, self.store)
+        self.assertNotEqual(second["id"], first["id"])
+        self.assertEqual(second["outcome"], "APPROVE")
+        self.assertEqual(second["role_settings"], roles["reviewer"])
+        self.assertEqual(second["review_binding"]["reviewer"], roles["reviewer"])
+
+    def test_review_resume_preserves_execution_and_visual_context(self):
+        worktree = self.worktree()
+        visual = self.visual_execution(worktree)
+        probe = self.root / "review-probe.py"
+        probe.write_text("raise SystemExit(1)\n")
+        execution = self.review_execution(worktree.path,
+            probes=[{"argv":[sys.executable,str(probe)],"timeoutSeconds":2}],
+            inputs={"visual":{"executionId":visual["id"],
+                              "inputIds":visual["report"]["inputIds"],"report":True}})
+        first = json.loads(self.cli("review", execution["id"], execution["output_candidate_tree"],
+            self.review_dossier(execution), env={"FAKE_MODE":"review"}, check=True).stdout)
+        self.assertEqual(first["reason"], "environment_preflight_failed")
+        prompt = (self.store.path(first["id"]) / "prompt.txt").read_bytes()
+        self.assertIn(b"Original image inputs", prompt)
+        self.assertIn(b"Unique observation: a red rectangle", prompt)
+        probe.write_text("pass\n")
+        capture = self.root / "review-command.json"
+        resumed = json.loads(self.cli("resume", first["id"],
+            env={"FAKE_MODE":"review","FAKE_CAPTURE":str(capture)}, check=True).stdout)
+        self.assertEqual(resumed["outcome"], "APPROVE")
+        self.assertEqual((resumed["parent"], resumed["attempt"], resumed["lineage"], resumed["resume_used"]),
+                         (first["id"], first["attempt"] + 1, execution["lineage"], True))
+        for key in ("execution_id", "review_binding", "images", "image_owner", "visual_report", "role_settings"):
+            self.assertEqual(resumed[key], first[key], key)
+        self.assertEqual((self.store.path(resumed["id"]) / "prompt.txt").read_bytes(), prompt)
+        self.assertEqual((self.store.path(resumed["id"]) / "dossier.json").read_bytes(),
+                         (self.store.path(first["id"]) / "dossier.json").read_bytes())
+        self.assertEqual(self.store.load(execution["id"])["approval"]["reviewId"], resumed["id"])
+        self.assertEqual(self.store.load(execution["lineage"])["last_review"], resumed["id"])
+        argv = json.loads(capture.read_text())
+        self.assertEqual([Path(argv[i+1]) for i, arg in enumerate(argv) if arg == "--image"],
+                         image_paths(self.store, execution))
+        self.assertIn("read-only", argv)
+        self.assertEqual(self.cli("resume", first["id"]).returncode, 2)
+
+    def test_reconciliation_disposes_findings_without_rewriting_review(self):
+        worktree = self.worktree()
+        (worktree.path / "tracked.txt").write_text("changed\n")
+        execution = self.review_execution(worktree.path)
+        review = json.loads(self.cli("review", execution["id"], execution["output_candidate_tree"],
+            self.review_dossier(execution), env={"FAKE_MODE":"review",
+            "FAKE_REVIEW_REPORT":json.dumps(self.revise_report())}, check=True).stdout)
+        original = Path(review["artifacts"]["final"]).read_bytes()
+        artifact = self.root / "reproducer.txt"
+        artifact.write_text("Observed behavior disproves the finding.\n")
+        support = {"path":str(artifact),"sha256":digest(artifact.read_bytes())}
+        data = {"version":1,"conclusion":"APPROVE","findings":[{
+            "index":0,"disposition":"unresolved","evidence":[support],"conclusion":"Reproducer checked"}],
+            "evidence":[support],"reason":"All findings have supporting evidence"}
+        dossier = self.root / "reconcile.json"
+        for disposition, supports in (("unresolved", [support]), ("rejected", [])):
+            data["findings"][0].update(disposition=disposition, evidence=supports)
+            dossier.write_text(json.dumps(data))
+            self.assertEqual(self.cli("reconcile", review["id"], dossier).returncode, 2)
+        data["findings"][0]["evidence"] = [support]
+        dossier.write_text(json.dumps(data))
+        reconciled = json.loads(self.cli("reconcile", review["id"], dossier, check=True).stdout)
+        self.assertEqual(reconciled["report"], review["report"])
+        self.assertEqual(reconciled["outcome"], "REVISE")
+        self.assertEqual(Path(review["artifacts"]["final"]).read_bytes(), original)
+        self.assertEqual(self.store.load(execution["id"])["approval"]["source"], "reconciliation")
+        original_support = artifact.read_bytes()
+        artifact.write_text("Changed supporting evidence\n")
+        for args in (("review", execution["id"], execution["output_candidate_tree"], self.review_dossier(execution)),
+                     ("checkpoint", execution["id"], execution["output_candidate_tree"], "--message", "test: stale support")):
+            stale = self.cli(*args, env={"FAKE_MODE":"budget"})
+            self.assertEqual(stale.returncode, 2)
+            self.assertIn("reconciliation evidence digest mismatch", stale.stderr)
+        artifact.write_bytes(original_support)
+        cached = json.loads(self.cli("review", execution["id"], execution["output_candidate_tree"],
+            self.review_dossier(execution), env={"FAKE_MODE":"budget"}, check=True).stdout)
+        self.assertEqual(cached["id"], review["id"])
+        self.cli("checkpoint", execution["id"], execution["output_candidate_tree"],
+                 "--message", "test: reconciled candidate", check=True)
+
+    def test_review_rejects_missing_conflicting_and_stale_gate_evidence(self):
+        worktree = self.worktree()
+        (worktree.path / "tracked.txt").write_text("changed\n")
+        gate = {"id":"G1","class":"implementation gate","kind":"check","check":"focused check",
+                "invalidatedBy":["always-invalidated"],"environment":"fixture","conditions":"required"}
+        execution = self.review_execution(worktree.path, gates=[gate])
+        tree = execution["output_candidate_tree"]
+        rejected = self.cli("checkpoint", execution["id"], tree, "--message", "test: unapproved")
+        self.assertEqual(rejected.returncode, 2)
+        self.assertIn("approval", rejected.stderr)
+        artifact = self.root / "gate.txt"
+        artifact.write_text("Focused check passed\n")
+        entry = {"gate":"G1","status":"PASS","artifact":{"path":str(artifact),"sha256":digest(artifact.read_bytes())},
+                 "environment":"fixture","head":execution["output_head"],"tree":tree,"planHash":execution["plan_hash"]}
+        dossier = self.review_dossier(execution, [entry])
+        valid = json.loads(dossier.read_text())
+        invalid = [{**valid, "executionId":"0" * 32}, {**valid, "evidence":[]},
+                   {**valid, "evidence":[entry, entry]}]
+        invalid.extend({**valid, "evidence":[{**entry, **change}]} for change in (
+            {"gate":"UNKNOWN"}, {"status":"PENDING"}, {"status":"FAIL"}, {"tree":"0" * 40},
+            {"planHash":"stale"}, {"environment":"other"},
+            {"artifact":{"path":str(artifact),"sha256":"stale"}}))
+        capture = self.root / "unexpected-model.json"
+        for data in invalid:
+            with self.subTest(dossier=data):
+                dossier.write_text(json.dumps(data))
+                result = self.cli("review", execution["id"], tree, dossier, env={"FAKE_CAPTURE":str(capture)})
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertFalse(capture.exists())
+        dossier.write_text(json.dumps(valid))
+        report = {"verdict":"APPROVE","summary":"Checked", "findings":[], "review_blockers":[],
+                  "coverage":[{"check":check,"status":"PASS","evidence":"checked"} for check in ("scope","G1")],
+                  "deferred_acceptance":[]}
+        self.cli("review", execution["id"], tree, dossier,
+                 env={"FAKE_MODE":"review","FAKE_REVIEW_REPORT":json.dumps(report)}, check=True)
+        artifact.write_text("Changed evidence\n")
+        stale = self.cli("checkpoint", execution["id"], tree, "--message", "test: stale evidence")
+        self.assertEqual(stale.returncode, 2)
+        self.assertIn("digest mismatch", stale.stderr)
+
+    def test_reconciliation_keeps_unrelated_failures_blockers_and_required_gates(self):
+        worktree = self.worktree()
+        gate = {"id":"G1","class":"implementation gate","kind":"check","check":"focused check",
+                "invalidatedBy":["always-invalidated"],"environment":"fixture","conditions":"required"}
+        execution = self.review_execution(worktree.path, gates=[gate])
+        artifact = self.root / "support.txt"
+        artifact.write_text("Focused check passed; finding disproved by reproducer\n")
+        support = {"path":str(artifact),"sha256":digest(artifact.read_bytes())}
+        entry = {"gate":"G1","status":"PASS","artifact":support,"environment":"fixture",
+                 "head":execution["output_head"],"tree":execution["output_candidate_tree"],"planHash":execution["plan_hash"]}
+        dossier = self.review_dossier(execution, [entry])
+        disposition = self.root / "disposition.json"
+        disposition.write_text(json.dumps({"version":1,"conclusion":"APPROVE","findings":[{
+            "index":0,"disposition":"rejected","evidence":[support],"conclusion":"Reproducer disproves finding"}],
+            "evidence":[support],"reason":"All findings disposed"}))
+        for kind in ("unrelated failure", "unchecked scope", "blocker", "stale required gate"):
+            with self.subTest(kind=kind):
+                report = self.revise_report()
+                report["coverage"].append({"check":"G1","status":"PASS","evidence":"focused check"})
+                if kind == "unrelated failure":
+                    report["coverage"][1]["status"] = "FAIL"
+                elif kind == "unchecked scope":
+                    report["findings"][0]["check"] = "G1"
+                    report["coverage"][0]["status"] = "BLOCKED"
+                    report["coverage"][1]["status"] = "FAIL"
+                    report["verdict"] = "BLOCK"
+                elif kind == "blocker":
+                    report.update(verdict="BLOCK", review_blockers=[{"item":"Missing context","impact":"Unchecked behavior"}])
+                review = json.loads(self.cli("review", execution["id"], execution["output_candidate_tree"], dossier,
+                    env={"FAKE_MODE":"review","FAKE_REVIEW_REPORT":json.dumps(report)}, check=True).stdout)
+                original = Path(review["artifacts"]["final"]).read_bytes()
+                if kind == "stale required gate":
+                    artifact.write_text("Evidence changed after review\n")
+                    # Keep the disposition supported so the original required gate is what rejects it.
+                    data = json.loads(disposition.read_text())
+                    current = {"path":str(artifact),"sha256":digest(artifact.read_bytes())}
+                    data["evidence"] = data["findings"][0]["evidence"] = [current]
+                    disposition.write_text(json.dumps(data))
+                result = self.cli("reconcile", review["id"], disposition)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("digest mismatch" if kind == "stale required gate" else "contradicts findings", result.stderr)
+                self.assertNotIn("approval", self.store.load(execution["id"]))
+                self.assertEqual(Path(review["artifacts"]["final"]).read_bytes(), original)
+
+    def test_review_retry_authorization_stays_with_execution_lineage(self):
+        worktree = self.worktree()
+        execution = self.review_execution(worktree.path)
+        failed = self.cli("review", execution["id"], execution["output_candidate_tree"],
+                          self.review_dossier(execution), env={"FAKE_MODE":"budget"})
+        self.assertEqual(failed.returncode, 1, failed.stderr)
+        review = json.loads(failed.stdout)
+        findings = self.root / "findings.md"
+        findings.write_text("Finding: finish the approved correction.\n")
+        revised = json.loads(self.cli("revise", execution["id"], findings,
+            "--expected-tree", execution["output_candidate_tree"], check=True).stdout)
+        dossier = self.review_dossier(revised)
+        for retry in ([], ["--retry-of", "0" * 32, "--retry-authorized"], ["--retry-of", review["id"]]):
+            result = self.cli("review", revised["id"], revised["output_candidate_tree"], dossier, *retry)
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("INCONCLUSIVE", result.stderr)
+        current = json.loads(self.cli("review", revised["id"], revised["output_candidate_tree"], dossier,
+            "--retry-of", review["id"], "--retry-authorized", env={"FAKE_MODE":"review"}, check=True).stdout)
+        self.assertEqual((current["parent"], current["attempt"], current["lineage"], current["execution_id"]),
+                         (review["id"], review["attempt"] + 1, execution["lineage"], revised["id"]))
+        self.assertEqual(self.store.load(review["id"])["outcome"], "INCONCLUSIVE")
+
+    def test_images_validate_snapshot_limits_paths_and_report_ids(self):
+        from PIL import Image
+        output = io.BytesIO()
+        Image.new("RGB", (12, 8), "red").save(output, format="PNG")
+        raw = output.getvalue()
+        image = self.root / "image.png"
+        image.write_bytes(raw)
+        manifest = self.root / "inputs.json"
+        entry = {"path":"image.png", "purpose":"reference", "source":"synthetic fixture"}
+        manifest.write_text(json.dumps({"version":1, "images":[entry]}))
+        plan = self.plan().read_bytes()
+        record = CLI_FUNCTIONS["_record"](self.store, role="visual", worktree=self.repo,
+            common_dir=self.repo / ".git", branch="main", head=self.base,
+            tree=git(self.repo,"rev-parse","HEAD^{tree}"), grants=[], kind="visual")
+        record["plan_settings"] = parse_plan(plan)
+        self.store.create(record, plan, b"visual test")
+        import_images(self.store, record, manifest)
+        paths = image_paths(self.store, record)
+        self.assertEqual(paths[0].read_bytes(), raw)
+        self.assertEqual(stat.S_IMODE(paths[0].stat().st_mode), 0o400)
+        image_id = record["images"][0]["id"]
+        report = {"status":"COMPLETE", "inputIds":[image_id], "observations":[{
+            "inputId":image_id,"location":"whole frame","observation":"red rectangle",
+            "inference":"none","comparison":"none","uncertainty":"none"}],
+            "unchecked":[],"stoppedBecause":None}
+        validate_visual(report, record["images"])
+        report["observations"][0]["inputId"] = "unknown"
+        with self.assertRaises(BoundaryError):
+            validate_visual(report, record["images"])
+        paths[0].chmod(0o600)
+        paths[0].write_bytes(b"tampered")
+        with self.assertRaises(BoundaryError):
+            image_paths(self.store, record)
+        for name in ("../image.png", "missing.png", "link.png"):
+            (self.root / "link.png").unlink(missing_ok=True)
+            (self.root / "link.png").symlink_to(image)
+            entry["path"] = name
+            manifest.write_text(json.dumps({"version":1,"images":[entry]}))
+            with self.assertRaises(BoundaryError):
+                import_images(self.store, record, manifest)
+        with self.assertRaises(BoundaryError):
+            decode(b"\x89PNG\r\n\x1a\nnot an image")
+        record["plan_settings"]["routing"]["inputs"]["imageLimits"] = {
+            "count":1,"perImageBytes":1,"totalBytes":1}
+        entry["path"] = "image.png"
+        manifest.write_text(json.dumps({"version":1,"images":[entry]}))
+        with self.assertRaises(BoundaryError):
+            import_images(self.store, record, manifest)
+        record["plan_settings"]["routing"]["inputs"].pop("imageLimits")
+        entry["capture"] = {"tree":record["candidate_tree"]}
+        entry["purpose"] = "candidate"
+        manifest.write_text(json.dumps({"version":1,"images":[entry]}))
+        with self.assertRaises(BoundaryError):
+            import_images(self.store, record, manifest)
+
+    def test_writer_scope_violation_preserves_output_and_stops_followup(self):
+        plan = self.plan(paths=["tracked.txt"])
+        result = self.cli("execute", plan, self.repo,
+                          env={"FAKE_CAPTURE":"outside.txt"}, check=True)
+        record = json.loads(result.stdout)
+        self.assertEqual((record["outcome"], record["reason"]), ("STOPPED", "write_paths_violation"))
+        self.assertTrue((Path(record["worktree"]) / "outside.txt").is_file())
+        findings = self.root / "findings.md"
+        findings.write_text("Finding: fix scope")
+        self.assertEqual(self.cli("revise", record["id"], findings,
+                                  "--expected-tree", record["output_candidate_tree"]).returncode, 2)
+
+    def test_routing_roles_and_conflicts_fail_before_model(self):
+        roles = read_roles(SKILL_ROOT / "config/roles.json")
+        self.assertEqual(len(roles), 7)
+        self.assertEqual((roles["visual"]["model"], roles["visual"]["reasoningEffort"]),
+                         ("gpt-6.1-terra", "medium"))
+        self.assertEqual((roles["writer"]["model"], roles["writer"]["reasoningEffort"]),
+                         ("gpt-6.1-terra", "low"))
+        self.assertFalse(roles["writer"]["networkAccess"])
+        capture = self.root / "command.json"
+        result = self.cli("execute", self.plan(lane="deep"), self.repo, "--lane", "standard",
+                          env={"FAKE_CAPTURE": str(capture)})
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("lane conflict", result.stderr)
+        self.assertFalse(capture.exists())
+        result = self.cli("execute", self.plan(lane="writer"), self.repo,
+                          env={"FAKE_CAPTURE": str(capture)})
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("settled materials", result.stderr)
+        self.assertFalse(capture.exists())
+        materials = {"facts":[{"fact":"A settled fact", "source":"tracked.txt:1"}],
+                     "conclusions":["Use the fact"], "audience":"contributors", "language":"English",
+                     "terminology":[], "preserve":["technical meaning"], "scope":["tracked.txt"],
+                     "acceptance":["accurate prose"]}
+        result = self.cli("execute", self.plan(lane="writer", inputs={"writer":materials}), self.repo,
+                          env={"FAKE_CAPTURE":str(capture)}, check=True)
+        self.assertEqual(json.loads(result.stdout)["role"], "writer")
+        args = json.loads(capture.read_text())
+        self.assertIn("permissions.improve-executor-runtime.network.enabled=false", args)
+        self.assertIn("gpt-6.1-terra", args)
+        with self.assertRaisesRegex(BoundaryError, "contract"):
+            parse_plan(self.plan(contract="1.0.0-codex.17").read_bytes())
+
     def test_phase_methods_are_loaded_from_the_skill_layout(self):
         executor = CLI_FUNCTIONS["_executor_prompt"](b"approved plan", "a" * 40,
                                                        "standard", grants=[])
@@ -321,7 +733,8 @@ class ContractsAndTransport(Fixture):
             self.store, role="standard", worktree=worktree.path, common_dir=worktree.common_dir,
             branch=worktree.branch, head=worktree.head, tree=candidate(worktree)[1],
             grants=[], kind="execute")
-        record["environment_settings"] = parse_plan(plan)
+        record["plan_settings"] = parse_plan(plan)
+        record["environment_settings"] = record["plan_settings"]["environment"]
         record["role_settings"] = read_roles(SKILL_ROOT / "config/roles.json")["standard"]
         self.store.create(record, plan, b"assigned prompt")
         for phase in ("preparing", "preflight", "executing"):
@@ -344,7 +757,7 @@ class ContractsAndTransport(Fixture):
     def test_plan_rejection_and_private_state_tamper(self):
         with self.assertRaisesRegex(BoundaryError, "contract"):
             parse_plan(self.plan(contract="1.0.0-codex.16").read_bytes())
-        raw = b'- **Improve contract**: `1.0.0-codex.17`\n```json codex-improve-environment\n{"version":1,"version":1,"launcher":["env"],"probes":[]}\n```\n'
+        raw = b'- **Improve contract**: `1.0.0-codex.18`\n```json codex-improve-environment\n{"version":1,"version":1,"launcher":["env"],"probes":[]}\n```\n'
         with self.assertRaises(BoundaryError):
             parse_plan(raw)
         raw = raw.replace(b'"version":1,"version":1', b'"version":true')
@@ -381,14 +794,15 @@ class ContractsAndTransport(Fixture):
     def test_root_symlink_and_readonly_review(self):
         worktree = self.worktree()
         (worktree.path / ".agents").symlink_to("missing")
-        plan = self.plan()
-        # A granted dangling root is refused before invoking a model.
-        result = self.cli("review", worktree.path, candidate(worktree)[1], plan)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["reason"], "environment_preflight_mutated_candidate")
+        # Dangling protected roots are refused before invoking a model.
+        execution = self.review_execution(worktree.path)
+        result = self.cli("review", execution["id"], candidate(worktree)[1], self.review_dossier(execution))
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("protected root", result.stderr)
         (worktree.path / ".agents").unlink()
+        execution = self.review_execution(worktree.path)
         capture = self.root / "command.json"
-        result = self.cli("review", worktree.path, candidate(worktree)[1], plan,
+        result = self.cli("review", execution["id"], candidate(worktree)[1], self.review_dossier(execution),
                           env={"FAKE_MODE": "review", "FAKE_CAPTURE": str(capture)})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["outcome"], "APPROVE")
@@ -402,10 +816,14 @@ class ContractsAndTransport(Fixture):
 
     def test_review_separates_deferred_ci_and_retains_validation_error(self):
         worktree = self.worktree()
+        (worktree.path / "tracked.txt").write_text("changed\n")
         tree = candidate(worktree)[1]
+        deferred_gate = {"id":"CI","class":"deferred acceptance","kind":"check","check":"CI",
+                         "invalidatedBy":["always-invalidated"],"environment":"CI","conditions":"published"}
+        execution = self.review_execution(worktree.path,gates=[deferred_gate])
         report = {
             "verdict": "APPROVE", "summary": "Implementation checked", "findings": [],
-            "coverage": [{"check": "implementation", "status": "PASS", "evidence": "inspected"}],
+            "coverage": [{"check": "scope", "status": "PASS", "evidence": "inspected"}],
             "review_blockers": [],
             "deferred_acceptance": [{
                 "check": "CI", "owner": "maintainer", "reason": "runs after publication",
@@ -414,7 +832,7 @@ class ContractsAndTransport(Fixture):
         }
 
         def review():
-            result = self.cli("review", worktree.path, tree, self.plan(),
+            result = self.cli("review", execution["id"], tree, self.review_dossier(execution),
                               env={"FAKE_MODE": "review", "FAKE_REVIEW_REPORT": json.dumps(report)})
             return result, json.loads(result.stdout)
 
@@ -423,6 +841,7 @@ class ContractsAndTransport(Fixture):
         self.assertEqual(record["outcome"], "APPROVE")
         self.assertEqual(record["report"], report)
 
+        execution = self.review_execution(worktree.path,gates=[deferred_gate])
         report["coverage"].append({"check": "CI", "status": "BLOCKED", "evidence": "not run yet"})
         result, record = review()
         self.assertEqual(result.returncode, 1, result.stderr)
@@ -435,6 +854,25 @@ class ContractsAndTransport(Fixture):
         self.assertEqual(json.loads(Path(record["artifacts"]["final"]).read_text()), report)
         status = json.loads(self.cli("status", record["id"]).stdout)
         self.assertEqual(status["validation_error"], record["validation_error"])
+        original = Path(record["artifacts"]["final"]).read_bytes()
+        snapshot = self.store.path(execution["id"]) / "plan.md"
+        dossier = self.root / "reconcile.json"
+        dossier.write_text(json.dumps({"version":1,"conclusion":"APPROVE","findings":[],
+            "evidence":[{"path":str(snapshot),"sha256":digest(snapshot.read_bytes())}],
+            "reason":"The approved plan defers CI; scope passed and has no findings or blockers"}))
+        result = self.cli("reconcile", record["id"], dossier)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        reconciled = json.loads(result.stdout)
+        self.assertEqual((reconciled["outcome"], reconciled["reason"], reconciled["report"], reconciled["validation_error"]),
+                         ("INCONCLUSIVE", "invalid_final_output", None, record["validation_error"]))
+        self.assertEqual(Path(record["artifacts"]["final"]).read_bytes(), original)
+        result = self.cli("review", execution["id"], tree, self.review_dossier(execution),
+                          env={"FAKE_MODE":"budget"})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        cached = json.loads(result.stdout)
+        self.assertEqual(cached["id"], record["id"])
+        self.assertEqual(self.store.load(execution["id"])["approval"]["source"], "reconciliation")
+        self.cli("checkpoint", execution["id"], tree, "--message", "test: evidenced reconciliation", check=True)
 
     def test_transport_budget_corruption_timeout_signal_and_cap(self):
         for mode, expected in (("budget", "rollout_budget_exhausted"),
@@ -467,8 +905,55 @@ class ContractsAndTransport(Fixture):
         fake = ProcessResult(124, "exit", b'{"type":"thread.started"}\n', b"", 0.1, False)
         self.assertEqual(classify(fake, b"", report_kind="executor")[1], "codex_exit_124")
 
+    def test_stopped_reason_and_missing_zero_positive_usage(self):
+        report = {"status":"STOPPED", "steps":["Checked the specification"],
+                  "stoppedBecause":"runtime-acceptance.proof is absent", "filesChanged":[], "notes":[]}
+        for usage in (None, {"input_tokens":0,"cached_input_tokens":0,"output_tokens":0},
+                      {"input_tokens":20,"cached_input_tokens":5,"output_tokens":3}):
+            with self.subTest(usage=usage):
+                event = {"type":"turn.completed"}
+                if usage is not None:
+                    event["usage"] = usage
+                process = ProcessResult(0, "exit", json.dumps(event).encode(), b"", 0.1, False)
+                outcome, reason, actual, metrics = classify(process, json.dumps(report).encode(), report_kind="executor")
+                self.assertEqual((outcome, reason, actual), ("STOPPED", "completed", report))
+                self.assertEqual(metrics["usage_observed"], usage is not None)
+                self.assertEqual(metrics["token_usage"], usage)
+        report["stoppedBecause"] = ""
+        self.assertEqual(classify(process, json.dumps(report).encode(), report_kind="executor")[1],
+                         "invalid_final_output")
+
     def test_closeout_requires_events_and_captured_candidate(self):
-        record = json.loads(self.cli("execute", self.plan(), self.repo, check=True).stdout)
+        result = self.cli("execute", self.plan(), self.repo, env={"FAKE_MODE":"budget"})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        record = json.loads(result.stdout)
+        self.assertEqual((record["phase"], record["outcome"], record["reason"], record["closeout_eligible"]),
+                         ("finished", "INCONCLUSIVE", "rollout_budget_exhausted", True))
+        dossier = self.review_dossier(record)
+        capture = self.root / "unexpected-review.json"
+        for change in ({"phase":"executing"}, {"closeout_eligible":False}, {"outcome":"STOPPED"}):
+            with self.subTest(change=change):
+                self.store.save({**record, **change})
+                rejected = self.cli("review", record["id"], record["output_candidate_tree"], dossier,
+                                    env={"FAKE_MODE":"review", "FAKE_CAPTURE":str(capture)})
+                self.assertEqual(rejected.returncode, 2, rejected.stdout)
+                self.assertIn("finished complete or closeout-eligible", rejected.stderr)
+                self.assertFalse(capture.exists())
+        self.store.save(record)
+        drift = Path(record["worktree"]) / "later.txt"
+        drift.write_text("external drift\n")
+        rejected = self.cli("review", record["id"], record["output_candidate_tree"], dossier,
+                            env={"FAKE_MODE":"review", "FAKE_CAPTURE":str(capture)})
+        self.assertEqual(rejected.returncode, 2, rejected.stdout)
+        self.assertIn("candidate", rejected.stderr)
+        self.assertFalse(capture.exists())
+        drift.unlink()
+        review = json.loads(self.cli("review", record["id"], record["output_candidate_tree"], dossier,
+                                    env={"FAKE_MODE":"review"}, check=True).stdout)
+        self.assertEqual(review["outcome"], "APPROVE")
+        self.assertEqual(self.store.load(record["id"])["approval"]["reviewId"], review["id"])
+        self.assertEqual((self.store.load(record["id"])["outcome"], self.store.load(record["id"])["reason"]),
+                         ("INCONCLUSIVE", "rollout_budget_exhausted"))
         finish = CLI_FUNCTIONS["_finish"]
         for reason in ("rollout_budget_exhausted", "absolute_timeout", "empty_final_output",
                        "invalid_final_output", "final_output_limit"):
@@ -500,14 +985,20 @@ class ContractsAndTransport(Fixture):
             worktree = self.worktree(kind)
             probe = self.root / f"{kind}-probe.py"
             probe.write_text("import sys;sys.exit(1)\n")
-            plan = self.plan([{"argv": [sys.executable, str(probe)], "timeoutSeconds": 2}]).read_bytes()
-            record = CLI_FUNCTIONS["_record"](
-                self.store, role=role, worktree=worktree.path, common_dir=worktree.common_dir,
-                branch=worktree.branch, head=worktree.head, tree=candidate(worktree)[1],
-                grants=[], kind=kind)
-            assigned = (f"Assigned {kind} prompt and schema.\n").encode()
-            with patch.dict(os.environ, self.env):
-                initial = CLI_FUNCTIONS["start"](self.store, record, plan, assigned)
+            probes = [{"argv": [sys.executable, str(probe)], "timeoutSeconds": 2}]
+            if kind == "review":
+                execution = self.review_execution(worktree.path, probes=probes)
+                initial = json.loads(self.cli("review", execution["id"], execution["output_candidate_tree"],
+                    self.review_dossier(execution), env={"FAKE_MODE":"review"}, check=True).stdout)
+            else:
+                record = CLI_FUNCTIONS["_record"](
+                    self.store, role=role, worktree=worktree.path, common_dir=worktree.common_dir,
+                    branch=worktree.branch, head=worktree.head, tree=candidate(worktree)[1],
+                    grants=[], kind=kind)
+                with patch.dict(os.environ, self.env):
+                    initial = CLI_FUNCTIONS["start"](self.store, record, self.plan(probes).read_bytes(),
+                                                    b"Assigned scout prompt and schema.\n")
+            assigned = (self.store.path(initial["id"]) / "prompt.txt").read_bytes()
             self.assertEqual(initial["reason"], "environment_preflight_failed")
             probe.write_text("pass\n")
             capture = self.root / f"{kind}-command.json"
@@ -529,8 +1020,9 @@ class ContractsAndTransport(Fixture):
 
     def test_snapshot_rejects_private_role_change_and_review_revision(self):
         worktree = self.worktree()
-        result = self.cli("review", worktree.path, candidate(worktree)[1],
-                          self.plan(), env={"FAKE_MODE": "review"})
+        execution = self.review_execution(worktree.path)
+        result = self.cli("review", execution["id"], execution["output_candidate_tree"],
+                          self.review_dossier(execution), env={"FAKE_MODE": "review"})
         self.assertEqual(result.returncode, 0, result.stderr)
         record = json.loads(result.stdout)
         private_roles = self.root / "roles.json"
@@ -565,7 +1057,8 @@ class ContractsAndTransport(Fixture):
             self.store, role="standard", worktree=worktree.path, common_dir=worktree.common_dir,
             branch=worktree.branch, head=worktree.head, tree=candidate(worktree)[1],
             grants=[], kind="execute")
-        worker["environment_settings"] = parse_plan(plan)
+        worker["plan_settings"] = parse_plan(plan)
+        worker["environment_settings"] = worker["plan_settings"]["environment"]
         worker["role_settings"] = read_roles(SKILL_ROOT / "config/roles.json")["standard"]
         self.store.create(worker, plan, b"assigned prompt")
         worker_fn = CLI_FUNCTIONS["_worker"]
@@ -650,7 +1143,9 @@ class ContractsAndTransport(Fixture):
                               if self.store.load(x.name).get("parent") == failed["id"]]), 1)
 
     def test_revision_bound_and_checkpoint_next(self):
-        initial = json.loads(self.cli("execute", self.plan(), self.repo,
+        visual = self.visual_execution(self.worktree())
+        initial = json.loads(self.cli("execute", self.plan(inputs={"visual":{
+            "executionId":visual["id"], "inputIds":visual["report"]["inputIds"], "report":True}}), self.repo,
                                       env={"FAKE_CAPTURE": "change.txt"}, check=True).stdout)
         findings = self.root / "findings.md"
         findings.write_text("Finding: specific observed review defect.\n")
@@ -660,10 +1155,28 @@ class ContractsAndTransport(Fixture):
                                      "--expected-tree", first["output_candidate_tree"], check=True).stdout)
         self.assertNotEqual(self.cli("revise", second["id"], findings,
                                      "--expected-tree", second["output_candidate_tree"]).returncode, 0)
-        point = json.loads(self.cli("checkpoint", second["worktree"],
+        approved = self.cli("review", second["id"], second["output_candidate_tree"],
+                            self.review_dossier(second),env={"FAKE_MODE":"review"},check=True)
+        self.assertEqual(json.loads(approved.stdout)["outcome"],"APPROVE")
+        point = json.loads(self.cli("checkpoint", second["id"],
                                     second["output_candidate_tree"], "--message", "feat: reviewed",
                                     check=True).stdout)["checkpoint_oid"]
-        next_run = self.cli("next", second["id"], point, self.plan())
+        image = image_paths(self.store, second)[0]
+        unavailable = image.with_suffix(".unavailable")
+        image.rename(unavailable)
+        capture = self.root / "unexpected-next.json"
+        executions = set(self.store.executions.iterdir())
+        worktrees = set(self.store.worktrees.iterdir())
+        rejected = self.cli("next", second["id"], point, self.plan(), env={"FAKE_CAPTURE":str(capture)})
+        self.assertEqual(rejected.returncode, 2, rejected.stdout)
+        self.assertIn("input is unreadable", rejected.stderr)
+        self.assertFalse(capture.exists())
+        self.assertFalse(self.store.load(second["id"])["consumed"])
+        self.assertEqual(set(self.store.executions.iterdir()), executions)
+        self.assertEqual(set(self.store.worktrees.iterdir()), worktrees)
+        unavailable.rename(image)
+        next_run = self.cli("next", second["id"], point, self.plan(),
+                            env={"FAKE_CAPTURE":"successor-change.txt"})
         self.assertEqual(next_run.returncode, 0, next_run.stderr)
         successor = json.loads(next_run.stdout)
         self.assertNotEqual(successor["worktree"], second["worktree"])
@@ -672,11 +1185,71 @@ class ContractsAndTransport(Fixture):
         self.assertEqual(json.loads(self.cli("candidate", successor["worktree"], check=True).stdout)["tree"],
                          successor["output_candidate_tree"])
         self.assertNotEqual(self.cli("next", second["id"], point, self.plan()).returncode, 0)
+        tree = successor["output_candidate_tree"]
+        dossier = self.review_dossier(successor)
+        self.cli("review", successor["id"], tree, dossier, env={"FAKE_MODE":"review"}, check=True)
+        point = json.loads(self.cli("checkpoint", successor["id"], tree,
+            "--message", "test: reviewed successor", check=True).stdout)["checkpoint_oid"]
+        data = json.loads(dossier.read_text())
+        data["head"] = point
+        dossier.write_text(json.dumps(data))
+        latest = json.loads(self.cli("review", successor["id"], tree, dossier,
+            env={"FAKE_MODE":"review", "FAKE_REVIEW_REPORT":json.dumps(self.revise_report())}, check=True).stdout)
+        self.assertEqual(latest["outcome"], "REVISE")
+        capture = self.root / "unexpected-successor.json"
+        executions = set(self.store.executions.iterdir())
+        rejected = self.cli("next", successor["id"], point, self.plan(), env={"FAKE_CAPTURE":str(capture)})
+        self.assertEqual(rejected.returncode, 2, rejected.stdout)
+        self.assertIn("approval", rejected.stderr)
+        self.assertFalse(capture.exists())
+        self.assertFalse(self.store.load(successor["id"])["consumed"])
+        self.assertEqual(set(self.store.executions.iterdir()), executions)
+        self.cli("review", successor["id"], tree, dossier, env={"FAKE_MODE":"review"}, check=True)
+        self.cli("next", successor["id"], point, self.plan(), check=True)
+
+    def test_checkpoint_integration_binds_execution_target_and_merge_tree(self):
+        worktree = self.worktree()
+        (worktree.path / "tracked.txt").write_text("reviewed\n")
+        execution = self.review_execution(worktree.path)
+        tree = execution["output_candidate_tree"]
+        dossier = self.review_dossier(execution)
+        self.cli("review", execution["id"], tree, dossier, env={"FAKE_MODE":"review"}, check=True)
+        oid = json.loads(self.cli("checkpoint", execution["id"], tree,
+            "--message", "test: reviewed checkpoint", check=True).stdout)["checkpoint_oid"]
+        rejected = self.cli("checkpoint", execution["id"], "--integrate-oid", oid,
+                            "--target", self.repo, "--expected-target", self.base)
+        self.assertEqual(rejected.returncode, 2)
+        data = json.loads(dossier.read_text())
+        data.update(head=oid, target={"worktree":str(self.repo),"head":self.base,"mergeTree":tree})
+        dossier.write_text(json.dumps(data))
+        self.cli("review", execution["id"], tree, dossier, env={"FAKE_MODE":"review"}, check=True)
+        for source, target in ((self.base, self.base), (oid, "0" * 40)):
+            rejected = self.cli("checkpoint", execution["id"], "--integrate-oid", source,
+                                "--target", self.repo, "--expected-target", target)
+            self.assertEqual(rejected.returncode, 2)
+            self.assertEqual(git(self.repo, "rev-parse", "HEAD"), self.base)
+        run("git", "-C", self.repo, "commit", "--allow-empty", "-qm", "test: target drift")
+        target_head = git(self.repo, "rev-parse", "HEAD")
+        rejected = self.cli("checkpoint", execution["id"], "--integrate-oid", oid,
+                            "--target", self.repo, "--expected-target", self.base)
+        self.assertEqual(rejected.returncode, 2)
+        self.assertIn("target drift", rejected.stderr)
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD"), target_head)
+        data["target"]["head"] = target_head
+        dossier.write_text(json.dumps(data))
+        self.cli("review", execution["id"], tree, dossier, env={"FAKE_MODE":"review"}, check=True)
+        result = self.cli("checkpoint", execution["id"], "--integrate-oid", oid,
+                          "--target", self.repo, "--expected-target", target_head, check=True)
+        integrated = json.loads(result.stdout)["integrated_oid"]
+        self.assertEqual((git(self.repo, "rev-parse", "HEAD^1"), git(self.repo, "rev-parse", "HEAD^2")),
+                         (target_head, oid))
+        self.assertEqual(git(self.repo, "rev-parse", f"{integrated}^{{tree}}"), tree)
 
     def test_review_rejects_postrun_drift(self):
         worktree = self.worktree()
+        execution = self.review_execution(worktree.path)
         tree = candidate(worktree)[1]
-        result = self.cli("review", worktree.path, tree, self.plan(),
+        result = self.cli("review", execution["id"], tree, self.review_dossier(execution),
                           env={"FAKE_MODE": "review", "FAKE_CAPTURE": "concurrent-change.txt"})
         self.assertEqual(result.returncode, 0, result.stderr)
         record = json.loads(result.stdout)
@@ -810,7 +1383,8 @@ class ContractsAndTransport(Fixture):
             self.store, role="standard", worktree=worktree.path, common_dir=worktree.common_dir,
             branch=worktree.branch, head=worktree.head, tree=candidate(worktree)[1],
             grants=[], kind="execute")
-        record["environment_settings"] = parse_plan(plan)
+        record["plan_settings"] = parse_plan(plan)
+        record["environment_settings"] = record["plan_settings"]["environment"]
         record["role_settings"] = read_roles(roles_path)["standard"]
         self.store.create(record, plan, b"assigned prompt")
         codex_pid = self.root / "deadline-codex.pid"

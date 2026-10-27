@@ -36,7 +36,7 @@ already has another purpose, numbered in recommended execution order.
 ## Status
 
 - **Status**: TODO
-- **Improve contract**: `1.0.0-codex.17`
+- **Improve contract**: `1.0.0-codex.18`
 - **Implementation review**: PENDING | APPROVED | REVISE | BLOCKED
 - **Checkpoint**: NONE | RESUMABLE | INTEGRATED
 - **External acceptance**: NOT REQUIRED | PENDING | PASSED | FAILED
@@ -44,7 +44,7 @@ already has another purpose, numbered in recommended execution order.
 - **Priority**: P1 | P2 | P3
 - **Effort**: S | M | L
 - **Risk**: LOW | MED | HIGH
-- **Executor lane**: economy | standard | deep
+- **Executor lane**: economy | standard | deep | writer
 - **Executor routing evidence**: <why this lane satisfies the routing contract>
 - **Recovery seams**: none | <one to three dependency-ordered seams with paths, gates, and candidate lane>
 - **Depends on**: none | <plan identifier; inline any code-only exception's exact approved checkpoint or landing commit and observable prerequisite>
@@ -167,31 +167,37 @@ this section is omitted.>
 - **Procedure and limits**: <tool versions/provenance, cwd and literal commands, success/failure diagnostics and exit criteria, task budget; STOP/report unfinished work without gate downgrade>
 - **Evidence binding**: <existing gate IDs below, candidate and environment identity, invalidation triggers including imported code/properties; no separate evidence schema>
 
-### Required checks
+### Routing and gates
 
-<Classify every check once. Implementation gates pass before review approval;
-deferred acceptance is only for behavior this agent/environment cannot exercise;
-observations are non-blocking without an explicit threshold and transition.>
+```json codex-improve-routing
+{"version":1,"lane":"standard","writePaths":["src/**"],"requiredEvidence":["G1"]}
+```
 
-| Check | Class | Owner | Stage and target | Required evidence |
-|---|---|---|---|---|
-| <exact check> | <implementation gate/deferred acceptance/observation> | <owner> | <stage/checkpoint> | <output/result> |
+<Choose exact repository-relative files or glob patterns. For writer, add the
+settled materials described in planning-contract.md; for required visual
+inputs, name their authenticated execution and opaque input IDs there.>
 
-### Gate ledger
+```json codex-improve-gates
+{
+  "version": 1,
+  "gates": [{
+    "id": "G1",
+    "class": "implementation gate",
+    "kind": "check",
+    "check": "<exact command and expected result>",
+    "invalidatedBy": ["<paths or always-invalidated>"],
+    "environment": "<toolchain/probes and environment identity>",
+    "conditions": "<required environment conditions>"
+  }]
+}
+```
 
-<Use stable IDs. Name complete invalidation triggers and environment identity;
-use `always-invalidated` only for a genuinely holistic gate.>
-
-| Gate ID | Command/reviewer | Invalidation triggers | Environment identity | Current candidate evidence |
-|---|---|---|---|---|
-| G1 | <exact command/reviewer> | <paths/interfaces/outputs/inputs/checkpoint, or always-invalidated> | <toolchain/probe/checkpoint> | <candidate tree/result/artifact> |
-
-<Append after every candidate transition. Uncertain mapping invalidates the ID.>
-
-| Old candidate | New candidate | Changed paths | Preserved gate/reviewer IDs | Invalidated IDs and reasons |
-|---|---|---|---|---|
-
-<Initial implementation review covers the complete candidate diff.>
+<One gate block is the check ledger. Classify each gate once as implementation
+gate, deferred acceptance, or observation. Check gates require structured
+artifact evidence; review gates are produced by independent review. All
+implementation gates belong in requiredEvidence. Unknown invalidation mappings
+invalidate evidence. Append candidate transitions and evidence references in
+execution/review dossiers, without repeating the gate definitions here.>
 
 ## Operational handoff
 

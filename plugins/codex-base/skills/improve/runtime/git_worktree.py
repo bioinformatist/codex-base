@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import fnmatch
 import hashlib
 import os
 import re
@@ -212,6 +213,19 @@ def require_candidate(worktree: Worktree, expected: str) -> tuple[str, str]:
     if identity[1] != expected:
         raise BoundaryError("candidate tree does not match expected tree")
     return identity
+
+
+def check_write_paths(worktree: Worktree, base: str, tree: str,
+                      paths: list[str], grants: list[str]) -> None:
+    # Disabling rename detection checks both endpoints, including type/mode changes.
+    changed = command(["git", "-C", str(worktree.path), "diff-tree", "--no-commit-id",
+                       "--no-renames", "--name-only", "-r", "-z", base, tree]).stdout.split("\0")
+    for name in filter(None, changed):
+        root = name.split("/")[0]
+        if root == ".git" or (root in (".agents", ".codex") and root not in grants) or not any(
+            fnmatch.fnmatchcase(name, pattern) for pattern in paths
+        ):
+            raise BoundaryError(f"change outside authenticated writePaths: {name}")
 
 
 def require_oid(root: Path, expected: str, kind: str) -> str:

@@ -4,7 +4,7 @@ Audit and formal planning remain read-only. After the user authorizes a reviewed
 plan, the main agent saves it and delegates implementation through the public
 `codex-improve` coordinator. Read the planning contract for plan, environment,
 role, gate-ledger, and lifecycle requirements. The current source runtime accepts
-only `1.0.0-codex.17`; older private execution state is retained separately and
+only `1.0.0-codex.18`; older private execution state is retained separately and
 is never migrated.
 
 ## Execute an approved plan
@@ -19,12 +19,12 @@ An optional `--copy-from SOURCE --include PATH` copies only named ignored
 cache files from a validated source; the source and include set must be reviewed.
 
 ```console
-codex-improve execute PLAN REPOSITORY --lane economy|standard|deep
+codex-improve execute PLAN REPOSITORY --lane economy|standard|deep|writer
 codex-improve status [EXECUTION_ID]
 codex-improve candidate WORKTREE
 ```
 
-The coordinator reads the one `.17` environment block in the plan, creates an
+The coordinator reads the one `.18` environment block in the plan, creates an
 isolated Worktrunk worktree from a committed base, snapshots the plan and role,
 runs the literal launcher and bounded probes, then launches official `codex exec`
 with the selected role. The caller may specify a full committed `--base OID`.
@@ -111,12 +111,100 @@ Capture `codex-improve candidate WORKTREE` after each implementation or
 revision. Inspect the complete candidate diff and step results. A reviewer
 must independently inspect the candidate code for each assigned check, then
 expand where concrete gaps or contradictions appear. Do not limit inspection
-to gaps claimed by an executor handoff. Use a read-only dossier and the full expected tree:
+to gaps claimed by an executor handoff. Review uses the completed execution ID
+and a structured JSON dossier; scout uses a worktree and a read-only text
+dossier. Pass the full expected tree:
 
 ```console
-codex-improve review WORKTREE FULL_TREE DOSSIER.md
+codex-improve review EXECUTION_ID FULL_TREE REVIEW.json
 codex-improve scout WORKTREE FULL_TREE DOSSIER.md
 ```
+
+### Review dossier
+
+Read the original execution record and its plan gates. For a plan whose required
+check gate is `G1`, the minimal review dossier is:
+
+```json
+{
+  "version": 1, "executionId": "EXECUTION_ID", "head": "HEAD", "tree": "FULL_TREE",
+  "evidence": [{
+    "gate": "G1", "status": "PASS",
+    "artifact": {"path": "/private/evidence/g1.log", "sha256": "ARTIFACT_SHA256"},
+    "environment": "G1_ENVIRONMENT",
+    "head": "HEAD", "tree": "FULL_TREE", "planHash": "PLAN_HASH"
+  }],
+  "notes": "Review the complete candidate against the original plan and G1 evidence."
+}
+```
+
+Replace placeholders with the execution's `id`, current captured HEAD/tree and
+`plan_hash`; use the exact `environment` string from the original gate. Each
+artifact must be a real, unchanged file with its byte SHA256 (for example, from
+`sha256sum`); use absolute paths in private dossiers. Include every required
+`kind: check` gate exactly once. Review gates receive reviewer coverage rather
+than artifact entries. Unknown or duplicate gates fail. Required implementation
+gates must be `PASS`; `PENDING` cannot satisfy them. Notes must be nonempty.
+The accepted fields and validation live in [reviews.evidence](../runtime/reviews.py).
+
+### Visual inputs and evidence
+
+Use `codex-improve visual WORKTREE FULL_TREE VISUAL.md --inputs inputs.json`.
+`VISUAL.md` is a `.18` plan with the contract, environment, routing and gates
+blocks from the [plan template](plan-template.md). Set its lane to `visual`,
+`writePaths` to `[]`, and declare the inspection and its required evidence;
+`requiredEvidence` and `gates` may be empty for an observation. The manifest
+accepts local static PNG/JPEG originals. For a candidate image:
+
+```json
+{
+  "version": 1,
+  "images": [{
+    "path": "candidate.png", "purpose": "candidate", "source": "Authorized render of SC-01",
+    "capture": {"record": "capture.json", "sha256": "CAPTURE_SHA256", "verifiedBy": "main agent"}
+  }]
+}
+```
+
+`capture.json` records the actual authorized collection:
+
+```json
+{
+  "command": "ACTUAL_RENDER_COMMAND", "head": "HEAD", "tree": "FULL_TREE",
+  "scenario": "SC-01", "viewport": [1280, 720],
+  "output": {"path": "candidate.png", "sha256": "IMAGE_SHA256"},
+  "invocation": {"path": "invocation.log", "sha256": "INVOCATION_SHA256"}
+}
+```
+
+Retain the real invocation log from the existing renderer or screenshot tool.
+It must support the literal command, collection HEAD/tree and image SHA256;
+the main agent checks the actual run, scenario, viewport and output before
+setting `verifiedBy`. The capture record and log are each bound by their byte
+SHA256. Image, capture-record and invocation paths are relative to the manifest
+directory, stay below it and contain no symlinks. See
+[visual.import_images](../runtime/visual.py) for accepted fields and limits.
+The coordinator checks consistency and snapshots originals and provenance;
+the main agent is responsible for authenticity. A self-reported tree or a log
+assembled after the fact cannot replace actual collection evidence.
+
+For a reference image, use `purpose: reference`, describe its source and omit
+`capture`. Candidate images without matching collection evidence remain
+unbound observations. A visual gate needs a `COMPLETE` visual execution at the
+same HEAD/tree, at least one bound candidate image and no unbound candidate
+images. Add `visualExecutionId: VISUAL_ID` to that gate's review evidence entry;
+its artifact must reference the visual execution's actual `final.json` and
+`final_hash`. The reviewer receives those original snapshots and visual report.
+
+When the approved plan requires the executor to consume the same inputs, set
+`routing.inputs.visual` to
+`{"executionId":"VISUAL_ID","inputIds":["INPUT_ID"],"report":true}` using the
+complete visual execution and its full set of opaque input IDs. Missing or
+changed originals block launch. The [visual report schema](visual-report.schema.json)
+defines observations, inference, comparisons, uncertainty, unchecked areas and
+STOP reasons. Keep private images and paths out of public evidence.
+
+### Independent review and reconciliation
 
 The scout and reviewer roles have no write or network access. Run one independent
 comprehensive review for the plan's required review coverage. Review output is evidence, not replacement for required deterministic
@@ -142,11 +230,44 @@ without another model call when the exact candidate is unchanged and the raw
 report supplies complete review evidence. For example, an otherwise approving
 report may have duplicated plan-deferred CI in `BLOCKED` coverage. Verify that
 the affected checks were explicitly deferred, all current gates passed, and no
-finding or review blocker remains unresolved. Record the original error,
-supporting evidence and separate main-agent outcome in the review dossier.
-Missing or ambiguous evidence still prevents approval. This reconciliation
-needs no new permission under the existing implementation authorization;
-another model call still follows the approval rule above.
+finding or review blocker remains unresolved. Preserve the original error and
+raw report. A recorded main-agent conclusion alone does not create approval;
+submit the supported dispositions to the existing coordinator:
+
+```console
+codex-improve reconcile REVIEW_ID RECONCILIATION.json
+```
+
+For a latest review with one finding disproved by an actual artifact:
+
+```json
+{
+  "version": 1, "conclusion": "APPROVE",
+  "findings": [{
+    "index": 0, "disposition": "rejected",
+    "evidence": [{"path": "/private/evidence/finding-0.log", "sha256": "SUPPORT_SHA256"}],
+    "conclusion": "The recorded result demonstrates that the reported failure does not occur."
+  }],
+  "evidence": [],
+  "reason": "All findings are disposed with evidence and all required gates and coverage pass."
+}
+```
+
+Dispose every original finding exactly once by its zero-based index, with
+`resolved`, `rejected` or `unresolved`, a nonempty conclusion and real artifact
+references. `APPROVE` requires support for every finding and permits none
+unresolved. With no findings, use `findings: []` and place support in the
+top-level `evidence` array. Every support artifact uses `path` and `sha256` as
+above and remains available unchanged. Overall conclusions are `APPROVE`,
+`REVISE` or `BLOCK`; `reason` is required.
+
+Reconciliation applies only to the latest review's evidenced findings or
+`INCONCLUSIVE/invalid_final_output`. It revalidates candidate, settings, gates,
+artifacts and exact required coverage; missing or ambiguous evidence prevents
+approval. Candidate changes require revision and a new review. Successful
+reconciliation saves a separate authenticated approval while retaining the raw
+failure. It needs no new permission under the existing implementation
+authorization; another model call still follows the approval rule above.
 
 Preserve the uncommitted candidate. Implementation approval does not imply
 integration or external acceptance.
@@ -158,7 +279,7 @@ evidence-based reconciliation above, and after any required commit approval,
 the main agent may create one local checkpoint:
 
 ```console
-codex-improve checkpoint WORKTREE FULL_TREE --message 'type: summary'
+codex-improve checkpoint EXECUTION_ID FULL_TREE --message 'type: summary'
 ```
 
 The coordinator runs native Git hooks, checks the resulting tree, and advances
@@ -166,16 +287,28 @@ the Improve branch only from its expected parent. A hook failure or mutation
 leaves the original branch tip and evidence available. The local commit is a
 resumable checkpoint; it does not authorize merge, push, publication,
 deployment, activation, or worktree removal. Integration is a separate explicit
-action that names the reviewed commit OID and expected target HEAD:
+action that names the reviewed commit OID and expected target HEAD. It needs
+an execution-bound review after the checkpoint, with the current checkpoint
+HEAD and an additional dossier field:
+
+```json
+{"target":{"worktree":"ABSOLUTE_TARGET_WORKTREE","head":"TARGET_HEAD","mergeTree":"FULL_TREE"}}
+```
+
+Verify the target HEAD and precompute its merge result with the authenticated
+checkpoint. `mergeTree` must equal the reviewed candidate tree. Target drift
+or a different merge tree requires independent preparation and review of a new
+merge candidate. With matching authenticated approval and separate integration
+authority:
 
 ```console
-codex-improve checkpoint --integrate-oid REVIEWED_OID --target REPOSITORY --expected-target TARGET_HEAD
+codex-improve checkpoint EXECUTION_ID --integrate-oid CHECKPOINT_OID --target WORKTREE --expected-target TARGET_HEAD
 ```
 
 A dependent approved plan may start only from a protected exact checkpoint:
 
 ```console
-codex-improve next EXECUTION_ID CHECKPOINT_OID PLAN --lane economy|standard|deep
+codex-improve next EXECUTION_ID CHECKPOINT_OID PLAN --lane economy|standard|deep|writer
 ```
 
 Record the current checkpoint ID and lineage whenever its persistent identity

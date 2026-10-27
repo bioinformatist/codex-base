@@ -2,6 +2,9 @@
 
 ## Applying an update
 
+> [!WARNING]
+> Before every update, complete and close out all Improve tasks. After updating, old tasks cannot be migrated or resumed. Improve accepts only .18 plans and keeps older private records separate.
+
 For a Git-backed plugin installation, refresh the configured marketplace on
 the execution host:
 

@@ -741,6 +741,12 @@ ledger to a file (e.g. `PONYTAIL-DEBT.md`). One-shot. "stop ponytail-debt" or
   sed -i '$ { /^$/d; }' "$out/improve/references/ponytail-core.md"
   grep -Fq '## The smallest complete change' "$out/improve/references/ponytail-core.md"
   ! grep -Fq 'Active for the whole session' "$out/improve/references/ponytail-core.md"
+  awk 'BEGIN { dashes = 0 } /^---$/ && dashes < 2 { dashes++; next } dashes >= 2 { print }' \
+    "$out/ponytail-review/SKILL.md" > "$out/improve/references/ponytail-review.md"
+  sed -i '/^## 4. Output$/,$d' "$out/improve/references/ponytail-review.md"
+  sed -i '/^This is a report the user asked for, so give it in full.$/d' "$out/improve/references/ponytail-review.md"
+  echo 'Return only the Improve review JSON protocol supplied by the coordinator.' >> "$out/improve/references/ponytail-review.md"
+  ! grep -Fq -e 'Verdict: Ship.' -e 'What this change does:' "$out/improve/references/ponytail-review.md"
   grep -Fq 'Preserve accepted interfaces, behavior, and required tests.' "$out/ponytail-review/SKILL.md"
   grep -Fq 'Preserve accepted interfaces, behavior, and required tests.' "$out/ponytail-audit/SKILL.md"
   grep -Fq 'never writes, edits, stages, or persists a ledger' "$out/ponytail-debt/SKILL.md"

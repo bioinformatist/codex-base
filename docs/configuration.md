@@ -33,7 +33,7 @@ default_mode_request_user_input = true
 
 This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level; the three feature toggles belong in `[features]`. Update existing keys in place. Replace existing boolean `context_management` or `code_mode` entries with the dotted form above; do not keep both a boolean and table form or duplicate a TOML key.
 
-After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend, and the service can still withhold the capability from the starting model. Consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. Before formal Improve planning, check that built-in Plan Mode exposes callable native context management and structured questions. If either is missing, start a capable Plan Mode session.
+After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend, and the service can still withhold the capability from the starting model. Consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. Before formal Improve planning, verify Astra in built-in Plan Mode and callable native context management and structured questions. Independent Astra plan review may use read-only Default Mode with both native capabilities. If either is missing, start a capable Plan Mode session.
 
 The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers context management, Code Mode, and Plan Mode effort. The Default Mode question flag is supported by the verified Codex [feature declaration](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs).
 
@@ -65,7 +65,7 @@ Definitions of this option merge through the native Nix module system; use `lib.
 
 ## Model choice
 
-Home Manager defaults to `gpt-6.1-sol` with medium reasoning and high reasoning in Plan Mode. The plugin does not change the user's model. Formal Improve planning depends on live context-management and structured-question capabilities, not a particular model name. Astra may be chosen explicitly for difficult planning; neither a model name nor a config flag proves the capability is available. The selected Improve executor lane has separate role settings; see [executor routing](architecture.md#executor-routing).
+Home Manager defaults to `gpt-6.1-sol` with medium reasoning and high reasoning in Plan Mode. The plugin does not change the user's model. Formal Improve planning requires Astra, built-in Plan Mode, and live native context management and structured questions. Independent Astra plan review may use read-only Default Mode with both capabilities. High reasoning and Code Mode are recommendations. A model name or config flag alone does not prove capability availability. The selected Improve executor lane has separate role settings; see [executor routing](architecture.md#executor-routing).
 
 ## Model context defaults
 
@@ -136,11 +136,6 @@ Preserve unrelated configuration and restore `plan_mode_reasoning_effort` to its
 
 Home Manager users must also reverse the managed overlay before activation, or activation will set the managed values again. Follow the [reload instructions](../README.md#reload-after-an-update) after changing the effective configuration.
 
-## Retired Mintlify default
+## Preserving user configuration
 
-Home Manager removes `mcp_servers.mintlify_index` only when its complete table
-exactly matches the old default: URL `https://index.mintlify.com/mcp`,
-`required = false`, `startup_timeout_sec = 30`, and `tool_timeout_sec = 120`.
-Any changed value or additional field is preserved. Review and remove custom
-or plugin-only native entries manually if no longer needed; updating the plugin
-does not delete native configuration.
+Home Manager merges its managed values and preserves unrelated user tables, custom MCP entries, and context-window overrides. Retired Mintlify entries require manual review and removal if no longer needed; updates do not clean them up automatically.

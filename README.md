@@ -32,7 +32,7 @@ The [credits and licenses](docs/credits.md) describe the upstream contributions 
 
 ![How direct editing and Codex Base handle a task as its context grows](docs/assets/codex-base-workflow.svg)
 
-For bounded implementation work, the approved plan selects economy (Luna/low), standard (Sol 6.1/medium), or deep (Sol 6.1/xhigh). The coordinator does not switch models after launch; see [executor routing](docs/architecture.md#executor-routing).
+For bounded implementation work, the approved plan selects economy (Luna/low), standard (Sol 6.1/medium), deep (Sol 6.1/xhigh), or writer (Terra/low) for independently acceptable writing with settled materials. The read-only visual role uses Terra/medium for original images. The coordinator does not switch models after launch; see [executor routing](docs/architecture.md#executor-routing).
 
 Planning and review also consume usage, so small, clear edits are usually better handled directly. Codex Base does not promise fewer tokens or lower cost for every task.
 
@@ -55,7 +55,7 @@ Install and configure Codex Base on the machine that executes the task:
 
 For SSH setup, follow the official [connection guide](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host). Installing on the desktop client alone does not configure the remote host.
 
-Linux execution needs Bash, GNU coreutils, Git, GNU sed, jq, and Codex on `PATH`. Portable Improve execution additionally needs Python 3.11 or newer and Worktrunk (`wt`); the Nix closure supplies Python, Git, Codex, and Worktrunk. Windows users can use portable skills from a compatible Codex CLI environment; the complete Improve runners and Nix/Home Manager environment require Linux, such as WSL2. Keep WSL repositories in its Linux filesystem (for example `~/src`, not `/mnt/c`). Native Windows Improve runners and Windows CI are not provided here.
+Linux execution needs Bash, GNU coreutils, Git, GNU sed, jq, and Codex on `PATH`. Portable Improve execution additionally needs Python 3.11 or newer and Worktrunk (`wt`); the Nix closure supplies Python, Git, Codex, Worktrunk, and Pillow. Portable image work requires Pillow 12.3.0 from `skills/improve/requirements-visual.txt` in a temporary virtual environment; paths without images do not require it. Windows users can use portable skills from a compatible Codex CLI environment; the complete Improve runners and Nix/Home Manager environment require Linux, such as WSL2. Keep WSL repositories in its Linux filesystem (for example `~/src`, not `/mnt/c`). Native Windows Improve runners and Windows CI are not provided here.
 
 <a id="choose-an-installation"></a>
 
@@ -136,7 +136,7 @@ These instructions apply to **both installation methods**. A Codex task means on
 
 ### Start with the right model
 
-The managed default is `gpt-6.1-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning requires built-in Plan Mode with callable native context management and structured questions in the current session. A model name, configuration flag, or Plan Mode label alone does not prove those capabilities are available. If either tool is missing, use a capable Plan Mode session; see [native Codex configuration](docs/configuration.md#native-codex-configuration) and [model selection](docs/configuration.md#model-choice). Astra is an explicit choice for difficult planning, not a prerequisite or automatic escalation.
+The managed default is `gpt-6.1-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning requires Astra in built-in Plan Mode with callable native context management and structured questions in the current session. A model name, configuration flag, or Plan Mode label alone does not prove those capabilities are available. If either tool is missing, use a capable Plan Mode session; see [native Codex configuration](docs/configuration.md#native-codex-configuration) and [model selection](docs/configuration.md#model-choice). An independent Astra plan reviewer may use read-only Default Mode with both native capabilities. High reasoning and Code Mode are recommendations; the coordinator does not change the main model.
 
 ### Plan, then authorize implementation
 
@@ -157,6 +157,9 @@ Both installation methods include the skill; neither installs Bend or Lean.
 Default Mode implementation, audits, and routine lifecycle bookkeeping do not require a new formal-planning workflow. Use individual skills directly when a task does not need formal planning; see the [capability catalog](docs/capabilities.md).
 
 ## Reload after an update
+
+> [!WARNING]
+> Before every update, complete and close out all Improve tasks. After updating, old tasks cannot be migrated or resumed; new tasks require the .18 contract.
 
 First [update the installed plugin or activate the consuming Nix configuration](docs/updating.md#applying-an-update); restarting alone does not fetch new files. Wait for affected tasks to finish, then reload the runtime that executes them:
 

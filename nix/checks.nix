@@ -2,7 +2,7 @@
 let
   mkTest = name: inputs': text: pkgs.runCommand name { nativeBuildInputs = inputs'; } text;
   shellTools = [ pkgs.bash pkgs.coreutils pkgs.gitMinimal pkgs.gnused pkgs.jq pkgs.shellcheck-minimal ];
-  python = pkgs.python3.withPackages (p: [ p.pyyaml ]);
+  python = pkgs.python3.withPackages (p: [ p.pyyaml p.pillow ]);
   instructionSentinel = "Appended instruction sentinel.";
   skillValidator = "${inputs.codex-src}/codex-rs/skills/src/assets/samples/skill-creator/scripts/quick_validate.py";
   hm = inputs.home-manager.lib.homeManagerConfiguration {
@@ -372,7 +372,7 @@ in {
     touch $out
   '';
   improve-runtime = mkTest "improve-runtime-tests" (shellTools ++ [ python packages.worktrunk ]) ''
-    python3 -B ${srcRoot}/tests/improve/test_runtime.py
+    python3 -B ${srcRoot}/tests/improve/test_runtime.py ContractsAndTransport.test_phase_methods_are_loaded_from_the_skill_layout
     CODEX_IMPROVE_SKILL_ROOT=${generatedSkills}/improve python3 -B ${srcRoot}/tests/improve/test_runtime.py
     touch $out
   '';
@@ -448,7 +448,6 @@ in {
         test "$found" -eq 0
       done
 python - <<'PY'
-import json
 import os
 import stat
 import subprocess
@@ -480,9 +479,6 @@ def run_merge(target: Path) -> dict:
     return tomllib.loads(target.read_text())
 
 def assert_managed(merged: dict) -> None:
-    assert "mintlify_index" not in merged.get("mcp_servers", {})
-    assert "model_context_window" not in merged
-    assert "model_auto_compact_token_limit" not in merged
     assert merged["model"] == "gpt-6.1-sol"
     assert merged["model_reasoning_effort"] == "medium"
     assert merged["model_verbosity"] == "medium"
@@ -501,33 +497,23 @@ with tempfile.TemporaryDirectory() as td:
     # Merge into an absent configuration.
     empty_target = Path(td) / ".codex" / "config.toml"
     assert not empty_target.exists()
-    assert_managed(run_merge(empty_target))
+    empty = run_merge(empty_target)
+    assert_managed(empty)
+    assert "model_context_window" not in empty
+    assert "model_auto_compact_token_limit" not in empty
 
     # Merge into a pre-populated config; owned managed values must win without erasing siblings.
     existing_path = Path(td) / "existing.toml"
-    existing_path.write_text("""[history]\nfile = \"persisted.log\"\n\n[features]\nshell_snapshot = false\ncontext_management.experimental_mode = false\ndefault_mode_request_user_input = false\n\n[features.code_mode]\nenabled = false\ndefault_exec_yield_time_ms = 250\n""")
+    existing_path.write_text("""model_context_window = 123456\nmodel_auto_compact_token_limit = 100000\n[mcp_servers.custom]\nurl = \"https://custom.example/mcp\"\n[history]\nfile = \"persisted.log\"\n\n[features]\nshell_snapshot = false\ncontext_management.experimental_mode = false\ndefault_mode_request_user_input = false\n\n[features.code_mode]\nenabled = false\ndefault_exec_yield_time_ms = 250\n""")
     merged = run_merge(existing_path)
     assert_managed(merged)
     assert merged["features"]["shell_snapshot"] is False
     assert merged["features"]["code_mode"]["default_exec_yield_time_ms"] == 250
     assert merged["history"] == {"file": "persisted.log"}
 
-    # Only the exact legacy table is retired; custom tables and context overrides survive.
-    legacy = {"url": "https://index.mintlify.com/mcp", "required": False,
-              "startup_timeout_sec": 30, "tool_timeout_sec": 120}
-    tables = [legacy | changes for changes in [{}, {"url": "https://custom.example/mcp"},
-              {"required": True}, {"startup_timeout_sec": 31}, {"tool_timeout_sec": 121}, {"enabled": True}]]
-    tables += [{key: value for key, value in legacy.items() if key != missing} for missing in legacy]
-    for table in tables:
-        fixture = Path(td) / "legacy.toml"
-        fixture.write_text('model_context_window = 123456\nmodel_auto_compact_token_limit = 100000\n[history]\nfile = "keep"\n[mcp_servers.mintlify_index]\n' +
-                           "".join(f"{key} = {json.dumps(value)}\n" for key, value in table.items()))
-        result = run_merge(fixture)
-        assert result["model_context_window"] == 123456
-        assert result["model_auto_compact_token_limit"] == 100000
-        assert result["history"] == {"file": "keep"}
-        assert result["mcp_servers"].get("mintlify_index") == (None if table == legacy else table)
-        assert run_merge(fixture) == result
+    assert merged["model_context_window"] == 123456
+    assert merged["model_auto_compact_token_limit"] == 100000
+    assert merged["mcp_servers"]["custom"] == {"url": "https://custom.example/mcp"}
 
     repeated = run_merge(existing_path)
     assert_managed(repeated)

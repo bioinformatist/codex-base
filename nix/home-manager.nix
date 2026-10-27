@@ -104,11 +104,6 @@ let
                   merge(dst[key], value)
               else:
                   dst[key] = value
-      servers = target.get("mcp_servers", {})
-      legacy = {"url": "https://index.mintlify.com/mcp", "required": False,
-                "startup_timeout_sec": 30, "tool_timeout_sec": 120}
-      if servers.get("mintlify_index") == legacy:
-          del servers["mintlify_index"]
       merge(target, managed)
       target_path.parent.mkdir(parents=True, exist_ok=True)
       fd, tmp = tempfile.mkstemp(prefix=".config.toml.", dir=target_path.parent, text=True)
