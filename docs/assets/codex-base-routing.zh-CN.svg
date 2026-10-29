@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img">
+<title>① 执行通道</title><desc>批准的计划选择一个可写通道；只读角色提供支持。材料不足返回规划。</desc>
+<defs><style>.bg{fill:#f8fafc}.box{fill:#eff6ff;stroke:#2563eb;stroke-width:2}.conditional{fill:#fffbeb;stroke:#d97706;stroke-width:2}.end{fill:#ecfdf5;stroke:#059669;stroke-width:2}.line{fill:none;stroke:#475569;stroke-width:2.5;marker-end:url(#arrow)}.title{font:700 26px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.label{font:600 19px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.small{font:16px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#334155}</style><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#475569"/></marker></defs>
+<rect class="bg" width="1200" height="620" rx="24"/><text class="title" x="40" y="52">① 执行通道</text>
+<rect class="box" x="40" y="85" width="1120" height="70" rx="12"/><text class="label" x="600.0" y="126.0" text-anchor="middle">批准的计划：边界、材料、检查及通道</text>
+<rect class="box" x="40" y="210" width="265" height="110" rx="12"/><text class="label" x="172.5" y="247.0" text-anchor="middle">economy · Luna / low</text><text class="label" x="172.5" y="271.0" text-anchor="middle">有限任务；边界、材料</text><text class="label" x="172.5" y="295.0" text-anchor="middle">和检查明确</text>
+<rect class="box" x="325" y="210" width="265" height="110" rx="12"/><text class="label" x="457.5" y="259.0" text-anchor="middle">standard · Sol 6.1 / medium</text><text class="label" x="457.5" y="283.0" text-anchor="middle">普通工程</text>
+<rect class="box" x="610" y="210" width="265" height="110" rx="12"/><text class="label" x="742.5" y="259.0" text-anchor="middle">deep · Sol 6.1 / xhigh</text><text class="label" x="742.5" y="283.0" text-anchor="middle">复杂或高风险工程</text>
+<rect class="box" x="895" y="210" width="265" height="110" rx="12"/><text class="label" x="1027.5" y="259.0" text-anchor="middle">writer · Terra / low</text><text class="label" x="1027.5" y="283.0" text-anchor="middle">材料和结论齐备，可独立验收</text>
+<text class="small" x="40" y="385">材料不足返回规划；角色固定，不自动切换或回退。</text>
+<rect class="conditional" x="40" y="425" width="1120" height="105" rx="12"/><text class="label" x="600.0" y="471.5" text-anchor="middle">只读辅助：scout · Luna/high  |  visual · Terra/medium  |  reviewer · Sol 6.1/high</text><text class="label" x="600.0" y="495.5" text-anchor="middle">不属于可写通道</text>
+</svg>

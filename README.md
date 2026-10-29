@@ -36,7 +36,7 @@ The [credits and licenses](docs/credits.md) describe the upstream contributions 
 
 ![How direct editing and Codex Base handle a task as its context grows](docs/assets/codex-base-workflow.svg)
 
-For bounded implementation work, the approved plan selects economy (Luna/low), standard (Sol 6.1/medium), deep (Sol 6.1/xhigh), or writer (Terra/low) for independently acceptable writing with settled materials. The read-only visual role uses Terra/medium for original images. The coordinator does not switch models after launch; see [executor routing](docs/architecture.md#executor-routing).
+See the [workflow guide](docs/workflow.md#overview) for the main path, [① execution lanes](docs/workflow.md#execution), and [② verification](docs/workflow.md#verification).
 
 Planning and review also consume usage, so small, clear edits are usually better handled directly. Codex Base does not promise fewer tokens or lower cost for every task.
 
@@ -154,7 +154,7 @@ These instructions apply to **both installation methods**. A Codex task means on
 
 ### Start with the right model
 
-The managed default is `gpt-6.1-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning requires Astra in built-in Plan Mode with callable native context management and structured questions in the current session. A model name, configuration flag, or Plan Mode label alone does not prove those capabilities are available. If either tool is missing, use a capable Plan Mode session; see [native Codex configuration](docs/configuration.md#native-codex-configuration) and [model selection](docs/configuration.md#model-choice). An independent Astra plan reviewer may use read-only Default Mode with both native capabilities. High reasoning and Code Mode are recommendations; the coordinator does not change the main model.
+The managed default is `gpt-6.1-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning needs a capable Astra Plan Mode session. Check the [planning prerequisites](docs/workflow.md#overview) and [configuration](docs/configuration.md#model-choice) before starting.
 
 ### Plan, then authorize implementation
 
@@ -167,17 +167,13 @@ Enter built-in Plan Mode with `/plan` or Shift+Tab in the CLI; the desktop compo
 
 Improve discovers facts, asks about material unresolved choices, and presents the complete replacement plan in chat. Planning creates no plan, questionnaire, handoff, or temporary files. Once you accept the plan, authorize implementation in Default Mode; that later writable phase can persist the plan and execute it.
 
-During planning, Improve selects verification for the task. Ordinary work uses
-review and necessary tests; suitable Bend modules can add `bend-proof` machine
-proofs with explicit properties and coverage limits. Proofs supplement review.
-Both installation methods include the skill; neither installs Bend or Lean.
+The plan selects [verification](docs/workflow.md#verification) for the task, including necessary tests and independent review.
 
 Default Mode implementation, audits, and routine lifecycle bookkeeping do not require a new formal-planning workflow. Use individual skills directly when a task does not need formal planning; see the [capability catalog](docs/capabilities.md).
 
 ## Reload after an update
 
-> [!WARNING]
-> Before every update, complete and close out all Improve tasks. After updating, old tasks cannot be migrated or resumed; new tasks require the .18 contract.
+See [update compatibility](docs/updating.md#applying-an-update) before reloading.
 
 First [update the installed plugin or activate the consuming Nix configuration](docs/updating.md#applying-an-update); restarting alone does not fetch new files. Wait for affected tasks to finish, then reload the runtime that executes them:
 
@@ -191,6 +187,7 @@ For SSH, verify the running remote Codex App Server; `codex --version` only repo
 
 ## Learn and contribute
 
+- [Workflow guide](docs/workflow.md)
 - [Configuration, authentication, and troubleshooting](docs/configuration.md)
 - [Detailed capability catalog](docs/capabilities.md)
 - [Contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and [updating](docs/updating.md)

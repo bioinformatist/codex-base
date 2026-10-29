@@ -20,9 +20,9 @@ does not update a user's installed environment.
 
 Portable Improve users must also replace the native runtime with the archive
 from the same successful source tree and verify its checksum and metadata.
-See [installation](../README.md#codex-plugin). Keep the old runtime available
-until its plans finish; `.19` does not read or alter `.18` state, and rolling
-back code does not make `.19` tasks readable by `.18`.
+See [installation](../README.md#codex-plugin). Complete tasks with their original runtime before updating. This version does
+not migrate or resume state from other contracts; rolling back code does not
+migrate state either.
 
 Then follow [Reload after an update](../README.md#reload-after-an-update).
 

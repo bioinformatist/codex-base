@@ -52,41 +52,10 @@ guidance. Executor prompts retain runner-local scope, checks, STOP, and handoff
 constraints. Codex Base has no model-index or per-model global guidance files,
 and its ordinary runtime default remains Sol with medium reasoning.
 
-Native context-management eligibility depends on callable tools in the live
-session and server capability for the signed-in account. In the desktop app, that task is a Codex chat under a
-project; entering Plan Mode or invoking Improve in an existing chat does not
-start another session. Codex Base therefore keeps Sol as its ordinary default.
-Formal Improve planning requires Astra in built-in Plan Mode with callable
-native context management and structured questions. Independent Astra plan
-review may use read-only Default Mode with both capabilities. Trusted current
-session metadata and callable tools establish availability; a model name or
-configuration flag alone does not.
-
-In the CLI, ordinary `/model` selection changes the current chat and attempts
-to persist defaults. `/new` uses effective defaults plus explicit launch
-settings, rather than simply copying the current chat's model. Codex 0.155.1
-preserves a launch-model override across those `/new` chats. A user who keeps
-Sol as the persistent default can start a one-off Astra invocation with
-`codex -m gpt-6-astra`; Codex Base does not ship an Astra runtime profile.
-The [configuration guide](configuration.md#model-choice) records the scope
-distinctions and pinned source evidence.
-
-Formal Improve planning uses Astra and built-in Plan Mode only when the live session
-exposes callable native context management and structured questions. It produces one
-complete replacement in chat and creates no plan, questionnaire, handoff, or
-temporary file. A later authorized writable phase may persist that result.
-Implementation, audits, and routine lifecycle bookkeeping remain available in
-Default Mode without starting a new planning workflow.
-
-The historical prompt comparison for Codex 0.153.4 is limited to the public
-templates in `models-manager/models.json` at revision
-`3d2ee51ca2d5db578f328aa75e20aa22c0197c9a`: Sol, Terra, and Luna share that
-public base/template content, while Astra differs. It does not describe the
-current release pin or undisclosed server-side instructions, and Codex Base
-does not copy those model prompts.
-
-Improve reads the selected role from `src/improve/config/roles.json` and stores
-its effective settings with each execution. It never looks up a Codex profile.
+Formal planning prerequisites and role selection are described in the
+[workflow guide](workflow.md). The coordinator reads the selected role from
+`src/improve/config/roles.json` independently of the main session's model and
+stores its effective settings with each execution; it does not load Codex profiles.
 
 ## Executor routing
 
@@ -95,15 +64,11 @@ Improve `.19` uses the public `codex-improve` coordinator and private state in
 old tasks. Every plan declares environment, routing, and gate blocks; an
 explicit CLI lane must agree with the plan.
 
-The seven roles are economy (Luna/low), standard (Sol 6.1/medium), deep
-(Sol 6.1/xhigh), writer (Terra/low), scout (Luna/high), visual (Terra/medium),
-and reviewer (Sol 6.1/high). Writer is offline and requires settled facts,
-sources, technical conclusions, audience, terminology, semantic constraints,
-write paths, and acceptance. Atomic code and documentation changes stay with
-one engineering executor. Scout, visual, and reviewer are read-only. Actual
-Git differences are checked against write paths through execution, follow-up,
-review, and checkpoint; this is a diff check rather than per-path OS protection.
-Protected roots retain their explicit-grant rules.
+The reviewed plan selects a writable lane; scout, visual, and reviewer are
+read-only. See [execution lanes](workflow.md#execution) for their conditions.
+Actual Git differences are checked against write paths through execution,
+follow-up, review, and checkpoint; this is a diff check rather than per-path OS
+protection. Protected roots retain their explicit-grant rules.
 
 The Nix closure supplies the static Rust runtime, Git, Codex and Worktrunk.
 Portable users install the matching precompiled runtime and supply the host tools.

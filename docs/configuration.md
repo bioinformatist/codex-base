@@ -33,9 +33,9 @@ default_mode_request_user_input = true
 
 This is a merge fragment, not a replacement file or per-start flag. Keep unrelated configuration intact. `plan_mode_reasoning_effort` is top-level; the three feature toggles belong in `[features]`. Update existing keys in place. Replace existing boolean `context_management` or `code_mode` entries with the dotted form above; do not keep both a boolean and table form or duplicate a TOML key.
 
-After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend, and the service can still withhold the capability from the starting model. Consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. Before formal Improve planning, verify Astra in built-in Plan Mode and callable native context management and structured questions. Independent Astra plan review may use read-only Default Mode with both native capabilities. If either is missing, start a capable Plan Mode session.
+After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend, and the service can still withhold the capability from the starting model. Consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. See the [workflow guide](workflow.md#overview) for formal planning and review prerequisites.
 
-The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers context management, Code Mode, and Plan Mode effort. The Default Mode question flag is supported by the verified Codex [feature declaration](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs).
+The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers context management, Code Mode, and Plan Mode effort. The Default Mode question flag is supported by the verified Codex [feature declaration](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/core/tests/suite/request_user_input.rs).
 
 <a id="codex-package-selection"></a>
 
@@ -65,31 +65,22 @@ Definitions of this option merge through the native Nix module system; use `lib.
 
 ## Model choice
 
-Home Manager defaults to `gpt-6.1-sol` with medium reasoning and high reasoning in Plan Mode. The plugin does not change the user's model. Formal Improve planning requires Astra, built-in Plan Mode, and live native context management and structured questions. Independent Astra plan review may use read-only Default Mode with both capabilities. High reasoning and Code Mode are recommendations. A model name or config flag alone does not prove capability availability. The selected Improve executor lane has separate role settings; see [executor routing](architecture.md#executor-routing).
+Home Manager defaults to `gpt-6.1-sol` with medium reasoning and high reasoning in Plan Mode. The plugin does not change the main session's model. See the [workflow guide](workflow.md#execution) for planning prerequisites and separate executor lane settings.
 
 ## Model context defaults
 
-Codex Base leaves `model_context_window` and `model_auto_compact_token_limit`
-unset and preserves user overrides. Codex resolves per-model defaults from its
-model catalog: online model metadata can refresh the bundled catalog, while
-cached or bundled data may apply offline. Explicit configuration overrides can
-change the effective result. A model’s maximum supported window is not
-necessarily its default; receiving a larger server default requires no catalog
-patch or new Codex Base option.
+Codex Base leaves `model_context_window` and `model_auto_compact_token_limit` unset and preserves user overrides. Codex's model catalog uses remote, cached, or bundled metadata according to its refresh policy. It prefers `context_window` and falls back to `max_context_window`; a user window override cannot exceed the model maximum.
 
-For a model default of 500,000 tokens, the conventional 95% usable budget is
-475,000 and the 90% auto-compaction threshold is 450,000. This is a conditional
-example, not a guarantee that every account or model receives 500K. Native
-context management can reorganize context proactively before that threshold;
-the window size does not prove live context-management eligibility.
+The usable budget uses the model's configured percentage, defaulting to 95%. The auto-compaction threshold is the smaller of the configured threshold and 90% of the window. For a 500,000-token window, 475,000 usable tokens and a 450,000 threshold apply only at 95% and without a lower configured threshold. This example is not an account or model promise. Window size does not establish that native context tools are callable.
 
 When the displayed window differs, check in order: the actual executing binary
 and version (including a desktop or SSH App Server), selected model, online versus
 cached/bundled catalog, effective config and launch overrides, then a new chat
 after reloading the runtime. Do not delete user overrides automatically.
-The [model manager source](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/models-manager/src/manager.rs)
-and [protocol formulas](https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/protocol/src/openai_models.rs#L514-L536)
-explain this resolution and conventional budgeting; see also the official
+The [model manager source](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/models-manager/src/manager.rs)
+and [model metadata](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/models-manager/src/model_info.rs)
+and [protocol formulas](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/protocol/src/openai_models.rs)
+explain this resolution and budgeting; see also the official
 [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
 
 Updating a consuming configuration’s `codex-base` input updates its module and
@@ -138,4 +129,4 @@ Home Manager users must also reverse the managed overlay before activation, or a
 
 ## Preserving user configuration
 
-Home Manager merges its managed values and preserves unrelated user tables, custom MCP entries, and context-window overrides. Retired Mintlify entries require manual review and removal if no longer needed; updates do not clean them up automatically.
+Home Manager merges its managed values and preserves unrelated user tables, custom MCP entries, and context-window overrides. Updates do not automatically remove user-customized entries.

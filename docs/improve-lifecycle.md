@@ -3,7 +3,8 @@
 The Improve runtime accepts plan contract `1.0.0-codex.19`. Earlier execution
 artifacts stay in their original namespaces and are never migrated or resumed
 by this version. Current state uses `codex-improve-v19`. The following map
-records lifecycle ownership and the checks that exercise it.
+records lifecycle ownership and the checks that exercise it. For the user-facing
+workflow, see the [workflow guide](workflow.md).
 
 | Effective behavior | Owner | Verification |
 | --- | --- | --- |
@@ -26,7 +27,7 @@ caller-approved source commit OID. Git retains that operation. Automated
 Worktrunk calls disable its hooks and commit-message generation; reviewed
 checkpoints still run native Git hooks.
 
-The .18 interfaces are:
+The .19 interfaces are:
 
 ```console
 codex-improve execute PLAN REPOSITORY

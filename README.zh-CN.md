@@ -36,7 +36,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 ![直接修改与 Codex Base 如何处理逐渐变长的任务](docs/assets/codex-base-workflow.zh-CN.svg)
 
-对于边界明确的实现任务，已批准的计划选择 economy（Luna/low）、standard（Sol 6.1/medium）、deep（Sol 6.1/xhigh），或面向材料充分且可独立验收写作的 writer（Terra/low）。只读 visual 角色使用 Terra/medium 处理原图。协调器启动后不会自动换模型；详见[执行器路由](docs/architecture.md#executor-routing)。
+参阅[工作流指南](docs/workflow.zh-CN.md#overview)了解主线、[① 执行通道](docs/workflow.zh-CN.md#execution)和[② 验证方式](docs/workflow.zh-CN.md#verification)。
 
 规划和审查也会消耗用量，小而明确的修改通常直接做更合适；Codex Base 不承诺每项任务都能减少 token 或降低费用。
 
@@ -154,7 +154,7 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 ### 以合适的模型启动任务
 
-托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划要求 Astra 与内置 Plan Mode，且当前会话实际提供可调用的原生上下文管理和结构化提问工具。单凭模型名称、配置开关或 Plan Mode 标识不能证明能力可用。如果缺少任一工具，应使用具备该能力的 Plan Mode 会话；参阅[原生 Codex 配置](docs/configuration.zh-CN.md#native-codex-configuration)和[模型选择](docs/configuration.zh-CN.md#model-choice)。独立 Astra 计划审查员可以使用只读 Default Mode，但同样需要两项原生能力。high 推理强度和 Code Mode 是建议；协调器不会修改主模型。
+托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划需要具备相应能力的 Astra Plan Mode 会话。开始前请核对[规划前提](docs/workflow.zh-CN.md#overview)和[配置](docs/configuration.zh-CN.md#model-choice)。
 
 ### 先规划，再授权实现
 
@@ -167,16 +167,13 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 Improve 会查清事实、询问重要且尚未确定的选择，然后在对话中给出完整的替换计划。规划阶段不会创建计划、问卷、交接或临时文件。接受计划后，再在 Default Mode 中授权实现；后续可写阶段可以持久化计划并执行。
 
-Improve 在规划时按任务选择验证方式。普通工作使用审查和必要测试；适合的 Bend
-模块可通过 `bend-proof` 增加机器证明，并明确性质与覆盖边界。证明补充人工审查。
-两种安装方式均提供该技能，但都不安装 Bend 或 Lean。
+计划按任务选择[验证方式](docs/workflow.zh-CN.md#verification)，包括必要测试和独立审查。
 
 Default Mode 中的实现、审计和普通生命周期记录不需要重新走正式规划流程。不需要正式规划的任务可以直接使用相应技能，见[详细能力目录](docs/capabilities.zh-CN.md)。
 
 ## 更新后重新加载
 
-> [!WARNING]
-> 每次更新前，必须完成并收尾所有 Improve 任务。更新后不迁移或续跑旧任务；新任务必须使用 .18 契约。
+重新加载前请参阅[更新兼容性说明](docs/updating.md#applying-an-update)。
 
 先[更新已安装的插件或激活使用该模块的 Nix 配置](docs/updating.md#applying-an-update)；仅重启不会获取新文件。等相关任务执行完毕后，重新加载实际执行任务的运行时：
 
@@ -190,6 +187,7 @@ SSH 场景应核对正在运行的远端 Codex App Server；`codex --version` �
 
 ## 了解更多与参与贡献
 
+- [工作流指南](docs/workflow.zh-CN.md)
 - [配置、认证与排障](docs/configuration.zh-CN.md)
 - [详细能力目录](docs/capabilities.zh-CN.md)
 - [贡献指南](CONTRIBUTING.md)、[架构](docs/architecture.md)与[更新说明](docs/updating.md)

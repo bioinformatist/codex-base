@@ -35,9 +35,9 @@ default_mode_request_user_input = true
 
 这是合并片段，不应替换整个文件，也不是每次启动要带的参数。请保留无关配置。`plan_mode_reasoning_effort` 是顶层键，三个功能开关属于 `[features]`。已有键应就地修改；若 `context_management` 或 `code_mode` 目前为布尔值，请用上面的点分形式替换，不要同时保留布尔值和表，也不要重复定义 TOML 键。
 
-保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话，服务端仍可不向启动模型开放该能力。当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式 Improve 规划前，应核实 Astra、内置 Plan Mode 及实际可调用的原生上下文管理和结构化提问工具；独立 Astra 计划审查允许使用只读 Default Mode，但同样需要两项原生能力；如果缺少任一工具，应启动具备相应能力的 Plan Mode 会话。
+保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话，服务端仍可不向启动模型开放该能力。当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式规划和审查的前提见[工作流指南](workflow.zh-CN.md#overview)。
 
-官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由已核对的 Codex [功能声明](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/f0a1b8f0849d90960bc406b848f32e5a129b0457/codex-rs/core/tests/suite/request_user_input.rs)支持。
+官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由已核对的 Codex [功能声明](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/core/tests/suite/request_user_input.rs)支持。
 
 <a id="codex-package-selection"></a>
 
@@ -71,27 +71,21 @@ programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
 
 ## 模型选择
 
-Home Manager 默认使用 `gpt-6.1-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改用户的模型设置。正式 Improve 规划要求 Astra、内置 Plan Mode 及实际可调用的原生上下文管理和结构化提问工具。独立 Astra 计划审查可使用只读 Default Mode，但同样需要两项能力。high 推理强度和 Code Mode 是建议；模型名称或配置开关本身不能证明能力可用。Improve 执行通道另有独立的角色设置，见[执行器路由](architecture.md#executor-routing)。
+Home Manager 默认使用 `gpt-6.1-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改主会话的模型。规划前提和独立的执行通道设置见[工作流指南](workflow.zh-CN.md#execution)。
 
 ## 模型上下文默认值
 
-Codex Base 不设置 `model_context_window` 和
-`model_auto_compact_token_limit`，并保留用户覆盖值。Codex 从模型目录读取
-每个模型的默认值：在线元数据可以刷新内置目录，离线时可能使用缓存或内置
-数据；显式配置覆盖会改变有效结果。模型支持的最大窗口不一定是默认窗口；
-接收服务端更大的默认值不需要修改目录或增加 Codex Base 选项。
+Codex Base 不设置 `model_context_window` 和 `model_auto_compact_token_limit`，并保留用户覆盖值。Codex 模型目录按刷新策略使用远程、缓存或内置元数据。它优先使用 `context_window`，缺省时使用 `max_context_window`；用户窗口覆盖值不能超过模型上限。
 
-若某模型默认窗口为 500,000 token，传统的 95% 可用预算为 475,000，90%
-自动压缩阈值为 450,000。这只是条件示例，不保证所有账户或模型都获得 500K。
-原生上下文管理可能在达到阈值前主动重组上下文；窗口大小不能证明当前会话
-具备上下文管理能力。
+可用预算使用模型配置的百分比，默认 95%；自动压缩阈值取指定阈值与窗口 90% 的较小者。对于 500,000 token 的窗口，仅在使用 95% 且没有更低指定阈值时，可用预算为 475,000、压缩阈值为 450,000。这不是对账户或模型的承诺。窗口大小不能证明原生上下文工具实际可调用。
 
 显示窗口与预期不符时，依次检查：实际执行的二进制及版本（包括桌面或 SSH
 App Server）、所选模型、在线或缓存/内置目录、有效配置及启动覆盖，最后在
 重新加载运行时后创建新对话。不要自动删除用户覆盖值。
-[模型管理器源码](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/models-manager/src/manager.rs)
-和[协议公式](https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/protocol/src/openai_models.rs#L514-L536)
-解释了目录解析和传统预算；另见官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。
+[模型管理器源码](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/models-manager/src/manager.rs)
+、[模型元数据](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/models-manager/src/model_info.rs)
+和[协议公式](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/protocol/src/openai_models.rs)
+解释了目录解析和预算；另见官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。
 
 更新消费方的 `codex-base` 输入会更新模块与技能。若消费方覆盖了
 `programs.codexBase.package`，可执行文件则跟随另选的软件包及其锁文件。
@@ -142,4 +136,4 @@ Home Manager 用户还应在激活前撤销托管覆盖层中的对应设置，�
 
 ## 保留用户配置
 
-Home Manager 合并受管配置值，同时保留无关的用户配置表、自定义 MCP 和上下文窗口覆盖值。已退役的 Mintlify 条目需要用户自行检查并在不再需要时删除；更新不会自动清理它们。
+Home Manager 合并受管配置值，同时保留无关的用户配置表、自定义 MCP 和上下文窗口覆盖值。更新不会自动删除用户自定义条目。
