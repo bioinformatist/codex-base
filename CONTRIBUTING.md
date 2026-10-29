@@ -13,7 +13,8 @@ nix develop
 ```
 
 The shell contains the tools used by the repository checks, including Codex,
-Git, shellcheck, actionlint, typos, PyYAML, and the SVG renderer.
+Git, Rust 1.97.1 (rustc, cargo and rustfmt), shellcheck, actionlint, typos,
+PyYAML, and the SVG renderer.
 
 ## Editable and generated files
 
@@ -68,7 +69,7 @@ installed plugin layout, or Improve runners or their Codex invocation, also run
 the standalone non-Nix installation path:
 
 ```console
-tests/plugin-portability.bash
+CODEX_BASE_RUNTIME_ARCHIVE=/path/to/codex-base-runtime-x86_64-unknown-linux-musl.tar.gz tests/plugin-portability.bash
 ```
 
 The Nix checks do not replace this standalone path.

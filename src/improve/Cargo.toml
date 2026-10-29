@@ -1,0 +1,16 @@
+[package]
+name = "codex-improve"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+nix.workspace = true
+tempfile.workspace = true
+image.workspace = true

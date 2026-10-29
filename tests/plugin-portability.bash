@@ -9,7 +9,7 @@ fail() {
   exit 1
 }
 
-for command in bash base64 cmp curl git jq od python3 sed sha256sum tar timeout xz; do
+for command in bash base64 cmp curl git jq od python3 sed sha256sum tar timeout xz readelf; do
   command -v "$command" >/dev/null || fail "$command is required"
 done
 
@@ -33,6 +33,8 @@ worktrunk_hex="$({ printf '%s' "${worktrunk_sri#sha256-}" | base64 --decode; } |
 [[ "$codex_hex" =~ ^[[:xdigit:]]{64}$ ]] || fail "cannot decode codexHash"
 [[ "$worktrunk_hex" =~ ^[[:xdigit:]]{64}$ ]] || fail "cannot decode worktrunkHash"
 
+: "${CODEX_BASE_RUNTIME_ARCHIVE:?set CODEX_BASE_RUNTIME_ARCHIVE to the archive to test}"
+runtime_archive="$(readlink -f -- "$CODEX_BASE_RUNTIME_ARCHIVE")"
 root="$(mktemp -d)"
 trap 'rm -rf -- "$root"' EXIT
 mkdir -p "$root/bin" "$root/home" "$root/codex"
@@ -136,9 +138,6 @@ for relative in \
   references/executor-report.schema.json \
   references/review-verdict.schema.json \
   references/ponytail-core.md \
-  runtime/contracts.py \
-  runtime/transport.py \
-  runtime/git_worktree.py \
   scripts/codex-improve; do
   [[ -f "$improve/$relative" ]] || fail "installed plugin is missing skills/improve/$relative"
 done
@@ -148,10 +147,36 @@ if compgen -G "$improve/*.config.toml" >/dev/null; then
   fail "installed plugin contains runtime profile files"
 fi
 
-python3 -S -B "$improve/scripts/codex-improve" --help >/dev/null
-python3 -m venv "$root/venv"
-"$root/venv/bin/python3" -m pip install --disable-pip-version-check -r "$improve/requirements-visual.txt"
-export PATH="$root/venv/bin:$PATH"
-CODEX_IMPROVE_SKILL_ROOT="$improve" python3 -B "$repo/tests/improve/test_runtime.py"
-
+mkdir -p "$root/prefix" "$root/child-bin"
+(cd "$(dirname "$runtime_archive")" && sha256sum --check SHA256SUMS)
+tar -xzf "$runtime_archive" -C "$root/prefix"
+cmp "$root/prefix/metadata.json" "$(dirname "$runtime_archive")/metadata.json"
+jq -e '.version == 1 and .target == "x86_64-unknown-linux-musl" and .contract == "1.0.0-codex.19"
+  and ((.distribution == "local-smoke" and .sourceCommit == null and .sourceTree == null)
+       or (.distribution == "ci" and (.sourceCommit | test("^[0-9a-f]{40,64}$")) and (.sourceTree | test("^[0-9a-f]{40,64}$"))))' "$root/prefix/metadata.json" >/dev/null
+for binary in codex-improve merge-codex-base-config; do
+  readelf -h "$root/prefix/bin/$binary" | grep -Eq 'Machine:.*Advanced Micro Devices X86-64'
+  if readelf -l "$root/prefix/bin/$binary" | grep -q INTERP || readelf -d "$root/prefix/bin/$binary" | grep -q NEEDED; then
+    fail "$binary has a dynamic interpreter or shared dependency"
+  fi
+done
+diff -ru "$repo/plugins/codex-base/skills/improve" "$root/prefix/share/codex-base/skills/improve"
+test -f "$root/prefix/share/licenses/codex-base/LICENSE"
+for path in runtime src tests target Cargo.toml Cargo.lock requirements-visual.txt; do
+  test ! -e "$improve/$path"
+done
+# Only these host tools reach the native runtime and the shell model substitute.
+for tool in git sh env cat basename sleep; do
+  ln -s "$(command -v "$tool")" "$root/child-bin/$tool"
+done
+ln -s "$root/bin/wt" "$root/child-bin/wt"
+PORTABLE_CHILD_PATH="$root/child-bin" python3 -B "$repo/tests/improve/test_runtime.py" "$root/prefix" "$improve"
+PATH="$root/prefix/bin:$PATH" bash "$improve/scripts/codex-improve" --help >/dev/null
+# The portable launcher's missing-runtime and self-recursion errors are explicit.
+for tool in bash dirname readlink; do ln -s "$(command -v "$tool")" "$root/child-bin/$tool"; done
+if PATH="$root/child-bin" bash "$improve/scripts/codex-improve" --help 2>"$root/missing.err"; then fail 'missing native runtime accepted'; fi
+grep -Fq 'install the matching' "$root/missing.err"
+ln -s "$improve/scripts/codex-improve" "$root/child-bin/codex-improve"
+if PATH="$root/child-bin" bash "$improve/scripts/codex-improve" --help 2>"$root/recursive.err"; then fail 'recursive launcher accepted'; fi
+grep -Fq 'resolves to this launcher' "$root/recursive.err"
 printf 'non-Nix plugin portability passed with Codex %s\n' "$codex_version"

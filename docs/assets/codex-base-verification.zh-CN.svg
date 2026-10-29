@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img">
+<title>② 验证方式</title><desc>必要测试、逐步简化和独立审查构成主线。视觉与 Bend 支线可同时适用，均不替代独立审查。</desc>
+<defs><style>.bg{fill:#f8fafc}.box{fill:#eff6ff;stroke:#2563eb;stroke-width:2}.conditional{fill:#fffbeb;stroke:#d97706;stroke-width:2}.end{fill:#ecfdf5;stroke:#059669;stroke-width:2}.line{fill:none;stroke:#475569;stroke-width:2.5;marker-end:url(#arrow)}.title{font:700 26px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.label{font:600 19px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#0f172a}.small{font:16px system-ui,-apple-system,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#334155}</style><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#475569"/></marker></defs>
+<rect class="bg" width="1200" height="620" rx="24"/><text class="title" x="40" y="52">② 验证方式</text>
+<rect class="box" x="40" y="100" width="250" height="85" rx="12"/><text class="label" x="165.0" y="148.5" text-anchor="middle">必要测试</text>
+<path class="line" d="M290 142H325"/>
+<rect class="box" x="330" y="100" width="250" height="85" rx="12"/><text class="label" x="455.0" y="136.5" text-anchor="middle">逐步验证</text><text class="label" x="455.0" y="160.5" text-anchor="middle">与简化</text>
+<path class="line" d="M580 142H615"/>
+<rect class="box" x="620" y="100" width="250" height="85" rx="12"/><text class="label" x="745.0" y="148.5" text-anchor="middle">独立审查</text>
+<path class="line" d="M870 142H905"/>
+<rect class="end" x="910" y="100" width="250" height="85" rx="12"/><text class="label" x="1035.0" y="148.5" text-anchor="middle">检查点</text>
+<rect class="conditional" x="40" y="245" width="530" height="145" rx="12"/><text class="label" x="305.0" y="287.5" text-anchor="middle">视觉：需要原图分析时</text><text class="label" x="305.0" y="311.5" text-anchor="middle">输入：原图与收集证据</text><text class="label" x="305.0" y="335.5" text-anchor="middle">产出：带位置和不确定性的观察</text><text class="label" x="305.0" y="359.5" text-anchor="middle">返回实现与审查；不收集截图</text>
+<rect class="conditional" x="630" y="245" width="530" height="145" rx="12"/><text class="label" x="895.0" y="287.5" text-anchor="middle">Bend：计划选择实际 Bend 证明时</text><text class="label" x="895.0" y="311.5" text-anchor="middle">输入：实现与选定性质</text><text class="label" x="895.0" y="335.5" text-anchor="middle">产出：证明证据与覆盖边界</text><text class="label" x="895.0" y="359.5" text-anchor="middle">返回审查；不证明其他语言或运行环境</text>
+<path class="line" d="M305 245V205H745V190"/>
+<path class="line" d="M895 245V205H745V190"/>
+<text class="small" x="40" y="455">两条支线可以同时适用；均不替代独立审查。</text>
+<text class="small" x="40" y="490">不自动安装 Bend 或 Lean，也不为展示证明能力迁移语言。</text>
+</svg>

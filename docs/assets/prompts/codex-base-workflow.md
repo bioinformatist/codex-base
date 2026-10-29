@@ -1,21 +1,13 @@
-# Codex Base workflow design brief
+# Workflow diagram brief
 
-## Story and exact labels
+Show the direct path for small, clear tasks and the planned path: clarify and
+check facts, review the plan, authorize, execute in isolation, verify and
+simplify, independent review, and checkpoint. Mark execution as ① and
+verification as ②. Integration and external acceptance are separate. State
+that planning and review consume usage and do not guarantee savings.
 
-Show why a small, clear task should be edited directly and where avoidable usage appears as a task grows. The ordinary lane is `Small, clear task` → `Edit directly` → `As the conversation grows, decisions stay only in context` → `Rereading, drift, and rework can consume avoidable usage`. The Chinese lane is `小而明确的任务` → `直接修改最快` → `任务变长后，关键决定仍只留在上下文里` → `反复读取、做偏和返工会继续消耗用量`.
-
-Use `Reduce avoidable usage on long tasks` as the English title and `让长任务少浪费用量` as the Chinese title. The Chinese caveat is `规划和审查也会消耗用量；小而明确的任务通常直接修改更合适。`
-
-The Codex Base lane is `Clarify intent and write decisions down` → `Verify current documentation` → `Choose the execution lane in the plan`. It branches to `Settled + bounded` / `Economy · Luna/low` or `Complex or high-risk` / `Standard / Deep`, rejoins at `Verify and simplify each step`, visits `Comprehensive review` once for the approved Improve plan, and rejoins at `Leave a resumable checkpoint`. End with `Less repeated context. Earlier correction. Less avoidable usage.`
-
-The Chinese labels convey the same actions with language-specific line breaks: `问清楚，并把关键决定写下来`, `查证当前版本的文档`, `在计划中选择执行通道`, `边界和检查都明确` / `Economy · Luna/low`, `复杂或高风险` / `Standard / Deep`, `每一步先验证，再删繁就简`, `独立综合审查`, `留下可以继续的检查点`, and `少重复读取长上下文，少在错误方向上继续消耗。`
-
-Name both mechanisms: the reviewed plan selects a role for bounded execution, and recorded decisions and checks reduce avoidable context reconstruction and rework. Formal planning records decisions in chat; file persistence belongs to a later authorized writable phase. Do not claim lower price, fewer tokens, guaranteed total savings, or automatic routing. State that planning and review add overhead and direct editing usually wins for a small, clear task.
-
-## Topology, layout, and maintenance
-
-Both SVGs share the same non-text structure. Every ordinary node continues to its explicit outcome. Both executor branches rejoin before per-step verification. The single comprehensive review enters the final checkpoint, which leads to the outcome. The Improve lane has no path that skips review. Documentation routing is shared by the plugin and Nix installations; lookup is conditional on provider availability but remains forward-only. Use `Plugin + Nix routing` and `插件与 Nix 环境共享路由` as the localized subtitle.
-
-Keep the `0 0 1200 620` viewBox, high-contrast slate/blue/amber/green palette, real text, `role="img"`, localized `<title>` and `<desc>`, and system fallbacks including `Segoe UI`, `Noto Sans CJK SC`, and `Microsoft YaHei`. Route review into the checkpoint's top edge, then use one right-pointing edge from the checkpoint to the outcome. Keep the node positions and remove the former review-bypass edge. Do not add external assets, hosted fonts, raster sources, or generators.
-
-Parse both files as XML. Render each at 1200 px and 720 px with `rsvg-convert` through the repository devShell, then inspect all four PNGs for clipping, overlap, broken branches, and illegible labels. Keep previews temporary and update both SVGs and this brief together.
+Keep English and Chinese topology equivalent on a 1200 × 620 canvas, with the
+existing slate, blue, amber, and green palette, system fonts, real text,
+`role="img"`, and localized title and description. Use no external assets.
+Parse both SVGs, render each at 1200 and 720 px with the locked `rsvg-convert`,
+and inspect previews for overlap, clipping, and readability. Keep PNGs private.

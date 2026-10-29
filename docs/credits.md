@@ -7,7 +7,7 @@ without duplicating mutable pins.
 
 | Source ID | Upstream | Included or adapted surface | License | Status in Codex Base |
 |---|---|---|---|---|
-| worktrunk | [Worktrunk](https://github.com/max-sixty/worktrunk) | Pinned `wt` and `git-wt` Linux binaries for worktree lifecycle operations | [MIT or Apache-2.0](../plugins/codex-base/licenses/worktrunk-MIT-Apache-2.0.txt) | Unmodified release archive; the Python coordinator uses its JSON commands |
+| worktrunk | [Worktrunk](https://github.com/max-sixty/worktrunk) | Pinned `wt` and `git-wt` Linux binaries for worktree lifecycle operations | [MIT or Apache-2.0](../plugins/codex-base/licenses/worktrunk-MIT-Apache-2.0.txt) | Unmodified release archive; the Rust coordinator uses its JSON commands |
 | adhx | [ADHX](https://github.com/itsmemeworks/adhx) | Public X post reader skill and endpoint guidance | [MIT](../plugins/codex-base/licenses/adhx-MIT.txt) | Adapted for bounded discovery, selective evidence, safety, and failure handling |
 | mattpocock-skills | [Matt Pocock's skills](https://github.com/mattpocock/skills) | Engineering and productivity skills including Grilling, Handoff, TDD, domain and module design, debugging, retrospectives, prototypes, questionnaires, and agent guidance | [MIT](../plugins/codex-base/licenses/mattpocock-skills-MIT.txt) | Adapted for Codex invocation, safety, and repository conventions |
 | shadcn-improve | [shadcn Improve](https://github.com/shadcn/improve) | Audit playbook and plan-template foundations used by the Codex Base Improve workflow | [MIT](../plugins/codex-base/licenses/shadcn-improve-MIT.txt) | Adapted and substantially extended for durable planning, isolated execution, recovery, and review |
@@ -21,3 +21,8 @@ The repository itself is distributed under the [MIT License](../LICENSE). Each
 bundled upstream license is retained with the portable plugin.
 
 The pinned revisions and included paths are recorded in `vendor/sources.json`.
+
+The native runtime uses clap, serde/serde_json, sha2/hmac, nix, tempfile and
+image (PNG/JPEG); the configuration helper uses toml_edit with TOML 1.1.
+Exact versions are recorded in `Cargo.lock`. Archive resources retain the
+pinned upstream licenses alongside the Codex Base MIT license.

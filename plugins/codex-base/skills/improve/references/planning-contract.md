@@ -1,8 +1,8 @@
 # Improve Planning Contract
 
-Contract version: `1.0.0-codex.18`
+Contract version: `1.0.0-codex.19`
 
-Version `.18` uses the public `codex-improve` coordinator. It accepts only `.18`
+Version `.19` uses the public `codex-improve` coordinator. It accepts only `.19`
 plans and reads routing, gates, and the execution environment from the plan itself. Older private
 execution state is retained separately and is not migrated.
 
@@ -18,7 +18,7 @@ created or replaced.
 ## Execution environment contract
 
 Every new plan, revision dossier, and recovery dossier declares exactly one
-`- **Improve contract**: `1.0.0-codex.18`` line and contains exactly one fenced
+`- **Improve contract**: `1.0.0-codex.19`` line and contains exactly one fenced
 `json codex-improve-environment` block. The coordinator reads the block from
 the plan. There is no `--environment-json` option and no duplicate payload.
 A malformed or different contract fails before execution.

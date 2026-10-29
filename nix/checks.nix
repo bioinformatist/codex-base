@@ -96,7 +96,7 @@ in {
       export SELECTED_DOCTOR=${selectedDoctor}/bin/codex-doctor
       export SELECTED_IMPROVE=${selectedImprove}/bin/codex-improve
       export UNUSABLE_IMPROVE=${unusableImprove}/bin/codex-improve
-      export FIXTURE_LAUNCHER_PATH=${pkgs.lib.makeBinPath [ pkgs.python3 pkgs.gitMinimal packages.worktrunk pkgs.coreutils ]}
+      export FIXTURE_LAUNCHER_PATH=${pkgs.lib.makeBinPath [ pkgs.gitMinimal packages.worktrunk pkgs.coreutils ]}
       bash ${srcRoot}/tests/codex-package-selection.bash
       touch $out
     '';
@@ -371,21 +371,32 @@ in {
     PY
     touch $out
   '';
-  improve-runtime = mkTest "improve-runtime-tests" (shellTools ++ [ python packages.worktrunk ]) ''
-    python3 -B ${srcRoot}/tests/improve/test_runtime.py ContractsAndTransport.test_phase_methods_are_loaded_from_the_skill_layout
-    CODEX_IMPROVE_SKILL_ROOT=${generatedSkills}/improve python3 -B ${srcRoot}/tests/improve/test_runtime.py
-    touch $out
-  '';
+  improve-runtime = pkgs.rustPlatform.buildRustPackage {
+    pname = "improve-runtime-tests";
+    version = "0.19.0";
+    inherit (packages.codex-base-runtime) src;
+    cargoLock.lockFile = ../Cargo.lock;
+    cargoBuildFlags = [ "--workspace" ];
+    nativeBuildInputs = [ pkgs.rustfmt pkgs.gitMinimal packages.worktrunk ];
+    checkPhase = ''
+      runHook preCheck
+      cargo fmt --all --check
+      cargo test --workspace --locked -- --test-threads=1
+      runHook postCheck
+    '';
+    installPhase = "touch $out";
+  };
   improve-package = mkTest "improve-package-resources" (shellTools ++ [ packages.codex-improve ]) ''
-    grep -F "${generatedSkills}/improve/scripts/codex-improve" ${packages.codex-improve}/bin/codex-improve >/dev/null
     ${packages.codex-improve}/bin/codex-improve --help >/dev/null
-    test -r ${generatedSkills}/improve/config/roles.json
-    test -r ${generatedSkills}/improve/runtime/contracts.py
-    test -r ${generatedSkills}/improve/runtime/transport.py
-    test -r ${generatedSkills}/improve/runtime/git_worktree.py
-    test -r ${generatedSkills}/improve/references/executor-report.schema.json
-    test -r ${generatedSkills}/improve/references/review-verdict.schema.json
-    test -r ${generatedSkills}/improve/references/ponytail-core.md
+    root=${packages.codex-base-runtime}/share/codex-base/skills/improve
+    test -r "$root/config/roles.json"
+    test -r "$root/references/executor-report.schema.json"
+    test -r "$root/references/review-verdict.schema.json"
+    test -r "$root/references/ponytail-core.md"
+    test ! -e "$root/runtime"
+    test ! -e "$root/src"
+    test ! -e "$root/Cargo.toml"
+    bash ${srcRoot}/src/improve/scripts/codex-improve --help >/dev/null
     test -r ${generatedSkills}/worktrunk/LICENSE
     test -r ${generatedSkills}/worktrunk/agents/openai.yaml
     touch $out
@@ -467,10 +478,10 @@ merge_helpers = [
     and os.access(candidate, os.X_OK)
 ]
 assert len(managed) == 1, f"expected exactly one managed config in closure, got {len(managed)}"
-assert len(merge_helpers) == 1, f"expected exactly one merge helper in closure, got {len(merge_helpers)}"
+assert merge_helpers, "expected native merge helper in activation closure"
 
 managed_path = Path(managed[0])
-merge_helper = merge_helpers[0]
+merge_helper = Path("${packages.merge-codex-base-config}/bin/merge-codex-base-config")
 
 def run_merge(target: Path) -> dict:
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -523,7 +534,7 @@ PY
       cmp ${generatedSkills}/adhx/SKILL.md ${files.".agents/skills/adhx".source}/SKILL.md
       touch $out
     '';
-  plugin-smoke = mkTest "plugin-smoke" [ packages.codex packages.worktrunk python pkgs.bash pkgs.coreutils pkgs.jq ] ''
+  plugin-smoke = mkTest "plugin-smoke" [ packages.codex packages.codex-improve packages.worktrunk python pkgs.bash pkgs.coreutils pkgs.jq ] ''
     HOME="$TMPDIR/real-home" mkdir -p "$TMPDIR/real-home"
     HOME="$TMPDIR/real-home" bash ${srcRoot}/tests/plugin-smoke.bash
     touch $out

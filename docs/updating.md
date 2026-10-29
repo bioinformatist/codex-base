@@ -3,7 +3,7 @@
 ## Applying an update
 
 > [!WARNING]
-> Before every update, complete and close out all Improve tasks. After updating, old tasks cannot be migrated or resumed. Improve accepts only .18 plans and keeps older private records separate.
+> Before every update, complete and close out all Improve tasks. After updating, old tasks cannot be migrated or resumed. Improve accepts only .19 plans and keeps older private records separate.
 
 For a Git-backed plugin installation, refresh the configured marketplace on
 the execution host:
@@ -17,6 +17,12 @@ not install or upgrade the Codex executable. Nix/Home Manager users instead
 update the consuming configuration's locked `codex-base` input, review its diff,
 and activate that configuration. Updating this repository or its lock alone
 does not update a user's installed environment.
+
+Portable Improve users must also replace the native runtime with the archive
+from the same successful source tree and verify its checksum and metadata.
+See [installation](../README.md#codex-plugin). Complete tasks with their original runtime before updating. This version does
+not migrate or resume state from other contracts; rolling back code does not
+migrate state either.
 
 Then follow [Reload after an update](../README.md#reload-after-an-update).
 

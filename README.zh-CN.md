@@ -10,6 +10,10 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 > 这是我把团队正在使用的 agent harness（围绕 Codex 组织的指令、工具和工作流基座）公开分享出来的工程，不是面向绝大多数用户的产品。AI 和 Codex 演进很快，本仓库会长期处于 `unstable` 状态，使用者可能还需要完成不少额外配置。
 >
 > 公开它，是为了分享工程实践，邀请大家共同完善这套基座。我们相信，共同投入能帮助各自的团队更快地用好技术进展、改善生产力，做出更先进的产品。我们热烈欢迎有价值的 issue 和 PR，也希望参与者认真理解项目的意图，尊重文档中的约定。
+>
+> **更新前请完成现有计划。** Codex Base 迭代较快，现阶段不保证跨版本兼容。旧版本创建的计划和执行状态，更新后可能无法继续使用。请尽量完成现有计划的实施、审查、集成和验收后，再更新基座。
+>
+> 当前仅支持 Linux x64 **执行主机**。通过远程连接使用该主机时，桌面客户端可以运行其他操作系统。macOS、Windows 执行主机需求请[新建 issue](https://github.com/bioinformatist/codex-base/issues/new)。
 
 [![CI](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml/badge.svg)](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -32,7 +36,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 ![直接修改与 Codex Base 如何处理逐渐变长的任务](docs/assets/codex-base-workflow.zh-CN.svg)
 
-对于边界明确的实现任务，已批准的计划选择 economy（Luna/low）、standard（Sol 6.1/medium）、deep（Sol 6.1/xhigh），或面向材料充分且可独立验收写作的 writer（Terra/low）。只读 visual 角色使用 Terra/medium 处理原图。协调器启动后不会自动换模型；详见[执行器路由](docs/architecture.md#executor-routing)。
+参阅[工作流指南](docs/workflow.zh-CN.md#overview)了解主线、[① 执行通道](docs/workflow.zh-CN.md#execution)和[② 验证方式](docs/workflow.zh-CN.md#verification)。
 
 规划和审查也会消耗用量，小而明确的修改通常直接做更合适；Codex Base 不承诺每项任务都能减少 token 或降低费用。
 
@@ -55,7 +59,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 SSH 连接请按官方[连接说明](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host)配置。只在桌面客户端上安装，不会配置远端主机。
 
-Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq 和 Codex。可移植 Improve 执行还要求 Python 3.11 或更新版本以及 Worktrunk（`wt`）；Nix 闭包提供 Python、Git、Codex、Worktrunk 和 Pillow。可移植图片任务需要在临时虚拟环境中按 `skills/improve/requirements-visual.txt` 安装 Pillow 12.3.0；无图路径不需要它。Windows 用户可以在兼容的 Codex CLI 环境中使用可移植技能；完整 Improve 执行器和 Nix/Home Manager 环境需要 Linux，例如 WSL2。WSL 仓库应放在其 Linux 文件系统内（例如 `~/src`，不要放在 `/mnt/c`）。本仓库不提供原生 Windows Improve 执行器或 Windows CI。
+Linux x64 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq、Codex 和 Worktrunk（`wt`）。Improve 使用匹配的预编译 Codex Base 运行时；静态二进制无需 Python、Cargo、Nix 或本地编译。Nix/Home Manager 提供这些二进制及主机工具。WSL2 可以作为 Linux x64 执行主机，仓库应放在其 Linux 文件系统内（例如 `~/src`）。
 
 <a id="选择安装方式"></a>
 
@@ -66,7 +70,7 @@ Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed�
 | 提供或配置的内容 | Codex 插件 | Nix / Home Manager 完整环境 |
 |---|---|---|
 | 工程技能 | 带命名空间，例如 `$codex-base:improve` | 无命名空间，例如 `$improve` |
-| Improve CLI | 使用主机依赖运行 `python3 -B skills/improve/scripts/codex-improve` | 提供 `codex-improve` 和 `wt` |
+| Improve CLI | 预编译 `codex-improve`，主机提供 Git、Codex 和 `wt` | 提供 `codex-improve` 和 `wt` |
 | 全局指引与 GitHub MCP | 无 | 有 |
 | Context7 文档服务 | 匿名 HTTP 默认配置 | 本地匿名 Context7 和可选的用户级认证 |
 | Codex、Code Mode Host、Node、Playwright CLI | 不安装 | 默认 Codex 包含 Code Mode Host，Node 和 Playwright CLI 固定版本；Codex 包可替换 |
@@ -82,6 +86,20 @@ codex plugin list --marketplace bioinformatist-codex
 ```
 
 输出应显示 `codex-base@bioinformatist-codex` 已安装且已启用。插件不会安装 Codex、主机软件包或全局配置。
+
+使用 Improve 时，从匹配源码树的[成功 PR 工作流](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml)中下载 `plugin-portability` job 的 `codex-base-runtime-x86_64-unknown-linux-musl` artifact。先将 artifact 解压到一个目录，再校验并安装其中的 archive：
+
+```console
+cd downloaded-artifact
+sha256sum --check SHA256SUMS
+cat metadata.json
+mkdir -p "$runtime_prefix"
+tar -xzf codex-base-runtime-x86_64-unknown-linux-musl.tar.gz -C "$runtime_prefix"
+export PATH="$runtime_prefix/bin:$PATH"
+codex-improve --help
+```
+
+先将 `runtime_prefix` 设置为选定的安装前缀。确认 `metadata.json` 中 `distribution=ci`、`sourceCommit` 和 `sourceTree` 与预期源码一致，target 为 `x86_64-unknown-linux-musl`，并安装同一源码版本的插件。`local-smoke` 元数据仅用于本地安装检查。实际 run、artifact 和摘要由验收交接记录；没有自动 Release 下载。
 
 #### Nix / Home Manager
 
@@ -136,7 +154,7 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 ### 以合适的模型启动任务
 
-托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划要求 Astra 与内置 Plan Mode，且当前会话实际提供可调用的原生上下文管理和结构化提问工具。单凭模型名称、配置开关或 Plan Mode 标识不能证明能力可用。如果缺少任一工具，应使用具备该能力的 Plan Mode 会话；参阅[原生 Codex 配置](docs/configuration.zh-CN.md#native-codex-configuration)和[模型选择](docs/configuration.zh-CN.md#model-choice)。独立 Astra 计划审查员可以使用只读 Default Mode，但同样需要两项原生能力。high 推理强度和 Code Mode 是建议；协调器不会修改主模型。
+托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划需要具备相应能力的 Astra Plan Mode 会话。开始前请核对[规划前提](docs/workflow.zh-CN.md#overview)和[配置](docs/configuration.zh-CN.md#model-choice)。
 
 ### 先规划，再授权实现
 
@@ -149,16 +167,13 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 Improve 会查清事实、询问重要且尚未确定的选择，然后在对话中给出完整的替换计划。规划阶段不会创建计划、问卷、交接或临时文件。接受计划后，再在 Default Mode 中授权实现；后续可写阶段可以持久化计划并执行。
 
-Improve 在规划时按任务选择验证方式。普通工作使用审查和必要测试；适合的 Bend
-模块可通过 `bend-proof` 增加机器证明，并明确性质与覆盖边界。证明补充人工审查。
-两种安装方式均提供该技能，但都不安装 Bend 或 Lean。
+计划按任务选择[验证方式](docs/workflow.zh-CN.md#verification)，包括必要测试和独立审查。
 
 Default Mode 中的实现、审计和普通生命周期记录不需要重新走正式规划流程。不需要正式规划的任务可以直接使用相应技能，见[详细能力目录](docs/capabilities.zh-CN.md)。
 
 ## 更新后重新加载
 
-> [!WARNING]
-> 每次更新前，必须完成并收尾所有 Improve 任务。更新后不迁移或续跑旧任务；新任务必须使用 .18 契约。
+重新加载前请参阅[更新兼容性说明](docs/updating.md#applying-an-update)。
 
 先[更新已安装的插件或激活使用该模块的 Nix 配置](docs/updating.md#applying-an-update)；仅重启不会获取新文件。等相关任务执行完毕后，重新加载实际执行任务的运行时：
 
@@ -172,6 +187,7 @@ SSH 场景应核对正在运行的远端 Codex App Server；`codex --version` �
 
 ## 了解更多与参与贡献
 
+- [工作流指南](docs/workflow.zh-CN.md)
 - [配置、认证与排障](docs/configuration.zh-CN.md)
 - [详细能力目录](docs/capabilities.zh-CN.md)
 - [贡献指南](CONTRIBUTING.md)、[架构](docs/architecture.md)与[更新说明](docs/updating.md)

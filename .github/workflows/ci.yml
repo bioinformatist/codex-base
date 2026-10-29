@@ -23,6 +23,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Build the static runtime
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --target x86_64-unknown-linux-musl
+          rustup default 1.97.1
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          cargo build --workspace --release --locked --target x86_64-unknown-linux-musl
+          scripts/package-runtime target/x86_64-unknown-linux-musl/release runtime-artifacts "$GITHUB_SHA"
       - name: Test the plugin without Nix
         shell: bash
         run: |
@@ -30,4 +39,9 @@ jobs:
             echo "plugin portability must run without Nix" >&2
             exit 1
           fi
-          tests/plugin-portability.bash
+          CODEX_BASE_RUNTIME_ARCHIVE="$PWD/runtime-artifacts/codex-base-runtime-x86_64-unknown-linux-musl.tar.gz" tests/plugin-portability.bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-base-runtime-x86_64-unknown-linux-musl
+          path: runtime-artifacts/
+          if-no-files-found: error

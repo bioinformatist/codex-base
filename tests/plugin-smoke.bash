@@ -66,9 +66,6 @@ for relative in \
   skills/prototype/LOGIC.md \
   skills/prototype/UI.md \
   skills/improve/scripts/codex-improve \
-  skills/improve/runtime/contracts.py \
-  skills/improve/runtime/transport.py \
-  skills/improve/runtime/git_worktree.py \
   skills/improve/config/roles.json \
   skills/improve/references/executor-report.schema.json \
   skills/improve/references/review-verdict.schema.json; do
@@ -85,7 +82,7 @@ grep -Fq '[LOGIC.md](LOGIC.md)' "$installed_path/skills/prototype/SKILL.md"
 grep -Fq '[UI.md](UI.md)' "$installed_path/skills/prototype/SKILL.md"
 test ! -e "$installed_path/skills/resolving-merge-conflicts"
 test "$(sed -n 's/^model = "\([^"]*\)"$/\1/p' "$CODEX_HOME/config.toml")" = gpt-6-astra
-python3 -B "$installed_path/skills/improve/scripts/codex-improve" --help >/dev/null
+bash "$installed_path/skills/improve/scripts/codex-improve" --help >/dev/null
 jq -e '.interface.composerIcon == "./assets/codex-base.svg"
   and .interface.logo == "./assets/codex-base.svg"' \
   "$installed_path/.codex-plugin/plugin.json" >/dev/null
