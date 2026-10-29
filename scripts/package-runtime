@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $# -eq 3 ]] || { echo 'usage: package-runtime BIN_DIR OUTDIR SOURCE_REV' >&2; exit 2; }
+repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+bin_dir="$(cd -- "$1" && pwd -P)"
+mkdir -p -- "$2"
+out="$(cd -- "$2" && pwd -P)"
+source_rev="$3"
+commit=null tree=null distribution=local-smoke
+if [[ "$source_rev" != local-smoke ]]; then
+  [[ "$source_rev" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+  [[ "$(git -C "$repo" rev-parse HEAD)" == "$source_rev" ]]
+  [[ -z "$(git -C "$repo" status --porcelain --untracked-files=all)" ]]
+  commit="\"$source_rev\""
+  tree="\"$(git -C "$repo" rev-parse 'HEAD^{tree}')\""
+  distribution=ci
+fi
+stage="$(mktemp -d)"
+trap 'rm -rf -- "$stage"' EXIT
+mkdir -p "$stage/bin" "$stage/share/codex-base/skills/improve" "$stage/share/licenses/codex-base"
+for name in codex-improve merge-codex-base-config; do
+  binary="$bin_dir/$name"
+  [[ -x "$binary" ]]
+  readelf -h "$binary" | grep -Eq 'Machine:.*Advanced Micro Devices X86-64'
+  if readelf -l "$binary" | grep -q INTERP || readelf -d "$binary" | grep -q NEEDED; then
+    echo "package-runtime: $name must be a static Linux x64 ELF" >&2
+    exit 2
+  fi
+  install -m755 "$binary" "$stage/bin/$name"
+done
+cp -R "$repo/plugins/codex-base/skills/improve/." "$stage/share/codex-base/skills/improve/"
+cp "$repo/LICENSE" "$stage/share/licenses/codex-base/LICENSE"
+cp "$repo/Cargo.lock" "$stage/share/licenses/codex-base/Cargo.lock"
+cp "$repo/plugins/codex-base/licenses/"* "$stage/share/licenses/codex-base/"
+jq -n --arg distribution "$distribution" --argjson commit "$commit" --argjson tree "$tree" \
+  '{version:1, target:"x86_64-unknown-linux-musl", contract:"1.0.0-codex.19", distribution:$distribution, sourceCommit:$commit, sourceTree:$tree}' \
+  > "$stage/metadata.json"
+cp "$stage/metadata.json" "$out/metadata.json"
+archive=codex-base-runtime-x86_64-unknown-linux-musl.tar.gz
+tar -czf "$out/$archive" -C "$stage" .
+(cd "$out" && sha256sum "$archive" metadata.json > SHA256SUMS)
+printf '%s\n' "$out/$archive"

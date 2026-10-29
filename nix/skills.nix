@@ -727,9 +727,11 @@ ledger to a file (e.g. `PONYTAIL-DEBT.md`). One-shot. "stop ponytail-debt" or
 "normal mode" to revert.' 'Reads and reports only; never writes, edits, stages, or persists a ledger. One-shot.'
 
   mkdir -p "$out/improve"
-  cp -R ${srcRoot}/src/improve/. "$out/improve/"
+  for path in SKILL.md agents config references scripts/codex-improve LICENSE.md; do
+    mkdir -p "$out/improve/$(dirname "$path")"
+    cp -R "${srcRoot}/src/improve/$path" "$out/improve/$path"
+  done
   chmod -R u+w "$out/improve"
-  rm -rf "$out/improve/tests"
   cp ${improveSource}/LICENSE.md "$out/improve/LICENSE.md"
   awk 'BEGIN { dashes = 0 } /^---$/ && dashes < 2 { dashes++; next } dashes >= 2 { print }' \
     ${ponytailSource}/skills/ponytail/SKILL.md > "$out/improve/references/ponytail-core.md"

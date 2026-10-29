@@ -36,7 +36,7 @@ already has another purpose, numbered in recommended execution order.
 ## Status
 
 - **Status**: TODO
-- **Improve contract**: `1.0.0-codex.18`
+- **Improve contract**: `1.0.0-codex.19`
 - **Implementation review**: PENDING | APPROVED | REVISE | BLOCKED
 - **Checkpoint**: NONE | RESUMABLE | INTEGRATED
 - **External acceptance**: NOT REQUIRED | PENDING | PASSED | FAILED

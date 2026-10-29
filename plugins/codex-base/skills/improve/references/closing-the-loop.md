@@ -4,7 +4,7 @@ Audit and formal planning remain read-only. After the user authorizes a reviewed
 plan, the main agent saves it and delegates implementation through the public
 `codex-improve` coordinator. Read the planning contract for plan, environment,
 role, gate-ledger, and lifecycle requirements. The current source runtime accepts
-only `1.0.0-codex.18`; older private execution state is retained separately and
+only `1.0.0-codex.19`; older private execution state is retained separately and
 is never migrated.
 
 ## Execute an approved plan
@@ -24,15 +24,15 @@ codex-improve status [EXECUTION_ID]
 codex-improve candidate WORKTREE
 ```
 
-The coordinator reads the one `.18` environment block in the plan, creates an
+The coordinator reads the one `.19` environment block in the plan, creates an
 isolated Worktrunk worktree from a committed base, snapshots the plan and role,
 runs the literal launcher and bounded probes, then launches official `codex exec`
 with the selected role. The caller may specify a full committed `--base OID`.
 Worktrunk's automation hooks and LLM commits are disabled; the later reviewed
 Git checkpoint runs native Git hooks. The caller supplies host Codex, Worktrunk,
-Git, and Python 3.11 or newer for a portable install; Nix packages the runtime
+Git, Worktrunk, and the native Codex Base runtime for a portable install; Nix packages the runtime
 closure. The coordinator does not download dependencies or infer a project
-launcher. Python runs with `-B` against installed plugin resources.
+launcher. The native worker starts from the current executable and uses installed skill resources.
 
 `execute`, `scout`, and `review` return a structured JSON record. Preserve its
 execution ID, worktree, base HEAD, role, outcome, reason, candidate tree, report,
@@ -145,12 +145,12 @@ artifact must be a real, unchanged file with its byte SHA256 (for example, from
 `kind: check` gate exactly once. Review gates receive reviewer coverage rather
 than artifact entries. Unknown or duplicate gates fail. Required implementation
 gates must be `PASS`; `PENDING` cannot satisfy them. Notes must be nonempty.
-The accepted fields and validation live in [reviews.evidence](../runtime/reviews.py).
+The coordinator validates these fields against the declared gates and candidate.
 
 ### Visual inputs and evidence
 
 Use `codex-improve visual WORKTREE FULL_TREE VISUAL.md --inputs inputs.json`.
-`VISUAL.md` is a `.18` plan with the contract, environment, routing and gates
+`VISUAL.md` is a `.19` plan with the contract, environment, routing and gates
 blocks from the [plan template](plan-template.md). Set its lane to `visual`,
 `writePaths` to `[]`, and declare the inspection and its required evidence;
 `requiredEvidence` and `gates` may be empty for an observation. The manifest
@@ -183,7 +183,7 @@ the main agent checks the actual run, scenario, viewport and output before
 setting `verifiedBy`. The capture record and log are each bound by their byte
 SHA256. Image, capture-record and invocation paths are relative to the manifest
 directory, stay below it and contain no symlinks. See
-[visual.import_images](../runtime/visual.py) for accepted fields and limits.
+[the planning contract](planning-contract.md) for accepted fields and limits.
 The coordinator checks consistency and snapshots originals and provenance;
 the main agent is responsible for authenticity. A self-reported tree or a log
 assembled after the fact cannot replace actual collection evidence.

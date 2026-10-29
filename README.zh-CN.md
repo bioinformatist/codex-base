@@ -10,6 +10,10 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 > 这是我把团队正在使用的 agent harness（围绕 Codex 组织的指令、工具和工作流基座）公开分享出来的工程，不是面向绝大多数用户的产品。AI 和 Codex 演进很快，本仓库会长期处于 `unstable` 状态，使用者可能还需要完成不少额外配置。
 >
 > 公开它，是为了分享工程实践，邀请大家共同完善这套基座。我们相信，共同投入能帮助各自的团队更快地用好技术进展、改善生产力，做出更先进的产品。我们热烈欢迎有价值的 issue 和 PR，也希望参与者认真理解项目的意图，尊重文档中的约定。
+>
+> **更新前请完成现有计划。** Codex Base 迭代较快，现阶段不保证跨版本兼容。旧版本创建的计划和执行状态，更新后可能无法继续使用。请尽量完成现有计划的实施、审查、集成和验收后，再更新基座。
+>
+> 当前仅支持 Linux x64 **执行主机**。通过远程连接使用该主机时，桌面客户端可以运行其他操作系统。macOS、Windows 执行主机需求请[新建 issue](https://github.com/bioinformatist/codex-base/issues/new)。
 
 [![CI](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml/badge.svg)](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -55,7 +59,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 SSH 连接请按官方[连接说明](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host)配置。只在桌面客户端上安装，不会配置远端主机。
 
-Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq 和 Codex。可移植 Improve 执行还要求 Python 3.11 或更新版本以及 Worktrunk（`wt`）；Nix 闭包提供 Python、Git、Codex、Worktrunk 和 Pillow。可移植图片任务需要在临时虚拟环境中按 `skills/improve/requirements-visual.txt` 安装 Pillow 12.3.0；无图路径不需要它。Windows 用户可以在兼容的 Codex CLI 环境中使用可移植技能；完整 Improve 执行器和 Nix/Home Manager 环境需要 Linux，例如 WSL2。WSL 仓库应放在其 Linux 文件系统内（例如 `~/src`，不要放在 `/mnt/c`）。本仓库不提供原生 Windows Improve 执行器或 Windows CI。
+Linux x64 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq、Codex 和 Worktrunk（`wt`）。Improve 使用匹配的预编译 Codex Base 运行时；静态二进制无需 Python、Cargo、Nix 或本地编译。Nix/Home Manager 提供这些二进制及主机工具。WSL2 可以作为 Linux x64 执行主机，仓库应放在其 Linux 文件系统内（例如 `~/src`）。
 
 <a id="选择安装方式"></a>
 
@@ -66,7 +70,7 @@ Linux 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed�
 | 提供或配置的内容 | Codex 插件 | Nix / Home Manager 完整环境 |
 |---|---|---|
 | 工程技能 | 带命名空间，例如 `$codex-base:improve` | 无命名空间，例如 `$improve` |
-| Improve CLI | 使用主机依赖运行 `python3 -B skills/improve/scripts/codex-improve` | 提供 `codex-improve` 和 `wt` |
+| Improve CLI | 预编译 `codex-improve`，主机提供 Git、Codex 和 `wt` | 提供 `codex-improve` 和 `wt` |
 | 全局指引与 GitHub MCP | 无 | 有 |
 | Context7 文档服务 | 匿名 HTTP 默认配置 | 本地匿名 Context7 和可选的用户级认证 |
 | Codex、Code Mode Host、Node、Playwright CLI | 不安装 | 默认 Codex 包含 Code Mode Host，Node 和 Playwright CLI 固定版本；Codex 包可替换 |
@@ -82,6 +86,20 @@ codex plugin list --marketplace bioinformatist-codex
 ```
 
 输出应显示 `codex-base@bioinformatist-codex` 已安装且已启用。插件不会安装 Codex、主机软件包或全局配置。
+
+使用 Improve 时，从匹配源码树的[成功 PR 工作流](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml)中下载 `plugin-portability` job 的 `codex-base-runtime-x86_64-unknown-linux-musl` artifact。先将 artifact 解压到一个目录，再校验并安装其中的 archive：
+
+```console
+cd downloaded-artifact
+sha256sum --check SHA256SUMS
+cat metadata.json
+mkdir -p "$runtime_prefix"
+tar -xzf codex-base-runtime-x86_64-unknown-linux-musl.tar.gz -C "$runtime_prefix"
+export PATH="$runtime_prefix/bin:$PATH"
+codex-improve --help
+```
+
+先将 `runtime_prefix` 设置为选定的安装前缀。确认 `metadata.json` 中 `distribution=ci`、`sourceCommit` 和 `sourceTree` 与预期源码一致，target 为 `x86_64-unknown-linux-musl`，并安装同一源码版本的插件。`local-smoke` 元数据仅用于本地安装检查。实际 run、artifact 和摘要由验收交接记录；没有自动 Release 下载。
 
 #### Nix / Home Manager
 

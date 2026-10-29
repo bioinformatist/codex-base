@@ -73,12 +73,33 @@ in let self = rec {
     export npm_config_cache="''${XDG_CACHE_HOME:-$HOME/.cache}/npm"
     exec ${pkgs.nodejs_24}/bin/npx -y @playwright/cli@0.1.22 "$@"
   '';
+  codex-base-runtime = pkgs.pkgsStatic.rustPlatform.buildRustPackage {
+    pname = "codex-base-runtime";
+    version = "0.19.0";
+    src = pkgs.lib.fileset.toSource {
+      root = ../.;
+      fileset = pkgs.lib.fileset.unions [ ../Cargo.toml ../Cargo.lock ../src/improve ../src/config-merge ../plugins/codex-base/skills/improve ];
+    };
+    cargoLock.lockFile = ../Cargo.lock;
+    cargoBuildFlags = [ "--workspace" ];
+    doCheck = false;
+    postInstall = ''
+      mkdir -p "$out/share/codex-base/skills/improve" "$out/share/licenses/codex-base"
+      cp -R ${skills}/improve/. "$out/share/codex-base/skills/improve/"
+      cp ${../LICENSE} "$out/share/licenses/codex-base/LICENSE"
+    '';
+    meta = { mainProgram = "codex-improve"; platforms = [ "x86_64-linux" ]; license = pkgs.lib.licenses.mit; };
+  };
+  merge-codex-base-config = pkgs.runCommand "merge-codex-base-config" { meta.mainProgram = "merge-codex-base-config"; } ''
+    mkdir -p "$out/bin"
+    ln -s ${self.codex-base-runtime}/bin/merge-codex-base-config "$out/bin/merge-codex-base-config"
+  '';
   codex-improve = pkgs.lib.makeOverridable ({ codex ? self.codex }: pkgs.writeShellApplication {
     name = "codex-improve";
-    runtimeInputs = [ (pkgs.python3.withPackages (p: [ p.pillow ])) pkgs.gitMinimal worktrunk ];
+    runtimeInputs = [ pkgs.gitMinimal worktrunk ];
     text = ''
       export CODEX_IMPROVE_CODEX=${pkgs.lib.escapeShellArg "${codex}/bin/codex"}
-      exec python3 -B ${skills}/improve/scripts/codex-improve "$@"
+      exec ${self.codex-base-runtime}/bin/codex-improve "$@"
     '';
   }) { };
   codex-doctor = pkgs.lib.makeOverridable ({ codex ? self.codex }: pkgs.writeShellApplication {

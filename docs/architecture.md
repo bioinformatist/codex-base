@@ -3,7 +3,10 @@
 The checked-in `plugins/codex-base` tree is the distributable plugin. Portable
 third-party skills are generated from pinned inputs. `src/improve` is the
 first-party Codex adaptation of Improve; its scripts, config, schemas, and
-references are copied into the generated Improve skill. The current execution
+references are copied into the generated Improve skill. Rust source, Cargo files,
+tests and build outputs are excluded. `src/config-merge` provides the native
+TOML 1.1 merge helper; it preserves values and comments with `toml_edit`,
+allowing harmless formatting changes. The current execution
 contract version is declared in `src/improve/SKILL.md`.
 
 `src/docs-routing` is the canonical first-party documentation-routing skill.
@@ -24,6 +27,7 @@ the override boundary. Context7 connections receive only focused
 public lookup terms, never private or secret content.
 
 `nix/packages.nix` packages the default Codex CLI and Code Mode Host, Playwright CLI,
+the static `codex-base-runtime` and config merge helper,
 and `codex-improve` and `codex-doctor` wrappers that accept a Codex package. `nix/home-manager.nix` owns the full Linux runtime:
 config overlay, MCP wrappers, global instructions, rules, packages, and direct
 unnamespaced skill links. Its `package` option installs one CLI package and passes
@@ -86,8 +90,8 @@ its effective settings with each execution. It never looks up a Codex profile.
 
 ## Executor routing
 
-Improve `.18` uses the public `codex-improve` coordinator and private state in
-`codex-improve-v18`. It rejects older contracts without migrating or resuming
+Improve `.19` uses the public `codex-improve` coordinator and private state in
+`codex-improve-v19`. It rejects older contracts without migrating or resuming
 old tasks. Every plan declares environment, routing, and gate blocks; an
 explicit CLI lane must agree with the plan.
 
@@ -101,10 +105,11 @@ Git differences are checked against write paths through execution, follow-up,
 review, and checkpoint; this is a diff check rather than per-path OS protection.
 Protected roots retain their explicit-grant rules.
 
-The Nix closure supplies Python, Git, Codex, Worktrunk, and Pillow 12.3.0.
-Portable users supply the host tools and install `requirements-visual.txt` in a
-temporary venv for image work; Pillow is imported lazily and never installed
-automatically. Native `--image` carries bounded static PNG/JPEG originals from
+The Nix closure supplies the static Rust runtime, Git, Codex and Worktrunk.
+Portable users install the matching precompiled runtime and supply the host tools.
+The runtime locates resources under its canonical executable prefix;
+`CODEX_IMPROVE_SKILL_ROOT` can select another matching skill layout.
+No Python interpreter or image package is needed at runtime. Native `--image` carries bounded static PNG/JPEG originals from
 private snapshots. The caller supplies and verifies collection records for
 candidate images; unbound observations cannot satisfy a candidate gate. Image
 limits default to eight inputs, 20 MiB each and 50 MiB total; a reviewed plan

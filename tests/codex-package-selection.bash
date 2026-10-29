@@ -32,7 +32,7 @@ printf base > "$tmp/repo/tracked"
 git -C "$tmp/repo" add tracked
 git -C "$tmp/repo" commit -qm base
 cat > "$tmp/plan.md" <<EOF
-- **Improve contract**: \`1.0.0-codex.18\`
+- **Improve contract**: \`1.0.0-codex.19\`
 \`\`\`json codex-improve-environment
 {"version":1,"launcher":["env","PATH=$tmp/conflict:$FIXTURE_LAUNCHER_PATH:$PATH"],"probes":[]}
 \`\`\`

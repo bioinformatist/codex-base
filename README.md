@@ -10,6 +10,10 @@ Codex Base combines adapted community skills with our team's workflow and enviro
 > This is the agent harness—the instructions, tools, and workflows around Codex—that my team uses and shares publicly. It is not a product aimed at most users. AI and Codex evolve quickly; this repository will remain `unstable` and may require substantial additional configuration.
 >
 > We share it so others can help improve the engineering behind the harness. We believe working together can help our teams adopt useful advances sooner, improve productivity, and build more advanced products. We warmly welcome valuable issues and PRs; please take time to understand the project's intent and respect its documented conventions.
+>
+> **Finish existing plans before updating.** Codex Base changes quickly, and we do not currently guarantee compatibility across versions. Plans and execution state created with an older version may no longer work after an update. Whenever possible, complete implementation, review, integration, and acceptance before updating Codex Base.
+>
+> Execution hosts are currently supported only on Linux x64. The desktop client may use a different operating system when it connects to that host. Request macOS or Windows execution-host support through a [new issue](https://github.com/bioinformatist/codex-base/issues/new).
 
 [![CI](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml/badge.svg)](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -55,7 +59,7 @@ Install and configure Codex Base on the machine that executes the task:
 
 For SSH setup, follow the official [connection guide](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host). Installing on the desktop client alone does not configure the remote host.
 
-Linux execution needs Bash, GNU coreutils, Git, GNU sed, jq, and Codex on `PATH`. Portable Improve execution additionally needs Python 3.11 or newer and Worktrunk (`wt`); the Nix closure supplies Python, Git, Codex, Worktrunk, and Pillow. Portable image work requires Pillow 12.3.0 from `skills/improve/requirements-visual.txt` in a temporary virtual environment; paths without images do not require it. Windows users can use portable skills from a compatible Codex CLI environment; the complete Improve runners and Nix/Home Manager environment require Linux, such as WSL2. Keep WSL repositories in its Linux filesystem (for example `~/src`, not `/mnt/c`). Native Windows Improve runners and Windows CI are not provided here.
+Linux x64 execution needs Bash, GNU coreutils, Git, GNU sed, jq, Codex, and Worktrunk (`wt`) on `PATH`. Install the matching precompiled Codex Base runtime for Improve. The static binaries need no Python, Cargo, Nix, or local compilation. Nix/Home Manager supplies these binaries and the host tools. WSL2 can provide a Linux x64 execution host; keep repositories in its Linux filesystem (for example `~/src`).
 
 <a id="choose-an-installation"></a>
 
@@ -66,7 +70,7 @@ Choose the plugin to add the portable workflow to an existing Codex setup, or Ho
 | Provided or configured | Codex plugin | Nix / Home Manager full environment |
 |---|---|---|
 | Engineering skills | Namespaced, such as `$codex-base:improve` | Unnamespaced, such as `$improve` |
-| Improve CLI | `python3 -B skills/improve/scripts/codex-improve` with host dependencies | Packaged `codex-improve` plus `wt` |
+| Improve CLI | Precompiled `codex-improve` with host Git, Codex and `wt` | Packaged `codex-improve` plus `wt` |
 | Global guidance and GitHub MCP | No | Yes |
 | Context7 documentation services | Anonymous HTTP defaults | Local anonymous Context7, and optional per-user authentication |
 | Codex, Code Mode Host, Node, Playwright CLI | No | Default Codex package with Code Mode Host, plus pinned Node and Playwright CLI; Codex package can be replaced |
@@ -82,6 +86,20 @@ codex plugin list --marketplace bioinformatist-codex
 ```
 
 The output should show `codex-base@bioinformatist-codex` installed and enabled. The plugin does not install Codex, host packages, or global configuration.
+
+For Improve, download the `codex-base-runtime-x86_64-unknown-linux-musl` artifact from a successful `plugin-portability` job in the matching source tree's [PR workflow run](https://github.com/bioinformatist/codex-base/actions/workflows/ci.yml). Unzip the artifact into a directory, then verify and install its archive:
+
+```console
+cd downloaded-artifact
+sha256sum --check SHA256SUMS
+cat metadata.json
+mkdir -p "$runtime_prefix"
+tar -xzf codex-base-runtime-x86_64-unknown-linux-musl.tar.gz -C "$runtime_prefix"
+export PATH="$runtime_prefix/bin:$PATH"
+codex-improve --help
+```
+
+Set `runtime_prefix` to your chosen installation prefix first. Check that `metadata.json` has `distribution=ci`, the expected `sourceCommit` and `sourceTree`, and target `x86_64-unknown-linux-musl`. Install the plugin from that same source revision. `local-smoke` metadata is only for local installation checks. The acceptance handoff records the actual run, artifact and digest; there is no automatic Release download.
 
 #### Nix / Home Manager
 

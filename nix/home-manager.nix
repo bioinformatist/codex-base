@@ -87,34 +87,7 @@ let
     [plugins."github@openai-curated"]
     enabled = true
   '';
-  mergeConfig = pkgs.writeShellApplication {
-    name = "merge-codex-base-config";
-    runtimeInputs = [ (pkgs.python3.withPackages (p: [ p.tomlkit ])) ];
-    text = ''
-      python3 - "$@" <<'PY'
-      import os, sys, tempfile
-      from pathlib import Path
-      import tomlkit
-      managed_path, target_path = map(Path, sys.argv[1:3])
-      managed = tomlkit.parse(managed_path.read_text())
-      target = tomlkit.parse(target_path.read_text()) if target_path.exists() else tomlkit.document()
-      def merge(dst, src):
-          for key, value in src.items():
-              if key in dst and hasattr(dst[key], "items") and hasattr(value, "items"):
-                  merge(dst[key], value)
-              else:
-                  dst[key] = value
-      merge(target, managed)
-      target_path.parent.mkdir(parents=True, exist_ok=True)
-      fd, tmp = tempfile.mkstemp(prefix=".config.toml.", dir=target_path.parent, text=True)
-      try:
-          with os.fdopen(fd, "w") as stream: stream.write(tomlkit.dumps(target))
-          os.chmod(tmp, 0o600); os.replace(tmp, target_path)
-      finally:
-          if os.path.exists(tmp): os.unlink(tmp)
-      PY
-    '';
-  };
+  mergeConfig = packages.merge-codex-base-config;
   linkSkill = name: { source = skillRoot + "/${name}"; };
 in {
   options.programs.codexBase = {
