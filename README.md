@@ -11,6 +11,8 @@ Codex Base combines adapted community skills with our team's workflow and enviro
 >
 > We share it so others can help improve the engineering behind the harness. We believe working together can help our teams adopt useful advances sooner, improve productivity, and build more advanced products. We warmly welcome valuable issues and PRs; please take time to understand the project's intent and respect its documented conventions.
 >
+> **Keep Codex Base up to date.** As models evolve, older prompts and instructions may no longer fit them and can lead to worse results. See the [update instructions](#reload-after-an-update).
+>
 > **Finish existing plans before updating.** Codex Base changes quickly, and we do not currently guarantee compatibility across versions. Plans and execution state created with an older version may no longer work after an update. Whenever possible, complete implementation, review, integration, and acceptance before updating Codex Base.
 >
 > Execution hosts are currently supported only on Linux x64. The desktop client may use a different operating system when it connects to that host. Request macOS or Windows execution-host support through a [new issue](https://github.com/bioinformatist/codex-base/issues/new).
