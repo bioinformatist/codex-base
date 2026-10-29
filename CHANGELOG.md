@@ -4,6 +4,45 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
+## [0.5.0]
+
+Released 2026-10-29.
+
+### Native runtime and portable installation
+
+- Replace Improve and Home Manager configuration merging with native Rust
+  binaries. Portable plugin users can install the prebuilt Linux x64 runtime
+  without a local compiler or Python environment for these components.
+- Distribute matching runtime resources, checksums, licenses, and source
+  commit/tree metadata with the tested archive.
+
+### Writing, visual analysis, and review
+
+- Add an offline `writer` execution lane for independently acceptable writing
+  with settled materials, and a read-only `visual` role for original-image
+  analysis. Visual observations carry locations and uncertainty to the named
+  executor and reviewer.
+- Bind reviews and checkpoints to the execution, exact candidate, and required
+  gate evidence. Visual gates also verify original-image and collection records.
+- Require Astra in built-in Plan Mode for formal planning, with callable native
+  context management and structured questions. Independent Astra plan review
+  may use read-only Default Mode with both capabilities.
+- Add English and Chinese workflow guides and six diagrams covering the main
+  workflow, execution lanes, and verification choices.
+
+### Upgrade
+
+- Improve now accepts only `1.0.0-codex.19` plans and keeps its state in
+  `codex-improve-v19`. Finish existing tasks with their original runtime before
+  updating; this version does not migrate or resume earlier state.
+- Portable plugin users must install the matching native runtime as well as
+  update the plugin. The prebuilt archive supports Linux x64 execution hosts;
+  see the [installation guide](README.md#codex-plugin).
+
+[Execution roles and bound reviews](https://github.com/bioinformatist/codex-base/pull/76) ·
+[Native runtime and workflow guides](https://github.com/bioinformatist/codex-base/pull/79) ·
+[Full comparison](https://github.com/bioinformatist/codex-base/compare/v0.4.0...v0.5.0)
+
 ## [0.4.0]
 
 Released 2026-10-22.
@@ -284,6 +323,7 @@ Repository documentation and compatibility checks passed for the release candida
 
 [Compare the Improve changes](https://github.com/bioinformatist/codex-base/compare/52b9e4cc614749791b5d2e46d8c6bf8fd41592b0...b528a6e9fc902f1ef79d498db60ece95086afa7e).
 
+[0.5.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.5.0
 [0.4.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.4.0
 [0.3.1]: https://github.com/bioinformatist/codex-base/releases/tag/v0.3.1
 [0.3.0]: https://github.com/bioinformatist/codex-base/releases/tag/v0.3.0
