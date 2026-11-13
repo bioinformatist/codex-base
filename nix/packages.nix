@@ -1,8 +1,8 @@
 { pkgs, skills }:
 let
-  codexVersion = "0.167.2";
-  codexHash = "sha256-gkboRsVQ6iEZf8xAZ7wnDcqJXpTqQu1qKC5vTgElsV8=";
-  codexCodeModeHostHash = "sha256-GJR1plTYLKd24I3+8ic0EG0+WyzyHaboTsPZdNAsOaY=";
+  codexVersion = "0.169.0";
+  codexHash = "sha256-mvTXUfzhg/rt6mKUN9UlLb9FjusEEwz0+XvoRGIeqYU=";
+  codexCodeModeHostHash = "sha256-y+1qjSXoJoeSt1d2f7x21MYuhLz47kpj+XVH8N46rOs=";
   worktrunkVersion = "0.79.0";
   worktrunkHash = "sha256-uMGQsdZSNw759rj0aUotaDG1si9LeJ8EdhKq0ydkxs8=";
   codexAsset = pkgs.fetchurl {
