@@ -1,53 +1,59 @@
-# Improve lifecycle ownership
+# Improve lifecycle ownership and new tasks
 
-The Improve runtime accepts plan contract `1.0.0-codex.19`. Earlier execution
-artifacts stay in their original namespaces and are never migrated or resumed
-by this version. Current state uses `codex-improve-v19`. The following map
-records lifecycle ownership and the checks that exercise it. For the user-facing
-workflow, see the [workflow guide](workflow.md).
+Improve `.20` / runtime `0.20.0` reads only current plans and task records in
+`codex-improve-v20`. Historical files stay where they are, without import,
+continuation, migration or inherited approval. Finish active tasks with their
+original runtime before updating. To begin new work, review a current `.20` plan
+and authorize a new task at an explicit base; history is evidence, not authority.
 
-| Effective behavior | Owner | Verification |
-| --- | --- | --- |
-| Create, locate, list, and remove an isolated linked worktree while retaining its branch | Worktrunk 0.79.0 JSON commands | Real Worktrunk lifecycle test |
-| Validate repository, branch, HEAD, registration, and worktree ownership | Rust coordinator using Worktrunk list and Git identity | Foreign and stale worktree cases |
-| Explicit ignored-cache copy with a named source and include set | Worktrunk `copy-ignored` | Included and excluded cache fixture |
-| Parse the approved private plan snapshot and run its locked launcher and timed probes | Rust coordinator | Preflight failure, mutation, and retry fixtures |
-| Enforce private state permissions, immutable snapshots, atomic records, bounded recovery, and revision limits | Rust coordinator | State tamper, retry, and recovery fixtures |
-| Run one model with the selected role, sandbox, native token budget, structured result, and JSON events | Official `codex exec` | Invocation fixtures and real model smoke |
-| Supervise process groups, timeout, cancellation, output limits, heartbeat, and quiet observation | Rust coordinator | Timeout, cancellation, budget, and corrupt output fixtures |
-| Capture staged, unstaged, and nonignored untracked files without changing the real index | Git temporary index, called by Rust | Full candidate and index-preservation fixtures |
-| Validate writer write paths, inherited grants, image snapshots, original plan gates, and current review approval | Rust coordinator | Scope, image, evidence, reconciliation, and reviewer-setting fixtures |
-| Create a reviewed checkpoint with normal Git hooks and an expected-parent branch update | Git primitives, called by Rust | Hook failure, mutation, stale tree, and parent-drift fixtures |
-| Integrate the exact reviewed commit without losing nonconflicting target dirt | Git primitives, called by Rust | Exact-OID, dirty target, conflict, and drift fixtures |
-| Independently inspect an exact candidate without write access | Rust review coordinator and official `codex exec` | Read-only review fixture and Sol smoke |
-| Generate the portable plugin layout and pinned runtime packages | Nix generation and package expressions | Skill sync, Home Manager, plugin installation, and standalone portability gates |
+## Responsibility changes
 
-Worktrunk's merge and push commands do not bind integration to a
-caller-approved source commit OID. Git retains that operation. Automated
-Worktrunk calls disable its hooks and commit-message generation; reviewed
-checkpoints still run native Git hooks.
+| Previous responsibility | Current owner / entry | Deleted implementation or dependency | Remaining gap and removal condition |
+|---|---|---|---|
+| Per-call role runner, dispatch, messages and waiting | Official connected App Server and native team tools | `lifecycle.rs`, `transport.rs`, role-runner and their exclusive tests | `session.rs` translates the approved plan and results; remove when native workflow can enforce the same plan/acceptance contract |
+| Per-role token quotas and attempt timers | Native root rollout budget; implementation 300k, review 100k | Role tokenLimit/reminders, initial/follow-up timeout matrix, process/quiet/heartbeat supervision | Explicit enforcement/config and outcome adaptation remain; no custom meter, quota proxy or root timer |
+| Worktree inventory and lifecycle | Host managed-worktree tool, or detached Git worktree at exact base | Worktrunk package/skill and duplicate inventory | Git common-dir/base/physical ownership, explicit ignored includes and safe cleanup remain until equivalent native checks cover them |
+| Candidate, evidence and approval identity | Git temporary index and deterministic Rust acceptance kernel | Old record formats and lifecycle approval plumbing | `contracts.rs`, `reviews.rs`, `git_worktree.rs` bind plan, actual settings, full tree, artifact bytes and target/merge tree; native completion alone does not replace this |
+| Freeze and independent acceptance | Native descendant/turn/terminal APIs; fresh read-only Sol high root | Per-role isolated execution services and visual runner | Paged freeze and read-only MCP allowlist checks stay until native atomic freeze/acceptance supplies equivalent proof |
+| Complete logs and agent lifecycle | Codex native history | Parallel transport/event logs and session database | Private authenticated task summaries retain necessary native IDs, candidate, usage and review evidence only |
+| Automatic dependency updates and public-X adapter | Manual maintenance and ordinary research | Dedicated updater/workflow, Renovate and ADHX source/distribution | External bot and installed marketplace state require separate authorized action; see [updating](updating.md#retired-automation-and-installations) |
 
-The .19 interfaces are:
+## Starting and controlling a task
+
+The user continues to invoke `$improve` (plugin: `$codex-base:improve`) in Codex.
+The advisor saves a reviewed plan only in an authorized writable phase, then
+uses the connected client below. Users need not manually orchestrate JSON.
 
 ```console
-codex-improve execute PLAN REPOSITORY
-codex-improve visual WORKTREE TREE DOSSIER --inputs MANIFEST
-codex-improve review EXECUTION_ID TREE DOSSIER
-codex-improve reconcile REVIEW_ID DOSSIER
-codex-improve checkpoint EXECUTION_ID TREE --message 'type: summary'
-codex-improve checkpoint EXECUTION_ID --integrate-oid CHECKPOINT_OID --target WORKTREE --expected-target TARGET_HEAD
+codex-improve session PLAN REPOSITORY --base FULL_COMMIT --lane deep
 ```
 
-The reviewed plan selects one of four writable lanes: economy, standard, deep,
-or writer. Visual, scout, and reviewer are read-only. Visual imports original
-images and collection evidence; it does not collect screenshots. Review reads
-requirements from the original execution and accepts only current structured
-evidence. Required originals and the inherited visual report reach the reviewer
-as well as any executor that the plan names. Reconciliation records supported
-finding dispositions without rewriting the raw review. `next` requires an
-approved checkpoint. Approval does not grant commit, integration, push, or
-publication authority; these remain separate user decisions.
+Prefer `--worktree` with a host-managed tool's returned clean path at that base.
+Otherwise Git creates a detached task-owned worktree. Default copies exclude
+ignored content; an authorized `--copy-from SOURCE --include PATH` names exact
+ignored inclusions. `.agents`/`.codex` need explicit grants, and agents retain
+`.git` read-only. Same-path changes have one writer; isolate independent parallel
+changes. Scout/visual observe within shared task authority; formal review is a
+separate local read-only root whose descendants inherit it.
 
-The [review materials reference](../src/improve/references/closing-the-loop.md#review-dossier)
-gives the accepted review and reconciliation JSON, image manifest and collection
-provenance examples.
+Keep stdin/stdout connected throughout implementation, continuation, review and
+revision. Commands are JSON lines: `turn` starts/continues implementation,
+`capture` freezes writers then returns HEAD/tree, `images` imports private
+originals/provenance, and `review` supplies the exact tree and evidence dossier.
+`status` reads current facts; `answer` relays a native structured question.
+Native results distinguish cancellation, timeout, budget exhaustion, invalid
+output and unknown failure; none can approve. Only complete valid APPROVE with
+required coverage can do so. REVISE returns to the original loaded root.
+
+Commit, integration and cleanup are separate authorized operations. `close`
+freezes both roots and ends the connection. `inspect TASK_ID` reads an
+authenticated summary after closing; it cannot reconnect or prove continuity.
+Connection/loaded-root loss stops the task with last confirmed usage and
+artifacts retained. A cold resume/fork or new root requires explicit new-budget
+authority. There is no runtime fallback to historical contracts.
+
+See the canonical [connected workflow](../src/improve/references/closing-the-loop.md)
+for command shapes, review dossier and image collection evidence. Gate results
+may be reused only when their actual input/environment mapping is unchanged;
+new candidates always require new approval. Unintegrated work is IMPLEMENTED;
+DONE requires integration and all acceptance.

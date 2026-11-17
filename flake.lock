@@ -1,22 +1,5 @@
 {
   "nodes": {
-    "adhx": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1789484643,
-        "narHash": "sha256-5Pv7LpWA5QPe221c9ZnRvBRzcZ1zUYyBUGIlq9s1JAA=",
-        "owner": "itsmemeworks",
-        "repo": "adhx",
-        "rev": "2dafb9c221398372d08f8dc75e857e801089f6b1",
-        "type": "github"
-      },
-      "original": {
-        "owner": "itsmemeworks",
-        "repo": "adhx",
-        "rev": "2dafb9c221398372d08f8dc75e857e801089f6b1",
-        "type": "github"
-      }
-    },
     "codex-src": {
       "flake": false,
       "locked": {
@@ -31,6 +14,45 @@
         "owner": "openai",
         "ref": "rust-v0.169.0",
         "repo": "codex",
+        "type": "github"
+      }
+    },
+    "devshell": {
+      "inputs": {
+        "nixpkgs": [
+          "mcp-nixos",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1768818222,
+        "narHash": "sha256-460jc0+CZfyaO8+w8JNtlClB2n4ui1RbHfPTLkpwhU8=",
+        "owner": "numtide",
+        "repo": "devshell",
+        "rev": "255a2b1725a20d060f566e4755dbf571bbbb5f76",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "devshell",
+        "type": "github"
+      }
+    },
+    "flake-parts": {
+      "inputs": {
+        "nixpkgs-lib": "nixpkgs-lib"
+      },
+      "locked": {
+        "lastModified": 1767609335,
+        "narHash": "sha256-feveD98mQpptwrAEggBQKJTYbvwwglSbOv53uCfH9PY=",
+        "owner": "hercules-ci",
+        "repo": "flake-parts",
+        "rev": "250481aafeb741edfe23d29195671c19b36b6dca",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hercules-ci",
+        "repo": "flake-parts",
         "type": "github"
       }
     },
@@ -58,17 +80,40 @@
     "mattpocock-skills": {
       "flake": false,
       "locked": {
-        "lastModified": 1791449074,
-        "narHash": "sha256-1QwFBwG+gORvDvW4HM0LrZlHZKmKtWr7pUHU0MAXF2Y=",
+        "lastModified": 1793269649,
+        "narHash": "sha256-ej0ATi0BWaAx+83dBwgCQxr9J2L2qEwKhUIeIRJ03Go=",
         "owner": "mattpocock",
         "repo": "skills",
-        "rev": "b0618bc436ad893b3c5e84e55fba86586d34a404",
+        "rev": "d1478fcb140db0b93c0c8df17bcfd311844749d0",
         "type": "github"
       },
       "original": {
         "owner": "mattpocock",
         "repo": "skills",
-        "rev": "b0618bc436ad893b3c5e84e55fba86586d34a404",
+        "rev": "d1478fcb140db0b93c0c8df17bcfd311844749d0",
+        "type": "github"
+      }
+    },
+    "mcp-nixos": {
+      "inputs": {
+        "devshell": "devshell",
+        "flake-parts": "flake-parts",
+        "nixpkgs": [
+          "nixpkgs-tools"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788575406,
+        "narHash": "sha256-EjSyb5FcVnZOW0qFbcvxzor/je02duSe/RhJsL5p+14=",
+        "owner": "utensils",
+        "repo": "mcp-nixos",
+        "rev": "6a517811658c21f97bd7703b35546085117fc310",
+        "type": "github"
+      },
+      "original": {
+        "owner": "utensils",
+        "ref": "v3.1.0",
+        "repo": "mcp-nixos",
         "type": "github"
       }
     },
@@ -88,62 +133,77 @@
         "type": "github"
       }
     },
+    "nixpkgs-lib": {
+      "locked": {
+        "lastModified": 1765674936,
+        "narHash": "sha256-k00uTP4JNfmejrCLJOwdObYC9jHRrr/5M/a/8L2EIdo=",
+        "owner": "nix-community",
+        "repo": "nixpkgs.lib",
+        "rev": "2075416fcb47225d9b68ac469a5c4801a9c4dd85",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "nixpkgs.lib",
+        "type": "github"
+      }
+    },
     "nixpkgs-tools": {
       "locked": {
-        "lastModified": 1786106723,
-        "narHash": "sha256-zDSUbpoeo/9ZmD2+wXnzxoo1+uhL8vxc0b8yuYMKYq0=",
+        "lastModified": 1794537146,
+        "narHash": "sha256-Wpz/7x/YWnDIBu7yj6ixe8j6fIMsidd9Y+o1PqPF3iM=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "f13ff45afd1bb73e640eaa08a7066dbed07e3238",
+        "rev": "d5cc6833999746cffdfe0598f7bc801a57b887a9",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixos-unstable",
         "repo": "nixpkgs",
+        "rev": "d5cc6833999746cffdfe0598f7bc801a57b887a9",
         "type": "github"
       }
     },
     "playwright-cli": {
       "flake": false,
       "locked": {
-        "lastModified": 1790637751,
-        "narHash": "sha256-80xzHvf7BHGvoKvMdkGeNUsUrpZrpw5eryuQM8NKT/E=",
+        "lastModified": 1794272923,
+        "narHash": "sha256-7dKRvxQ+ntqr4JPqGoWN+CHEZVg6E6Q/hO6EA6DXDKA=",
         "owner": "microsoft",
         "repo": "playwright-cli",
-        "rev": "b85c7a736bb473bf55b584e54a09ffa698d6d871",
+        "rev": "261206400b18cd0629a8b45dd14ea5488fcf261f",
         "type": "github"
       },
       "original": {
         "owner": "microsoft",
         "repo": "playwright-cli",
-        "rev": "b85c7a736bb473bf55b584e54a09ffa698d6d871",
+        "rev": "261206400b18cd0629a8b45dd14ea5488fcf261f",
         "type": "github"
       }
     },
     "ponytail": {
       "flake": false,
       "locked": {
-        "lastModified": 1791855980,
-        "narHash": "sha256-3GopEvTySUvo0ghGz4CF6xbN7x3kbB/IHEY7Dwr4dls=",
+        "lastModified": 1793243094,
+        "narHash": "sha256-CY0EifTY0UVc6/FPGVJjEfYEf/8QLsINQmoYYKZYh98=",
         "owner": "DietrichGebert",
         "repo": "ponytail",
-        "rev": "2961b52fc1fe6a5a87c7a959a79512e5c2f3ffe5",
+        "rev": "7801d061243d7b753bad0e0b3c057cd250b11755",
         "type": "github"
       },
       "original": {
         "owner": "DietrichGebert",
         "repo": "ponytail",
-        "rev": "2961b52fc1fe6a5a87c7a959a79512e5c2f3ffe5",
+        "rev": "7801d061243d7b753bad0e0b3c057cd250b11755",
         "type": "github"
       }
     },
     "root": {
       "inputs": {
-        "adhx": "adhx",
         "codex-src": "codex-src",
         "home-manager": "home-manager",
         "mattpocock-skills": "mattpocock-skills",
+        "mcp-nixos": "mcp-nixos",
         "nixpkgs": "nixpkgs",
         "nixpkgs-tools": "nixpkgs-tools",
         "playwright-cli": "playwright-cli",

@@ -4,6 +4,22 @@ This changelog records notable user-visible changes to Codex Base and Improve.
 v0.1.0 is the first formal release; there is no earlier release tag. Entries
 are curated release notes, not a commit-by-commit log.
 
+## [Unreleased]
+
+- Move Improve implementation to a connected native Codex team with a shared
+  300k rollout budget and independent read-only Ponytail acceptance at 100k.
+  Continuation and revision keep the same loaded root; lost connections stop
+  the task. New work requires `.20` plans and runtime `0.20.0`; historical
+  records are preserved without continuation or inherited approval.
+- Use Astra xhigh for writing and original-image analysis. Add bounded research
+  and explicitly invoked issue/PR triage with source and authorization checks.
+- Remove Worktrunk and ADHX integration, the dedicated update workflow/updater,
+  and Renovate configuration. Existing remote bots and installations require
+  separate retirement or update actions.
+- Delegate general diagnostics to the selected Codex's native doctor. Update
+  the MCP integrations and Playwright CLI/skill, including current failure
+  reporting and npm registry handling.
+
 ## [0.5.0]
 
 Released 2026-10-29.

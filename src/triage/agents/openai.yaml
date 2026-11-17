@@ -1,0 +1,6 @@
+interface:
+  display_name: "Triage"
+  short_description: "Review a selected issue or PR within its authority"
+  default_prompt: "Use $triage to read this issue or PR and recommend the next action."
+policy:
+  allow_implicit_invocation: false

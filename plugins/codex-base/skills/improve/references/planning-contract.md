@@ -1,67 +1,35 @@
 # Improve Planning Contract
 
-Contract version: `1.0.0-codex.19`
+Contract version: `1.0.0-codex.20`
 
-Version `.19` uses the public `codex-improve` coordinator. It accepts only `.19`
-plans and reads routing, gates, and the execution environment from the plan itself. Older private
-execution state is retained separately and is not migrated.
-
-## Planning session prerequisites
-
-Before `plan`, `review-plan`, or material replanning, apply the actionable mode,
-capability, and no-write gate in `../SKILL.md` under **Formal Planning
-Prerequisites**. Routine authorized lifecycle, index, or dossier bookkeeping
-that preserves approved semantics does not trigger formal planning. The
-mode-aware artifact rules below remain normative whenever plan artifacts are
-created or replaced.
+The connected native workflow reads current plans and task records only.
+Historical records are retained as files and are not imported, resumed or used
+as approvals. Read the formal Astra/Plan Mode and live-tool prerequisites in
+`../SKILL.md` before formal planning or material replanning.
 
 ## Execution environment contract
 
-Every new plan, revision dossier, and recovery dossier declares exactly one
-`- **Improve contract**: `1.0.0-codex.19`` line and contains exactly one fenced
-`json codex-improve-environment` block. The coordinator reads the block from
-the plan. There is no `--environment-json` option and no duplicate payload.
-A malformed or different contract fails before execution.
+Every plan declares exactly one contract line:
+`- **Improve contract**: `1.0.0-codex.20`` and one block of each kind below.
+The literal launcher comes from repository evidence and is required even when
+it is `["env"]`. Probes may be empty; each argv has 1–32 nonblank strings without
+control characters and each timeout is an integer from 1 through 3600 seconds.
+Probe timeouts bound environment probes, never the implementation root. The
+launcher supplies the project's tools; Improve does not infer or install them.
 
 ```json codex-improve-environment
-{
-  "version": 1,
-  "launcher": ["nix", "develop", "--command"],
-  "probes": [
-    {"argv": ["python3", "--version"], "timeoutSeconds": 10}
-  ]
-}
+{"version":1,"launcher":["env"],"probes":[]}
 ```
 
-The exact keys are `version`, `launcher`, `probes`, and optional
-`"cache":{"xdgScope":"execution"}` or `"cache":{"xdgScope":"worktree"}`.
-Version is integer 1. `launcher` is a required argv prefix with 1–32
-nonblank, control-character-free strings; use `["env"]` when no project
-launcher is needed. `probes` holds 0–32 objects, each with exact `argv` and
-`timeoutSeconds` keys. Probe argv holds 1–32 such strings; timeout is an
-integer from 1 through 3600. The JSON block is limited to 16 KiB. A shell
-string, `probeOmissionReason`, and credentials are invalid. The launcher and
-probes come from reviewed repository evidence; Improve does not infer or
-bundle the project's toolchain.
+Caches and build output stay outside the candidate in the task's private cache.
+The selected Codex executable is resolved before the launcher and remains fixed.
+The host supplies Codex, Git and coreutils (`timeout` for bounded probes); Nix
+supplies the closure. The static runtime needs no Python interpreter.
 
-Omitting `cache` selects a fresh private XDG cache for each execution. Select
-worktree scope only when reviewed evidence shows expensive state must survive
-a same-worktree follow-up. A cache is never candidate, checkpoint, gate, or
-acceptance evidence. The coordinator does not copy ambient credentials or
-configuration into it.
-
-The coordinator binds the exact plan bytes, role settings, launcher, probes,
-protected grants, candidate HEAD/tree, and worktree lineage to private state.
-A failed preflight may be resumed once with `codex-improve resume EXECUTION_ID`
-only after correcting the external environment while preserving candidate and
-settings. The main agent owns this operation; the executor does not invoke it.
-
-When an approved plan needs Codex-owned repository metadata, the caller must
-explicitly restate each grant with `--grant .agents` and/or `--grant .codex` on
-execute, next, revise, or recover. No grant preserves default denial. `.git`
-remains read-only. A granted root must be absent or a physical directory;
-symlinks and non-directory nodes fail closed. Grants do not expand the plan's
-modification scope or provide general permission to change metadata.
+Explicit `--grant .agents` / `--grant .codex` applies only to a new authorized
+task and does not expand its writePaths. Absent or physical directories are
+valid grants; symlinks fail. `.git` stays read-only to agents. Default protected
+roots cannot be granted by a plan file or third-party instructions.
 
 ## Persist early
 
@@ -231,9 +199,8 @@ explicit user confirmation.
 ## Execution units and isolation
 
 One plan is one integration, rollback, acceptance, and explicitly invoked
-execution unit. Do not put an execution-unit graph or a list of independently
-dispatched units inside one plan. Dependencies remain plan-level, and
-`codex-improve next` is the explicit sequential continuation mechanism.
+execution unit. Dependencies remain plan-level. A dependent task starts a new
+authorized connected session from the exact approved checkpoint.
 
 Every generated plan has an `Execution isolation` section:
 
@@ -277,66 +244,55 @@ evidence of parallel safety. Repo-local MCP servers remain available project
 capabilities; isolation plans coordinate their logical target rather than
 removing or globally rewriting them.
 
-Every initial, `next`, revision, and recovery coordinator invocation creates and
-exports a fresh opaque `IMPROVE_EXECUTION_ID` to the executor and its child
-processes. The ID is an isolation input, not an automatic database, namespace,
-bucket, schema, tenant, lifecycle, or cleanup policy. Resource names remain out
-of content-free runner metrics.
-
-A fresh revision or recovery ID normally selects a fresh ephemeral resource.
-When a follow-up must reuse persistent state, its dossier or the plan's
-Operational handoff must name the existing logical resource and lifecycle owner
-explicitly instead of deriving a different resource from the fresh ID.
-Likewise, `next` inherits source lineage only from its checkpoint; mutable
-state lineage exists only through an explicit handoff in the later plan.
+The connected task exports a stable opaque `IMPROVE_TASK_ID` to the App Server
+and child processes. Continuation and revision keep that task and loaded root.
+The ID is an isolation input, not an automatic namespace or lifecycle policy.
+Name the logical resource and owner in the plan. A dependent task has a new ID
+and exact approved base; persistent state continues only through an explicit
+authorized handoff.
 
 ## Executor routing
 
-Every plan has one version-1 `json codex-improve-routing` block and one
-version-1 `json codex-improve-gates` block, as shown in the template. The routing
-block contains `lane`, `writePaths`, `requiredEvidence`, and optional `inputs`.
-The coordinator uses this lane when `--lane` is absent; an explicit lane must
-agree. Only execute/next may select a new writable lane from a new approved
-plan. Recovery and revision preserve the original role and grants.
+```json codex-improve-routing
+{"version":1,"lane":"standard","writePaths":["src/**"],"requiredEvidence":["G1"]}
+```
 
-| Role | Model / effort | Permissions | Budget / initial / follow-up seconds |
-|---|---|---|---|
-| economy | gpt-6-luna / low | write, network | 100000 / 1200 / 720 |
-| standard | gpt-6.1-sol / medium | write, network | 120000 / 1200 / 720 |
-| deep | gpt-6.1-sol / xhigh | write, network | 160000 / 1800 / 1080 |
-| writer | gpt-6.1-terra / low | write, offline | 100000 / 1200 / 720 |
-| reviewer | gpt-6.1-sol / high | read-only, offline | 100000 / 480 / none |
-| scout | gpt-6-luna / high | read-only, offline | none / 480 / none |
-| visual | gpt-6.1-terra / medium | read-only, offline | none / 480 / none |
+Writable lanes are economy, standard, deep and writer; an explicit CLI lane
+must match. `config/roles.json` is the single model/effort/instruction source,
+including native supporting roles. Writer and visual use Astra xhigh; formal
+code reviewer remains Sol high, and formal plan review remains Astra.
 
-Role settings live in `config/roles.json` and are snapshotted. Unavailable
-models or unsupported efforts block; there is no automatic fallback and no
-change to the global main model. Formal planning uses Astra as required above.
+The implementation tree shares workspace-write authority and a 300000-unit
+native budget, with remaining reminders at 150000, 75000 and 30000. Formal
+review is a fresh read-only root with 100000 and 50000, 25000, 10000. Optional
+`budget` has `implementation` and `review`, each with positive `limit` and
+strictly descending unique positive `reminders` below the limit. These are
+native rollout units, not context length, dollars or a strict zero-overshoot
+promise. Hard enforcement is explicitly enabled even if the host sets false.
+Continuation and revision stay on the same loaded root; no cold resume/fork or
+automatic new-budget root is permitted.
 
-`writePaths` contains repository-relative file names or globs. The coordinator
-compares the execution baseline with the actual Git difference, including both
-rename endpoints, additions, deletions, and type/mode changes. It checks at
-finish, candidate capture, review, checkpoint, and follow-up. Violations retain
-the worktree and evidence and refuse success; this is a difference check, not
-OS-level per-path write protection. `.git` remains read-only, and `.agents` or
-`.codex` still require explicit grants regardless of writePaths.
+Optional `networkAccess` controls the implementation shell network policy.
+External actions retain the user's task authorization. Optional `reviewTools`
+maps existing host MCP server names to reviewed read-only tool names. Review
+disables apps/plugins and GUI tools, enables only that MCP allowlist, and checks
+the actual inventory and read-only annotations before the turn. Useful native
+web search and local image reads remain available. Missing or writable exposure
+blocks review; a local read-only sandbox alone proves no MCP authority.
 
-Writer is only for independently acceptable writing from sufficient settled
-materials. `inputs.writer` contains `facts` (objects with `fact` and `source`),
-`conclusions`, `audience`, `language`, `terminology`, `preserve`, `scope`, and
-`acceptance`. Arrays other than terminology must be nonempty; audience and
-language are strings. Missing or conflicting materials stop work. Writer does
-no new research or delegation and invents no commitments. Code and documents
-that must ship together belong to the same engineering executor.
+`writePaths` is exhaustive repository-relative paths/globs. Diff checks cover
+both rename endpoints, additions, deletions and type/mode changes; they are not
+per-path OS protection. Explicit metadata grants are still required. Check
+scope at capture, review, commit and integration; violations retain artifacts.
 
-Each gate has stable `id`, `class` (implementation gate, deferred acceptance,
-observation), `kind` (check or review), `check`, `invalidatedBy`, `environment`,
-and `conditions`. `requiredEvidence` lists gate IDs and includes all
-implementation gates. Check gates need artifact evidence before review; review
-gates are satisfied by independent coverage. The gate block replaces duplicate
-required-check and gate-definition tables. Dossiers record actual results and
-candidate transitions. Bind evidence to full candidate, environment, plan, and
-input identity; unknown invalidation mappings invalidate it.
+Writer requires settled `inputs.writer`: `facts` (objects with `fact` and
+`source`), `conclusions`, `audience`, `language`, `terminology`, `preserve`,
+`scope`, `acceptance`. Arrays except terminology are nonempty; audience/language
+are strings. Missing or conflicting facts stop writing. Atomic code and docs
+stay with the same engineering task. `inputs.imageLimits` may set positive
+`count`, `perImageBytes` and `totalBytes`; defaults are 8, 20 MiB and 50 MiB.
+Original images and verified collection provenance remain privately bound to
+the candidate. Visual is an observing native role, not a separate runner.
 
 ## Verification and acceptance
 
@@ -381,159 +337,53 @@ silently weakening a property or substituting a weaker check. Proofs supplement
 the independent reviewer; they do not replace review of property sufficiency,
 implementation correspondence, or unproved behavior.
 
-### Gate classification and evidence
+### Gates and evidence
 
-Classify every required check before execution. A check belongs to exactly one
-of these classes:
+A single `codex-improve-gates` block contains version 1 and `gates`. Each gate
+has `id`, `class`, `kind`, `check`, `invalidatedBy`, `environment`, `conditions`.
+Classes are implementation gate, deferred acceptance, observation; kind is
+check or review. Include every implementation gate in requiredEvidence.
 
-- **Implementation gate** — deterministic or agent-observable evidence such as
-  tests, builds, lint, CI, browser automation, screenshots, logs, metrics, or a
-  simulator. It must pass before implementation review can approve the change.
-- **Deferred acceptance** — a runtime, physical, human-judgment, or external
-  check that the available agent and environment cannot complete. It is owned
-  outside the independent implementation review and runs against a named target.
-- **Observation** — post-integration telemetry or a follow-up signal. It does
-  not block the atomic change unless the plan gives an explicit failure
-  threshold and says which lifecycle transition that threshold causes.
+Check evidence records gate, PASS/PENDING, artifact `{path,sha256}`, environment,
+full head/tree and planHash. Required implementation checks must PASS before
+review. Required review gates are covered by the independent report, together
+with `scope`. Coverage must be complete and unique; pending, invalid or unknown
+results cannot approve. Deferred acceptance names its owner, environment,
+procedure, expected evidence, recovery and invalidating drift.
 
-Do not defer a check merely because it is inconvenient. If the repository can
-make the behavior legible through an existing test, preview, browser, log,
-metric, simulator, or other agent-accessible surface, keep it as an
-implementation gate. For each genuinely deferred acceptance, record its owner,
-environment, exact procedure, expected evidence, rollback or recovery path, and
-what drift invalidates the result.
+Capture only after complete paginated descendant discovery, native interruption
+and confirmed terminal states, per-terminal list/terminate/list and an activity
+recheck. Keep the implementation root loaded and idle while a fresh independent
+read-only root reviews the exact candidate, original plan, rationale, method,
+required evidence and private images. Root completion alone is not freeze proof.
 
-Give every implementation gate and triggered reviewer a stable ledger ID. Its
-entry declares the complete invalidation triggers, such as paths, interfaces,
-generated outputs, environment inputs, or checkpoint state, together with the
-environment identity and current candidate evidence. A genuinely holistic gate
-uses `always-invalidated`. Revision or recovery count alone is never an
-invalidation trigger.
-
-After a candidate transition, record the old and new trees, changed paths,
-preserved IDs, and invalidated IDs with reasons. Preserve evidence only when a
-complete trigger mapping and unchanged relevant environment prove the delta
-irrelevant. A missing, incomplete, or uncertain mapping fails closed by
-invalidating that ID. Run every invalidated gate, including every
-`always-invalidated` gate, before implementation approval; do not rerun a full
-suite merely because a revision or recovery occurred.
-
-An Improve candidate is identified by its current `HEAD` and the full Git tree
-of the complete worktree state, including staged, unstaged, untracked, deleted,
-and executable-bit changes. Capture that identity with
-`codex-improve candidate WORKTREE`; the helper builds the tree with a
-temporary index and native `git write-tree` without changing the worktree's real
-index. An unmerged index is not a candidate.
-
-Execution returns a structured JSON record with `output_head`,
-`output_candidate_tree`, outcome, reason, report, diagnostics, and
-`closeout_eligible`. An inconclusive outcome remains inconclusive even when
-bounded closeout is eligible. A missing candidate blocks review; inspect the
-preserved transport artifacts and resolve the cause within the approved scope.
-
-Pass the full candidate tree explicitly to every review, revision, and
-recovery invocation. Each helper recomputes the complete current tree and
-rejects an abbreviated, missing, or stale expected tree before starting a model.
-Record the reviewed candidate tree with review evidence. Any candidate
-change creates a new tree identity. Capture and review it rather than inferring
-continuity from a worktree path, branch, dossier, or conversation. Initial
-implementation review covers the complete candidate diff. A later review
-covers the exact candidate delta and its gate-ledger transition, preserving
-only mapped evidence and expanding to the complete diff wherever the mapping
-or resulting behavior is uncertain.
-
-Track implementation, integration, and external acceptance independently:
-
-- **Implementation review**: `PENDING`, `APPROVED`, `REVISE`, or `BLOCKED`.
-- **Checkpoint**: `NONE`, `RESUMABLE`, or `INTEGRATED`.
-- **External acceptance**: `NOT REQUIRED`, `PENDING`, `PASSED`, or `FAILED`.
-- **Checkpoint ID**: `none` or an exact candidate head and tree, commit SHA,
-  branch or PR ref, deployment identity, or other repository-backed identifier
-  that lets the main agent recover the same change.
-
-Keep one authoritative current Checkpoint and Checkpoint ID. Whenever that
-identity moves between a persistent worktree and diff, commit, PR, integration,
-preview, deployment, or another persistent target, append a short checkpoint
-lineage row containing the stage, new identity, superseded identity, preserved
-evidence, and invalidated evidence. An identity change does not preserve review
-evidence by itself. Carry evidence forward only after proving the reviewed diff
-is unchanged; every material diff change invalidates the applicable checks and
-reviewer conclusions.
-
-After all required implementation reviews approve the exact candidate, and
-after any approval required for a commit, the main agent may create one local
-checkpoint with
-`codex-improve checkpoint EXECUTION_ID EXPECTED_TREE --message "type: summary"`. The
-expected tree must be the full reviewed candidate tree. The helper stages that
-complete tree and runs normal commit hooks against an internal local ref. It
-atomically advances the Improve branch only after verifying the resulting
-commit tree. A failed or index-mutating hook leaves the Improve branch and
-worktree `HEAD` at the original commit and preserves the hook-produced index
-and worktree evidence. Checkpoint mode cleans its internal ref but does not
-reset or clean the worktree, bypass hooks, merge, push, publish, integrate, or
-remove any branch or worktree. The resulting local commit is `RESUMABLE`, not
-`INTEGRATED`, and authorizes none of those later actions.
-
-An asynchronous handoff for human or external acceptance requires a resumable
-checkpoint. Preparing it may require user approval for a commit, push, preview,
-deployment, or other action under the repository rules. Record that approval
-and the checkpoint ID before returning control for later feedback. A temporary
-process, an unrecorded runtime directory, or conversation history alone is not
-a resumable checkpoint.
-
-Add an `Operational handoff` only when the plan has stateful or deferred
-operations. It records:
-
-- target and current checkpoint;
-- owner, host or environment, and working directory;
-- complete commands or physical procedure and all prerequisites;
-- temporary runtime mutations plus their cleanup state and evidence;
-- expected evidence, recovery procedure, and the drift that invalidates it; and
-- secret locations or credential types, never secret values.
-
-The handoff must let every later acceptance operator act without conversation
-context. Omit it when the task has no stateful or deferred operation.
+A candidate includes staged, unstaged, deleted, mode and nonignored untracked
+changes. The controller's `capture` uses a temporary index; the real index stays
+unchanged. An unmerged index is not a candidate. Changed plan, candidate,
+permissions, roles, budget, method, evidence or integration target invalidates
+approval. Reuse check results only when their actual input/environment mapping
+is complete; uncertain mappings invalidate the affected result. Never carry an
+old approval to a new candidate.
 
 ## Lifecycle and dependencies
 
-Use exactly these lifecycle states:
+Use TODO, IN PROGRESS, IMPLEMENTED, ACCEPTANCE PENDING, DONE, BLOCKED or REJECTED.
+IMPLEMENTED does not mean integrated; DONE requires integration and every
+required acceptance. Record exact native thread/turn IDs, candidate, evidence
+and checkpoint when they exist. Native logs remain owned by Codex. Summaries
+cannot establish that an implementation root is still loaded.
 
-- `TODO` — approved direction exists, but execution has not started.
-- `IN PROGRESS` — an executor is actively implementing or revising the plan.
-- `IMPLEMENTED` — implementation review is `APPROVED`, but integration is not
-  yet established and no deferred acceptance is currently ready to run against
-  a resumable or integrated checkpoint. A known future acceptance check does
-  not by itself change this state.
-- `ACCEPTANCE PENDING` — implementation review is `APPROVED`, checkpoint is
-  `RESUMABLE` or `INTEGRATED`, and a named deferred acceptance is ready to run
-  against that exact checkpoint.
-- `DONE` — the atomic change is integrated and every required acceptance check
-  has passed, or external acceptance is `NOT REQUIRED`.
-- `BLOCKED` — a material decision, prerequisite, authority, or required evidence
-  is unavailable; state the exact blocker. Waiting for an already prepared
-  deferred acceptance result is not a blocker.
-- `REJECTED` — the approach was abandoned, superseded, or independently made
-  unnecessary; state the rationale.
+Commit, integration, publication, deployment and cleanup require separate
+explicit authority. A checkpoint first verifies exact approval, then native Git
+hooks and the resulting tree/parent before advancing HEAD. Integration requires
+a fresh review dossier bound to the checkpoint and exact target HEAD/merge tree.
+A dependent plan starts a new authorized session from its exact approved base;
+there are no old CLI aliases or state-format adapters.
 
-Lifecycle is a summary derived from the three facets above, not an independent
-source of truth. A failed deferred acceptance returns the plan to `IN PROGRESS`
-when it demonstrates an in-scope implementation defect. It returns to
-`BLOCKED` planning only when the requested behavior, scope, authority, or
-approach must change. An unrelated environment outage leaves acceptance
-pending with the outage evidence recorded.
-
-Dependencies require `DONE` by default. The only exception is a code-only
-dependency whose contract names an exact approved checkpoint or landing commit
-and an observable prerequisite that the dependent plan can verify. Inline that
-dependency contract in the dependent plan; never require an executor to recover
-semantics from another plan or prior conversation.
-
-Start one dependent plan from a pre-integration checkpoint only through
-`codex-improve next EXECUTION_ID CHECKPOINT_OID PLAN --lane LANE`.
-`CHECKPOINT_OID` must be the full commit ID at the current tip of the
-registered predecessor branch with the reviewed tree. The coordinator creates
-one isolated worktree from that exact commit. `next` is an explicit one-plan
-action, not permission to publish, integrate, or chain plans automatically.
+If connection/root, termination proof, required models/tools or authority is
+lost, STOP and preserve the candidate, last confirmed native usage and evidence.
+Do not silently recreate a budget root. Follow-up in a still-loaded root allows
+at most two revisions and one bounded recovery; further attempts need direction.
 
 ## Convergence protocol
 

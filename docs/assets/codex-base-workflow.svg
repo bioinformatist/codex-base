@@ -12,7 +12,7 @@
 <path class="line" d="M335 307H365"/>
 <rect class="box" x="370" y="250" width="130" height="115" rx="12"/><text class="label" x="435.0" y="313.5" text-anchor="middle">Authorize</text>
 <path class="line" d="M500 307H530"/>
-<rect class="box" x="535" y="250" width="130" height="115" rx="12"/><text class="label" x="600.0" y="289.5" text-anchor="middle">Execute in</text><text class="label" x="600.0" y="313.5" text-anchor="middle">isolation</text><text class="label" x="600.0" y="337.5" text-anchor="middle">① Execution</text>
+<rect class="box" x="535" y="250" width="130" height="115" rx="12"/><text class="label" x="600.0" y="289.5" text-anchor="middle">Native team</text><text class="label" x="600.0" y="313.5" text-anchor="middle">in isolation</text><text class="label" x="600.0" y="337.5" text-anchor="middle">① Execution</text>
 <path class="line" d="M665 307H695"/>
 <rect class="box" x="700" y="250" width="130" height="115" rx="12"/><text class="label" x="765.0" y="289.5" text-anchor="middle">Verify and</text><text class="label" x="765.0" y="313.5" text-anchor="middle">simplify</text><text class="label" x="765.0" y="337.5" text-anchor="middle">② Checks</text>
 <path class="line" d="M830 307H860"/>

@@ -33,7 +33,7 @@ cp "$repo/LICENSE" "$stage/share/licenses/codex-base/LICENSE"
 cp "$repo/Cargo.lock" "$stage/share/licenses/codex-base/Cargo.lock"
 cp "$repo/plugins/codex-base/licenses/"* "$stage/share/licenses/codex-base/"
 jq -n --arg distribution "$distribution" --argjson commit "$commit" --argjson tree "$tree" \
-  '{version:1, target:"x86_64-unknown-linux-musl", contract:"1.0.0-codex.19", distribution:$distribution, sourceCommit:$commit, sourceTree:$tree}' \
+  '{version:1, target:"x86_64-unknown-linux-musl", contract:"1.0.0-codex.20", distribution:$distribution, sourceCommit:$commit, sourceTree:$tree}' \
   > "$stage/metadata.json"
 cp "$stage/metadata.json" "$out/metadata.json"
 archive=codex-base-runtime-x86_64-unknown-linux-musl.tar.gz

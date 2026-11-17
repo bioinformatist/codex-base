@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fmt, fs, path::Path};
 
-pub const CONTRACT: &str = "1.0.0-codex.19";
+pub const CONTRACT: &str = "1.0.0-codex.20";
 pub const WRITE_LANES: [&str; 4] = ["economy", "standard", "deep", "writer"];
 pub const FINAL_LIMIT: usize = 64 * 1024;
 
@@ -176,13 +176,11 @@ pub fn parse_plan(raw: &[u8]) -> Result<Value> {
         .collect();
     ensure(
         declared == [format!("- **Improve contract**: `{CONTRACT}`")],
-        format!(
-            "plan must declare exactly one {CONTRACT} contract; finish older plans with their original runtime"
-        ),
+        format!("plan must declare exactly one {CONTRACT} contract"),
     )?;
-    let mut env = block(&lines, "environment")?;
+    let env = block(&lines, "environment")?;
     ensure(
-        keys(&env, &["version", "launcher", "probes"], &["cache"]),
+        keys(&env, &["version", "launcher", "probes"], &[]),
         "invalid environment fields",
     )?;
     let valid_argv = |v: &Value| {
@@ -202,26 +200,13 @@ pub fn parse_plan(raw: &[u8]) -> Result<Value> {
             "invalid environment probe",
         )?;
     }
-    if env.get("cache").is_none() {
-        env["cache"] = json!({"xdgScope":"execution"});
-    }
-    ensure(
-        keys(&env["cache"], &["xdgScope"], &[])
-            && member(&env["cache"]["xdgScope"], &["execution", "worktree"]),
-        "invalid environment cache scope",
-    )?;
     let mut routing = block(&lines, "routing")?;
     ensure(
         keys(
             &routing,
             &["version", "lane", "writePaths", "requiredEvidence"],
-            &["inputs"],
-        ) && member(
-            &routing["lane"],
-            &[
-                "economy", "standard", "deep", "writer", "scout", "visual", "reviewer",
-            ],
-        ),
+            &["inputs", "budget", "networkAccess", "reviewTools"],
+        ) && member(&routing["lane"], &WRITE_LANES),
         "invalid plan routing",
     )?;
     let writable = member(&routing["lane"], &WRITE_LANES);
@@ -242,7 +227,7 @@ pub fn parse_plan(raw: &[u8]) -> Result<Value> {
     }
     let inputs = &routing["inputs"];
     ensure(
-        keys(inputs, &[], &["writer", "visual", "imageLimits"]),
+        keys(inputs, &[], &["writer", "imageLimits"]),
         "invalid routing inputs",
     )?;
     if routing["lane"] == "writer" {
@@ -278,15 +263,6 @@ pub fn parse_plan(raw: &[u8]) -> Result<Value> {
             "writer requires complete settled materials",
         )?;
     }
-    if let Some(v) = inputs.get("visual") {
-        ensure(
-            keys(v, &["executionId", "inputIds", "report"], &[])
-                && text(&v["executionId"])
-                && strings(&v["inputIds"], true)
-                && v["report"].is_boolean(),
-            "invalid required visual inputs",
-        )?;
-    }
     if let Some(v) = inputs.get("imageLimits") {
         ensure(
             keys(v, &["count", "perImageBytes", "totalBytes"], &[])
@@ -295,6 +271,32 @@ pub fn parse_plan(raw: &[u8]) -> Result<Value> {
                     .values()
                     .all(|n| integer(n, 1, u64::MAX)),
             "invalid reviewed image limits",
+        )?;
+    }
+    if let Some(budget) = routing.get("budget") {
+        ensure(
+            keys(budget, &["implementation", "review"], &[]),
+            "invalid budget settings",
+        )?;
+        for b in budget.as_object().unwrap().values() {
+            validate_budget(b)?;
+        }
+    }
+    if let Some(network) = routing.get("networkAccess") {
+        ensure(network.is_boolean(), "networkAccess must be boolean")?;
+    }
+    if let Some(tools) = routing.get("reviewTools") {
+        ensure(
+            tools.as_object().is_some_and(|m| {
+                m.iter().all(|(server, tools)| {
+                    !server.is_empty()
+                        && server
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
+                        && strings(tools, true)
+                })
+            }),
+            "invalid read-only review tool allowlist",
         )?;
     }
     let gates = block(&lines, "gates")?;
@@ -352,11 +354,28 @@ pub fn parse_plan(raw: &[u8]) -> Result<Value> {
     Ok(json!({"environment":env,"routing":routing,"gates":gates["gates"]}))
 }
 
+pub fn validate_budget(budget: &Value) -> Result<()> {
+    ensure(
+        keys(budget, &["limit", "reminders"], &[])
+            && integer(&budget["limit"], 1, 1_000_000)
+            && budget["reminders"].as_array().is_some_and(|a| {
+                unique(a)
+                    && a.iter()
+                        .all(|r| integer(r, 1, budget["limit"].as_u64().unwrap_or(1) - 1))
+                    && a.windows(2).all(|w| w[0].as_u64() > w[1].as_u64())
+            }),
+        "invalid task budget",
+    )
+}
 pub fn read_roles(path: &Path) -> Result<Value> {
-    let roles = strict_json(&fs::read(path)?)?;
+    let settings = strict_json(&fs::read(path)?)?;
+    ensure(
+        keys(&settings, &["roles", "budgets"], &[]),
+        "invalid native settings",
+    )?;
     ensure(
         keys(
-            &roles,
+            &settings["roles"],
             &[
                 "economy", "standard", "deep", "writer", "reviewer", "scout", "visual",
             ],
@@ -364,60 +383,30 @@ pub fn read_roles(path: &Path) -> Result<Value> {
         ),
         "invalid Improve roles",
     )?;
-    for (name, role) in roles.as_object().unwrap() {
+    for (name, role) in settings["roles"].as_object().unwrap() {
         ensure(
             keys(
                 role,
-                &[
-                    "model",
-                    "reasoningEffort",
-                    "verbosity",
-                    "sandbox",
-                    "approval",
-                    "networkAccess",
-                    "tokenLimit",
-                    "reminders",
-                    "initialTimeout",
-                    "followupTimeout",
-                ],
+                &["model", "reasoningEffort", "verbosity", "instructions"],
                 &[],
-            ),
-            format!("invalid role: {name}"),
-        )?;
-        ensure(
-            member(
-                &role["model"],
-                &["gpt-6.1-sol", "gpt-6-luna", "gpt-6.1-terra"],
-            ) && member(
-                &role["reasoningEffort"],
-                &["low", "medium", "high", "xhigh"],
-            ) && member(&role["verbosity"], &["low", "medium"])
-                && role["approval"] == "never",
-            format!("invalid model settings: {name}"),
-        )?;
-        let writable = WRITE_LANES.contains(&name.as_str());
-        ensure(
-            role["sandbox"]
-                == if writable {
-                    "workspace-write"
-                } else {
-                    "read-only"
-                }
-                && role["networkAccess"].as_bool() == Some(writable && name != "writer"),
-            format!("invalid role permissions: {name}"),
-        )?;
-        ensure(
-            (role["tokenLimit"].is_null() || integer(&role["tokenLimit"], 1, 1000000))
-                && role["reminders"]
-                    .as_array()
-                    .is_some_and(|a| a.iter().all(|r| integer(r, 1, 1000000)))
-                && integer(&role["initialTimeout"], 1, 7200)
-                && (role["followupTimeout"].is_null()
-                    || integer(&role["followupTimeout"], 1, 7200)),
-            format!("invalid role limits: {name}"),
+            ) && argument(&role["model"])
+                && member(
+                    &role["reasoningEffort"],
+                    &["low", "medium", "high", "xhigh"],
+                )
+                && member(&role["verbosity"], &["low", "medium"])
+                && text(&role["instructions"]),
+            format!("invalid native role: {name}"),
         )?;
     }
-    Ok(roles)
+    ensure(
+        keys(&settings["budgets"], &["implementation", "review"], &[]),
+        "invalid root budgets",
+    )?;
+    for budget in settings["budgets"].as_object().unwrap().values() {
+        validate_budget(budget)?;
+    }
+    Ok(settings)
 }
 pub fn validate_executor(v: &Value) -> Result<()> {
     ensure(
@@ -536,16 +525,7 @@ mod tests {
         }
         let raw = plan();
         let parsed = parse_plan(&raw).unwrap();
-        assert_eq!(parsed["environment"]["cache"]["xdgScope"], "execution");
-        assert!(
-            parse_plan(
-                String::from_utf8(raw.clone())
-                    .unwrap()
-                    .replace(CONTRACT, "1.0.0-codex.18")
-                    .as_bytes()
-            )
-            .is_err()
-        );
+        assert_eq!(parsed["environment"]["launcher"], json!(["env"]));
         assert!(
             parse_plan(
                 String::from_utf8(raw)

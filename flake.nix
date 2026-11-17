@@ -2,15 +2,15 @@
   description = "Self-contained Codex Base plugin and Home Manager environment";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixpkgs-tools.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-tools.url = "github:NixOS/nixpkgs/d5cc6833999746cffdfe0598f7bc801a57b887a9";
+    mcp-nixos = { url = "github:utensils/mcp-nixos/v3.1.0"; inputs.nixpkgs.follows = "nixpkgs-tools"; };
     home-manager = { url = "github:nix-community/home-manager/release-26.05"; inputs.nixpkgs.follows = "nixpkgs"; };
-    mattpocock-skills = { url = "github:mattpocock/skills/b0618bc436ad893b3c5e84e55fba86586d34a404"; flake = false; };
+    mattpocock-skills = { url = "github:mattpocock/skills/d1478fcb140db0b93c0c8df17bcfd311844749d0"; flake = false; };
     shadcn-improve = { url = "github:shadcn/improve/03369ee6d7cafbfcecc4346539b05b3dc0a603bb"; flake = false; };
     stop-slop = { url = "github:hardikpandya/stop-slop/8da1f030185bdfe8471220585162991eaeb970e9"; flake = false; };
-    ponytail = { url = "github:DietrichGebert/ponytail/2961b52fc1fe6a5a87c7a959a79512e5c2f3ffe5"; flake = false; };
-    playwright-cli = { url = "github:microsoft/playwright-cli/b85c7a736bb473bf55b584e54a09ffa698d6d871"; flake = false; };
+    ponytail = { url = "github:DietrichGebert/ponytail/7801d061243d7b753bad0e0b3c057cd250b11755"; flake = false; };
+    playwright-cli = { url = "github:microsoft/playwright-cli/261206400b18cd0629a8b45dd14ea5488fcf261f"; flake = false; };
     codex-src = { url = "github:openai/codex/rust-v0.169.0"; flake = false; };
-    adhx = { url = "github:itsmemeworks/adhx/2dafb9c221398372d08f8dc75e857e801089f6b1"; flake = false; };
   };
   outputs = inputs@{ self, nixpkgs, ... }:
     let
@@ -24,9 +24,8 @@
         stopSlopSource = inputs.stop-slop;
         ponytailSource = inputs.ponytail;
         playwrightCliSource = inputs.playwright-cli;
-        adhxSource = inputs.adhx;
       };
-      basePackages = import ./nix/packages.nix { inherit pkgs; skills = generatedSkills; };
+      basePackages = import ./nix/packages.nix { inherit pkgs; toolPkgs = inputs.nixpkgs-tools.legacyPackages.${system}; mcpNixos = inputs.mcp-nixos; skills = generatedSkills; };
       sync = pkgs.writeShellApplication {
         name = "sync-vendored-skills";
         runtimeInputs = [ pkgs.bash pkgs.coreutils pkgs.diffutils pkgs.gitMinimal pkgs.nix ];
@@ -43,7 +42,7 @@
           pkgs.bash pkgs.coreutils pkgs.diffutils pkgs.git pkgs.curl pkgs.gnused
           pkgs.gnutar pkgs.jq pkgs.gh pkgs.shellcheck pkgs.actionlint pkgs.typos
           pkgs.rustc pkgs.cargo pkgs.rustfmt
-          (pkgs.python3.withPackages (p: [ p.pyyaml p.pillow ])) pkgs.librsvg basePackages.codex basePackages.worktrunk
+          (pkgs.python3.withPackages (p: [ p.pyyaml p.pillow ])) pkgs.librsvg basePackages.codex
         ];
       };
     };

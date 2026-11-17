@@ -2,8 +2,9 @@
 
 Show the approved plan selecting economy, standard, deep, or writer, with
 current models, effort levels, and conditions. Missing materials return to
-planning. Scout, visual, and reviewer are read-only support, not writable
-lanes; roles do not automatically switch or fall back.
+planning. Writer and visual use Astra xhigh. Scout and visual observe within shared team
+permissions; formal review uses a separate read-only Sol high root. Roles do not
+automatically switch or fall back.
 
 Keep English and Chinese topology equivalent on a 1200 × 620 canvas, using
 the workflow palette, system fonts, real text, `role="img"`, and localized

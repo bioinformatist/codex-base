@@ -1,7 +1,7 @@
 # Workflow diagram brief
 
 Show the direct path for small, clear tasks and the planned path: clarify and
-check facts, review the plan, authorize, execute in isolation, verify and
+check facts, review the plan, authorize, implement with a native team in an isolated workspace, verify and
 simplify, independent review, and checkpoint. Mark execution as ① and
 verification as ②. Integration and external acceptance are separate. State
 that planning and review consume usage and do not guarantee savings.

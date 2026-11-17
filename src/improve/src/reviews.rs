@@ -3,62 +3,49 @@ use crate::{
     contracts::*,
     ensure,
     git_worktree::{git, require_oid},
-    state::*,
-    visual::{image_paths, read_local},
+    visual::read_local,
 };
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, path::Path};
 
-fn artifact_bytes(artifact: &Value) -> Result<Vec<u8>> {
+pub fn artifact_bytes(artifact: &Value) -> Result<Vec<u8>> {
     ensure(
-        keys(artifact, &["path", "sha256"], &[]) && text(&artifact["path"]),
-        "gate requires a real artifact reference",
+        keys(artifact, &["path", "sha256"], &[])
+            && text(&artifact["path"])
+            && artifact["sha256"].as_str().is_some_and(|s| id(s, 64)),
+        "invalid evidence artifact",
     )?;
     let path = std::path::absolute(string(&artifact["path"])?)?;
-    read_local(
+    let raw = read_local(
         path.parent().ok_or("missing artifact parent")?,
         path.file_name()
-            .ok_or("missing artifact name")?
-            .to_str()
-            .ok_or("non-UTF8 artifact")?,
+            .and_then(|s| s.to_str())
+            .ok_or("invalid artifact name")?,
         1024 * 1024,
-    )
+    )?;
+    ensure(
+        digest(&raw) == artifact["sha256"],
+        "evidence artifact changed",
+    )?;
+    Ok(raw)
 }
-pub fn evidence(
-    store: &StateStore,
-    execution: &Value,
-    dossier: &Value,
-    head: &str,
-    tree: &str,
-) -> Result<Value> {
+pub fn evidence(task: &Value, dossier: &Value, head: &str, tree: &str) -> Result<String> {
     ensure(
         keys(
             dossier,
-            &[
-                "version",
-                "executionId",
-                "head",
-                "tree",
-                "evidence",
-                "notes",
-            ],
+            &["version", "taskId", "head", "tree", "evidence", "notes"],
             &["target"],
-        ) && dossier["version"].as_u64() == Some(1),
-        "invalid structured review dossier",
-    )?;
-    ensure(
-        dossier["executionId"] == execution["id"]
+        ) && dossier["version"].as_u64() == Some(1)
+            && dossier["taskId"] == task["id"]
             && dossier["head"] == head
             && dossier["tree"] == tree
             && text(&dossier["notes"]),
-        "review dossier execution or candidate mismatch",
+        "invalid review dossier or candidate identity",
     )?;
-    let entries = array(&dossier["evidence"])?;
-    let gates = array(&execution["plan_settings"]["gates"])?;
-    let required = array(&execution["plan_settings"]["routing"]["requiredEvidence"])?;
+    let gates = array(&task["plan_settings"]["gates"])?;
+    let required = array(&task["plan_settings"]["routing"]["requiredEvidence"])?;
     let mut seen = BTreeSet::new();
-    let mut visuals = Vec::new();
-    for item in entries {
+    for item in array(&dossier["evidence"])? {
         ensure(
             keys(
                 item,
@@ -71,7 +58,7 @@ pub fn evidence(
                     "tree",
                     "planHash",
                 ],
-                &["visualExecutionId"],
+                &[],
             ),
             "invalid gate evidence",
         )?;
@@ -80,12 +67,12 @@ pub fn evidence(
         let gate = gates
             .iter()
             .find(|g| g["id"] == gate_id)
-            .ok_or("unknown gate evidence")?;
+            .ok_or("unknown gate")?;
         ensure(
             gate["kind"] == "check"
                 && item["head"] == head
                 && item["tree"] == tree
-                && item["planHash"] == execution["plan_hash"]
+                && item["planHash"] == task["plan_hash"]
                 && item["environment"] == gate["environment"],
             "stale or conflicting gate evidence",
         )?;
@@ -96,37 +83,7 @@ pub fn evidence(
                     || item["status"] == "PASS"),
             "required implementation gate has not passed",
         )?;
-        let raw = artifact_bytes(&item["artifact"])?;
-        ensure(
-            digest(&raw) == item["artifact"]["sha256"],
-            "gate evidence digest mismatch",
-        )?;
-        if let Some(id) = item.get("visualExecutionId") {
-            let visual = store.load(string(id)?)?;
-            let images = array(&visual["images"])?;
-            ensure(
-                visual["kind"] == "visual"
-                    && visual["outcome"] == "COMPLETE"
-                    && visual["base_head"] == head
-                    && visual["candidate_tree"] == tree
-                    && images
-                        .iter()
-                        .any(|i| i["purpose"] == "candidate" && i["bound"] == true)
-                    && !images
-                        .iter()
-                        .any(|i| i["purpose"] == "candidate" && i["bound"] != true),
-                "visual evidence is unbound or stale",
-            )?;
-            ensure(
-                digest(&private_read(
-                    &store.path(string(&visual["id"])?)?.join("final.json"),
-                )?) == visual["final_hash"]
-                    && digest(&raw) == visual["final_hash"],
-                "visual gate must reference the actual visual report",
-            )?;
-            image_paths(store, &visual)?;
-            visuals.push(visual);
-        }
+        artifact_bytes(&item["artifact"])?;
     }
     ensure(
         !gates.iter().any(|g| {
@@ -136,25 +93,24 @@ pub fn evidence(
         }),
         "missing required gate evidence",
     )?;
-    if let Some(target) = dossier.get("target").filter(|v| !v.is_null()) {
+    if let Some(target) = dossier.get("target") {
         ensure(
             keys(target, &["worktree", "head", "mergeTree"], &[]),
-            "invalid integration target binding",
+            "invalid integration target",
         )?;
-        let path = Path::new(string(&target["worktree"])?).canonicalize()?;
+        let path = Path::new(string(&target["worktree"])?);
+        crate::git_worktree::require_physical(path)?;
         let target_head = string(&target["head"])?;
-        require_oid(&path, target_head, "commit")?;
-        require_oid(&path, string(&target["mergeTree"])?, "tree")?;
+        require_oid(path, target_head, "commit")?;
         ensure(
-            git(&path, &["rev-parse", "HEAD"])? == target_head && target["mergeTree"] == tree,
-            "target drift or new merge candidate requires independent preparation and review",
+            git(path, &["rev-parse", "HEAD"])? == target_head && target["mergeTree"] == tree,
+            "integration target drift",
         )?;
-        let source = execution["checkpoint_oid"]
-            .as_str()
-            .ok_or("integration review requires the authenticated checkpoint")?;
-        let base = git(&path, &["merge-base", target_head, source])?;
+        let source = string(&task["checkpoint_oid"])?;
+        require_oid(path, source, "commit")?;
+        let base = git(path, &["merge-base", target_head, source])?;
         let probe = git(
-            &path,
+            path,
             &[
                 "merge-tree",
                 "--write-tree",
@@ -166,14 +122,14 @@ pub fn evidence(
         )?;
         ensure(
             probe.lines().next() == Some(tree),
-            "precomputed merge tree differs; prepare a new merge candidate independently",
+            "merge tree requires a new independent review",
         )?;
     }
-    Ok(json!({"dossier":dossier,"digest":digest(&serde_json::to_vec(dossier)?),"visuals":visuals}))
+    Ok(digest(&serde_json::to_vec(dossier)?))
 }
-pub fn review_coverage(execution: &Value, report: &Value) -> Result<()> {
+pub fn review_coverage(task: &Value, report: &Value) -> Result<()> {
     validate_review(report)?;
-    let required = array(&execution["plan_settings"]["routing"]["requiredEvidence"])?;
+    let required = array(&task["plan_settings"]["routing"]["requiredEvidence"])?;
     let expected: BTreeSet<_> = std::iter::once("scope")
         .chain(required.iter().map(|v| v.as_str().unwrap_or_default()))
         .collect();
@@ -187,7 +143,7 @@ pub fn review_coverage(execution: &Value, report: &Value) -> Result<()> {
         .iter()
         .map(|i| string(&i["check"]))
         .collect::<Result<_>>()?;
-    let allowed: BTreeSet<_> = array(&execution["plan_settings"]["gates"])?
+    let allowed: BTreeSet<_> = array(&task["plan_settings"]["gates"])?
         .iter()
         .filter(|g| g["class"] == "deferred acceptance")
         .map(|g| string(&g["id"]))
@@ -198,124 +154,130 @@ pub fn review_coverage(execution: &Value, report: &Value) -> Result<()> {
             && later.len() == deferred.len()
             && later.is_subset(&allowed)
             && actual.is_disjoint(&later),
-        "review lacks exact required coverage or has unknown/duplicate checks",
+        "review lacks exact required coverage",
     )?;
     ensure(
         array(&report["findings"])?
             .iter()
             .all(|f| expected.contains(f["check"].as_str().unwrap_or_default())),
-        "finding refers to an unknown check",
+        "finding refers to unknown check",
     )
 }
 pub fn binding(
-    execution: &Value,
+    task: &Value,
     head: &str,
     tree: &str,
-    method_hash: &str,
-    verified: &Value,
+    method: &str,
+    evidence: &str,
     reviewer: &Value,
-) -> Result<Value> {
-    let visuals: Vec<_> = array(&verified["visuals"])?
-        .iter()
-        .map(|v| json!({"id":v["id"],"images":v["images"],"report":v["report"]}))
-        .collect();
-    Ok(
-        json!({"execution":execution["id"],"lineage":execution["lineage"],"plan":execution["plan_hash"],"role":execution["role_settings"],"grants":execution["grants"],"worktree":execution["worktree"],"head":head,"tree":tree,"method":method_hash,"reviewer":reviewer,"evidence":verified["digest"],"environment":execution["environment_settings"],"images":execution.get("images").cloned().unwrap_or(json!([])),"visualReport":execution["visual_report"],"visualEvidence":visuals}),
+) -> Value {
+    json!({"task":task["id"],"plan":task["plan_hash"],"settings":task["settings"],"implementation":task["implementation"],"grants":task["grants"],"worktree":task["worktree"],"common_dir":task["common_dir"],"base":task["base_head"],"head":head,"tree":tree,"method":method,"reviewer":reviewer,"evidence":evidence,"images":task["images"]})
+}
+pub fn require_approval(task: &Value, current: &Value) -> Result<()> {
+    let review = &task["review"];
+    ensure(
+        review["outcome"] == "APPROVE"
+            && review["binding"] == *current
+            && review["id"] == task["approval"],
+        "missing or stale independent approval",
+    )?;
+    review_coverage(task, &review["report"])?;
+    ensure(
+        review["report"]["verdict"] == "APPROVE",
+        "review did not approve",
     )
-}
-pub fn reconciliation_evidence(dossier: &Value) -> Result<()> {
-    let mut supports: Vec<&Value> = array(&dossier["evidence"])?.iter().collect();
-    for finding in array(&dossier["findings"])? {
-        supports.extend(array(&finding["evidence"])?);
-    }
-    ensure(
-        !supports.is_empty(),
-        "reconciliation requires supporting evidence",
-    )?;
-    for artifact in supports {
-        ensure(
-            digest(&artifact_bytes(artifact)?) == artifact["sha256"],
-            "reconciliation evidence digest mismatch",
-        )?;
-    }
-    Ok(())
-}
-pub fn approve(
-    store: &StateStore,
-    execution: &mut Value,
-    review: &Value,
-    source: &str,
-) -> Result<()> {
-    ensure(
-        store.load(string(&execution["lineage"])?)?["last_review"] == review["id"],
-        "approval requires the latest review",
-    )?;
-    if source == "reconciliation" {
-        reconciliation_evidence(&review["reconciliation"])?;
-    }
-    execution["approval"] =
-        json!({"reviewId":review["id"],"binding":review["review_binding"],"source":source});
-    store.save(execution)
-}
-pub fn require_approval(
-    store: &StateStore,
-    execution: &Value,
-    head: &str,
-    tree: &str,
-    method_hash: &str,
-    reviewer: &Value,
-) -> Result<Value> {
-    let approval = &execution["approval"];
-    ensure(
-        approval.is_object()
-            && store.load(string(&execution["lineage"])?)?["last_review"] == approval["reviewId"],
-        "checkpoint requires matching latest authenticated review approval",
-    )?;
-    let review = store.load(string(&approval["reviewId"])?)?;
-    let dossier = strict_json(&private_read(
-        &store.path(string(&review["id"])?)?.join("dossier.json"),
-    )?)?;
-    let verified = evidence(store, execution, &dossier, head, tree)?;
-    ensure(
-        binding(execution, head, tree, method_hash, &verified, reviewer)? == approval["binding"],
-        "review approval is stale",
-    )?;
-    if approval["source"] == "reconciliation" {
-        reconciliation_evidence(&review["reconciliation"])?;
-    }
-    Ok(review)
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn exact_coverage_and_binding_include_reviewer_and_evidence() {
-        let execution = json!({"id":"execution","lineage":"execution","plan_hash":"plan","role_settings":{"model":"executor"},"grants":[],"worktree":"worktree","environment_settings":{},"plan_settings":{"routing":{"requiredEvidence":["G1"]},"gates":[{"id":"G1","class":"implementation gate"},{"id":"G5","class":"deferred acceptance"}]}});
-        let mut report = json!({"verdict":"APPROVE","summary":"checked","findings":[],"coverage":[{"check":"scope","status":"PASS","evidence":"reviewed"},{"check":"G1","status":"PASS","evidence":"checked"}],"review_blockers":[],"deferred_acceptance":[{"check":"G5","owner":"maintainer","reason":"CI","evidence_required":"passing run"}]});
-        review_coverage(&execution, &report).unwrap();
+    fn exact_coverage_and_policy_binding() {
+        let mut task = json!({"id":"task","settings":{"budget":300000},"plan_settings":{"routing":{"requiredEvidence":["G1"]},"gates":[{"id":"G1","class":"implementation gate"}]}});
+        let mut report = json!({"verdict":"APPROVE","summary":"checked","findings":[],"coverage":[{"check":"scope","status":"PASS","evidence":"read"},{"check":"G1","status":"PASS","evidence":"tested"}],"review_blockers":[],"deferred_acceptance":[]});
+        review_coverage(&task, &report).unwrap();
+        let reviewer = json!({"model":"actual","sandbox":{"type":"readOnly"}});
+        let b = binding(&task, "head", "tree", "method", "evidence", &reviewer);
+        task["review"] = json!({"id":"review","outcome":"APPROVE","report":report,"binding":b});
+        task["approval"] = json!("review");
+        require_approval(&task, &b).unwrap();
+        for (field, value) in [
+            ("plan_hash", json!("new")),
+            ("settings", json!({})),
+            ("images", json!(["new"])),
+        ] {
+            let mut changed = task.clone();
+            changed[field] = value;
+            assert!(
+                require_approval(
+                    &changed,
+                    &binding(&changed, "head", "tree", "method", "evidence", &reviewer)
+                )
+                .is_err()
+            );
+        }
+        for (head, tree, method, evidence) in [
+            ("new", "tree", "method", "evidence"),
+            ("head", "new", "method", "evidence"),
+            ("head", "tree", "new", "evidence"),
+            ("head", "tree", "method", "new"),
+        ] {
+            assert!(
+                require_approval(
+                    &task,
+                    &binding(&task, head, tree, method, evidence, &reviewer)
+                )
+                .is_err()
+            );
+        }
         let duplicate = report["coverage"][0].clone();
         report["coverage"].as_array_mut().unwrap().push(duplicate);
-        assert!(review_coverage(&execution, &report).is_err());
-        let verified = json!({"digest":"artifact","visuals":[]});
-        let a = binding(
-            &execution,
-            "head",
-            "tree",
-            "method",
-            &verified,
-            &json!({"model":"reviewer"}),
+        assert!(review_coverage(&task, &report).is_err());
+        task["review"]["outcome"] = json!("unknown");
+        assert!(require_approval(&task, &b).is_err());
+    }
+    #[test]
+    fn evidence_checks_artifact_bytes_and_exact_target() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path();
+        for args in [
+            vec!["init", "-q"],
+            vec!["config", "user.name", "Fixture"],
+            vec!["config", "user.email", "fixture@example.invalid"],
+            vec!["commit", "--allow-empty", "-qm", "test: target"],
+        ] {
+            git(repo, &args).unwrap();
+        }
+        let head = git(repo, &["rev-parse", "HEAD"]).unwrap();
+        let tree = git(repo, &["rev-parse", "HEAD^{tree}"]).unwrap();
+        let artifact = repo.join("gate.log");
+        std::fs::write(&artifact, "passed").unwrap();
+        let task = json!({"id":"task","plan_hash":digest(b"plan"),"checkpoint_oid":head,
+            "plan_settings":{"routing":{"requiredEvidence":["G1"]},"gates":[
+                {"id":"G1","kind":"check","class":"implementation gate","environment":"fixture"}]}});
+        let dossier = json!({"version":1,"taskId":"task","head":head,"tree":tree,"notes":"checked",
+            "evidence":[{"gate":"G1","status":"PASS","head":head,"tree":tree,"planHash":task["plan_hash"],
+                "environment":"fixture","artifact":{"path":artifact,"sha256":digest(b"passed")}}],
+            "target":{"worktree":repo,"head":head,"mergeTree":tree}});
+        evidence(&task, &dossier, &head, &tree).unwrap();
+        for (field, value) in [
+            ("status", json!("PENDING")),
+            ("planHash", json!(digest(b"changed"))),
+        ] {
+            let mut changed = dossier.clone();
+            changed["evidence"][0][field] = value;
+            assert!(evidence(&task, &changed, &head, &tree).is_err());
+        }
+        let mut changed = dossier.clone();
+        changed["target"]["mergeTree"] = json!("0".repeat(tree.len()));
+        assert!(evidence(&task, &changed, &head, &tree).is_err());
+        std::fs::write(&artifact, "changed").unwrap();
+        assert!(evidence(&task, &dossier, &head, &tree).is_err());
+        std::fs::write(&artifact, "passed").unwrap();
+        git(
+            repo,
+            &["commit", "--allow-empty", "-qm", "test: target drift"],
         )
         .unwrap();
-        let b = binding(
-            &execution,
-            "head",
-            "tree",
-            "method",
-            &verified,
-            &json!({"model":"changed"}),
-        )
-        .unwrap();
-        assert_ne!(a, b);
-        assert_eq!(a["evidence"], "artifact");
+        assert!(evidence(&task, &dossier, &head, &tree).is_err());
     }
 }

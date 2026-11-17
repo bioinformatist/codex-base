@@ -52,13 +52,14 @@ test -f "$installed_path/assets/codex-base.svg"
 test -f "$installed_path/.mcp.json"
 test -f "$installed_path/skills/docs-routing/SKILL.md"
 test -f "$installed_path/skills/docs-routing/agents/openai.yaml"
-test -f "$installed_path/skills/adhx/SKILL.md"
-test -f "$installed_path/skills/adhx/agents/openai.yaml"
-test -f "$installed_path/skills/adhx/LICENSE"
 for relative in \
-  skills/worktrunk/SKILL.md \
-  skills/worktrunk/agents/openai.yaml \
-  skills/worktrunk/LICENSE \
+  skills/research/SKILL.md \
+  skills/research/agents/openai.yaml \
+  skills/research/LICENSE \
+  skills/triage/SKILL.md \
+  skills/triage/agents/openai.yaml \
+  skills/triage/AGENT-BRIEF.md \
+  skills/triage/LICENSE \
   skills/retro/SKILL.md \
   skills/retro/agents/openai.yaml \
   skills/prototype/SKILL.md \

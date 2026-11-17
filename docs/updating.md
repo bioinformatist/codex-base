@@ -3,93 +3,82 @@
 ## Applying an update
 
 > [!WARNING]
-> Before every update, complete and close out all Improve tasks. After updating, old tasks cannot be migrated or resumed. Improve accepts only .19 plans and keeps older private records separate.
+> Finish active Improve tasks before updating. New tasks accept only `.20` plans;
+> historical records remain untouched without continuation or inherited approval.
 
-For a Git-backed plugin installation, refresh the configured marketplace on
-the execution host:
+For a Git-backed plugin, refresh the marketplace on the execution host:
 
 ```console
 codex plugin marketplace upgrade bioinformatist-codex
 ```
 
-This refreshes the marketplace snapshot and installed plugin cache; it does
-not install or upgrade the Codex executable. Nix/Home Manager users instead
-update the consuming configuration's locked `codex-base` input, review its diff,
-and activate that configuration. Updating this repository or its lock alone
-does not update a user's installed environment.
-
-Portable Improve users must also replace the native runtime with the archive
-from the same successful source tree and verify its checksum and metadata.
-See [installation](../README.md#codex-plugin). Complete tasks with their original runtime before updating. This version does
-not migrate or resume state from other contracts; rolling back code does not
-migrate state either.
-
-Then follow [Reload after an update](../README.md#reload-after-an-update).
+This updates the marketplace snapshot and installed plugin cache, not Codex.
+Nix/Home Manager users update the consuming configuration's locked `codex-base`
+input, review its diff and activate it separately. Repository edits alone do not
+change installed environments. Portable Improve also needs the matching native
+runtime archive, checksum and source metadata; see [installation](../README.md#codex-plugin).
+Then [reload the execution runtime](../README.md#reload-after-an-update).
 
 ## Vendored and root inputs
 
-Update one pinned input at a time. Read its license and complete relevant diff,
-then update `vendor/sources.json`, the flake input or fixed-output package, and
-any exact Codex adaptation together.
-
-Run the generator in write mode, inspect all changes under
-`plugins/codex-base/skills`, then run:
+Updates are manual. Inspect the source, license and relevant diff, then update
+`vendor/sources.json`, selected flake/package pins and exact adaptations together.
+Edit canonical sources, run sync, inspect every generated diff, then check:
 
 ```console
-nix run .#sync-vendored-skills -- --check
-nix flake check --allow-import-from-derivation
+nix run path:.#sync-vendored-skills -- --check
+nix flake check path:. --allow-import-from-derivation
 ```
 
-Root input updates require manual semantic review; Renovate must not auto-merge
-them. Improve role values, schemas, protected-path behavior, and runtime
-fixtures are one contract boundary and must change together.
+`path:.` includes new untracked files without staging. Runtime/configuration,
+roles, schemas, permissions and current-behavior fixtures must agree. Relevant
+standalone portability remains required by [CONTRIBUTING](../CONTRIBUTING.md#checks).
 
 ## Codex releases
 
-This repository owns the Codex and Code Mode Host release pins. The dedicated
-`maintenance-codex.yml` workflow reads GitHub's published SHA-256 digests and
-updates both Linux musl binaries, the matching `codex-src` tag and lock entry,
-and the English and Chinese README versions atomically. It always uses the fixed `maint/codex`
-branch and a pull request to `main`; it does not weaken Renovate's manual-review
-policy for vendored or root inputs.
+Check official stable releases during authorized maintenance. Update the source
+tag/lock, CLI and Code Mode Host versions and fixed hashes in `nix/packages.nix`,
+and both README version sentences atomically. Keep the source/CLI/host consistency
+check; there is no updater or dedicated update PR workflow. Do not refresh
+unrelated inputs. Verify actual selected executables, including a Home Manager
+package override, rather than inferring installed state from repository pins.
 
-The workflow requires a repository-scoped secret named `MAINTENANCE_PAT`.
-Repository rules must keep `main` pull-request-only and require the strict
-`check` and `plugin-portability` statuses, with zero approvals and no bypass.
-Record only these names in repository documentation, never credential values.
+CI still uses upstream Nix with nix-command/flakes. Its PR/manual `check` and
+`plugin-portability` jobs, concurrency cancellation, read-only repository
+permission and runtime artifacts remain the integration gate. Before release or
+downstream use, reuse exact passing tree/input evidence or dispatch the required
+CI with separate authority; a pending job is not a pass.
 
-CI runs on pull requests and can be dispatched manually; it does not rerun on
-branch, main or tag pushes. Before publishing a release or updating a downstream
-lock, verify that the landed Git tree matches the tree covered by the passing
-PR checks and that relevant build inputs are unchanged. Reuse that evidence;
-do not require a second full run solely because the merge has a new commit ID.
-If the evidence or tree identity is missing or differs, manually dispatch CI
-for the target ref and require both jobs to pass. See
-[the integration gate](../CONTRIBUTING.md#integration-gate).
+## Selected package maintenance
 
-For a manual source update, begin from a clean checkout and run:
+- GitHub MCP 2.1.0 uses a fixed source/vendor override until nixpkgs-tools supplies
+  that version or newer with the required toolsets/schema and authentication.
+- Context7 4.7.0 comes from the selected nixpkgs-tools pin. Research preview stays
+  off; local anonymous, authenticated wrapper and hosted endpoints are separate
+  acceptance surfaces.
+- mcp-nixos 3.1.0 uses upstream `lib.mkMcpNixos` with the base package set, keeping
+  FastMCP 4 / MCP 2 scoped to that server. The newer tools set exposes an upstream
+  MCP-types recursion; [Issue #83](https://github.com/bioinformatist/codex-base/issues/83)
+  tracks the product need. Revisit selection when the newer path evaluates and
+  passes build/protocol checks; do not replace the whole Python set.
+- Playwright CLI/skill is 0.1.24 on Node 24. Its underlying Playwright is
+  `1.66.0-alpha-1794252756000`; the CLI's release status does not make that a stable
+  browser dependency. Keep headless, isolated sessions and explicit download
+  authority when checking upgrades.
 
-```console
-scripts/update-codex-release
-nix run .#sync-vendored-skills -- --check
-nix flake check --allow-import-from-derivation
-```
+## Retired automation and installations
 
-The updater accepts `--release-json PATH` for deterministic local fixtures. It
-may change only `README.md`, `README.zh-CN.md`, `flake.nix`, `flake.lock`, and
-`nix/packages.nix`. Each README must contain exactly one stable release sentence;
-the updater replaces only its Codex version token and fails before editing if
-either localized sentence is missing, duplicated, or malformed.
+Source removes the dedicated maintenance workflow/updater, Renovate entry,
+ADHX and Worktrunk integration. This does not disable remote services or rewrite
+existing installations. On 2026-11-16 the repository's remote CI and Maintain
+Codex Release workflows were still active. No open Renovate PRs were found;
+Renovate app installation remains unverified. The one inspected host had no
+Codex Base marketplace registration; other installations were not inspected.
 
-Configuring `MAINTENANCE_PAT`, activating the repository ruleset, and manually
-dispatching the real workflow are post-integration acceptance tasks. They are
-not part of source implementation or worktree verification.
-
-Local engineering adaptations live under `src/benchmark-checklist`,
-`src/blast-radius`, and `src/deprecation-and-migration`; update their immutable
-source records and retained MIT notices together. The sync CLI uses an explicit
-path source so new untracked local files participate without staging them.
-For the same complete source in local checks, use `nix flake check
-"path:$PWD" --allow-import-from-derivation` when Git filtering would omit files.
-Module/skill inheritance and an overridden Codex package remain separate; see
-[model context defaults](configuration.md#model-context-defaults).
+After authorized integration, the owner must confirm retirement of remote
+maintenance scheduling and the bot/app, and review any mutable-branch marketplace
+registrations before updating installations. A Git marketplace follows its
+configured source; updating a mutable branch can change cached skills. This
+implementation neither pins nor updates an existing registration. Home Manager
+locks and package overrides remain separate inheritance paths. No remote bot,
+real Home, host or downstream configuration was changed by source implementation.
