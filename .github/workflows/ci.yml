@@ -15,14 +15,14 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v17
+      - uses: actions/checkout@v7.0.1
+      - uses: cachix/install-nix-action@v31.11.5
       - run: nix flake check --allow-import-from-derivation
 
   plugin-portability:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Build the static runtime
         shell: bash
         run: |
@@ -40,7 +40,7 @@ jobs:
             exit 1
           fi
           CODEX_BASE_RUNTIME_ARCHIVE="$PWD/runtime-artifacts/codex-base-runtime-x86_64-unknown-linux-musl.tar.gz" tests/plugin-portability.bash
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: codex-base-runtime-x86_64-unknown-linux-musl
           path: runtime-artifacts/

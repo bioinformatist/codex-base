@@ -245,7 +245,7 @@ pub fn import_images(store: &StateStore, record: &mut Value, manifest: &Path) ->
                 atomic_private(&path, &content)?;
                 fs::set_permissions(path, fs::Permissions::from_mode(0o400))?;
             }
-            snapshot["bound"] = (captured["head"] == record["base_head"]
+            snapshot["bound"] = (captured["head"] == record["candidate_head"]
                 && captured["tree"] == record["candidate_tree"])
                 .into();
         }
@@ -261,13 +261,12 @@ pub fn image_paths(store: &StateStore, record: &Value) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
     if let Some(images) = record.get("images") {
         for image in array(images)? {
-            let owner = image
-                .get("owner")
-                .or_else(|| record.get("image_owner"))
-                .unwrap_or(&record["id"]);
             let image_id = string(&image["id"])?;
             ensure(id(image_id, 32), "invalid image ID")?;
-            let path = store.path(string(owner)?)?.join("images").join(image_id);
+            let path = store
+                .path(string(&record["id"])?)?
+                .join("images")
+                .join(image_id);
             let raw = read_local(
                 path.parent().unwrap(),
                 image_id,
@@ -302,89 +301,4 @@ pub fn image_paths(store: &StateStore, record: &Value) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(paths)
-}
-pub fn validate_visual(v: &Value, images: &[Value]) -> Result<()> {
-    ensure(
-        keys(
-            v,
-            &[
-                "status",
-                "inputIds",
-                "observations",
-                "unchecked",
-                "stoppedBecause",
-            ],
-            &[],
-        ) && member(&v["status"], &["COMPLETE", "STOPPED"])
-            && strings(&v["inputIds"], true)
-            && strings(&v["unchecked"], false),
-        "invalid visual report",
-    )?;
-    let ids = array(&v["inputIds"])?;
-    ensure(
-        ids.len() == images.len() && images.iter().all(|i| ids.contains(&i["id"])),
-        "unknown visual input IDs",
-    )?;
-    let observations = array(&v["observations"])?;
-    ensure(
-        observations.iter().all(|o| {
-            keys(
-                o,
-                &[
-                    "inputId",
-                    "location",
-                    "observation",
-                    "inference",
-                    "comparison",
-                    "uncertainty",
-                ],
-                &[],
-            ) && ids.contains(&o["inputId"])
-                && o.as_object().unwrap().values().all(text)
-        }),
-        "visual observations require locatable evidence and known IDs",
-    )?;
-    ensure(
-        if v["status"] == "COMPLETE" {
-            v["stoppedBecause"].is_null()
-                && ids
-                    .iter()
-                    .all(|i| observations.iter().any(|o| &o["inputId"] == i))
-        } else {
-            text(&v["stoppedBecause"])
-        },
-        "visual completion lacks evidence or STOP lacks a reason",
-    )
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn original_decode_and_safe_read() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut bytes = Cursor::new(Vec::new());
-        image::DynamicImage::new_rgb8(12, 8)
-            .write_to(&mut bytes, ImageFormat::Png)
-            .unwrap();
-        let raw = bytes.into_inner();
-        fs::write(dir.path().join("image"), &raw).unwrap();
-        assert_eq!(decode(&raw).unwrap()["width"], 12);
-        assert_eq!(
-            read_local(dir.path(), "image", raw.len() as u64).unwrap(),
-            raw
-        );
-        std::os::unix::fs::symlink("image", dir.path().join("link")).unwrap();
-        for (name, limit) in [("../image", 1024), ("link", 1024), ("image", 1)] {
-            assert!(read_local(dir.path(), name, limit).is_err());
-        }
-        let mut jpeg = Cursor::new(Vec::new());
-        image::DynamicImage::new_rgb8(12, 8)
-            .write_to(&mut jpeg, ImageFormat::Jpeg)
-            .unwrap();
-        assert_eq!(decode(jpeg.get_ref()).unwrap()["format"], "JPEG");
-        assert!(decode(&raw[..raw.len() / 2]).is_err());
-        let report = json!({"status":"COMPLETE","inputIds":["image"],"observations":[{"inputId":"unknown","location":"whole","observation":"pixel","inference":"none","comparison":"none","uncertainty":"none"}],"unchecked":[],"stoppedBecause":null});
-        assert!(validate_visual(&report, &[json!({"id":"image"})]).is_err());
-        assert!(decode(b"\x89PNG\r\n\x1a\nnot an image").is_err());
-    }
 }

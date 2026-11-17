@@ -1,0 +1,6 @@
+interface:
+  display_name: "Research"
+  short_description: "Investigate a bounded question with primary evidence"
+  default_prompt: "Use $research to investigate this question and separate facts, inferences and unknowns."
+policy:
+  allow_implicit_invocation: true

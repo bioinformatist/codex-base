@@ -9,7 +9,7 @@ fail() {
   exit 1
 }
 
-for command in bash base64 cmp curl git jq od python3 sed sha256sum tar timeout xz readelf; do
+for command in bash base64 cmp curl git jq od python3 sed sha256sum tar timeout readelf; do
   command -v "$command" >/dev/null || fail "$command is required"
 done
 
@@ -24,14 +24,9 @@ assignment() {
 
 codex_version="$(assignment codexVersion)"
 codex_sri="$(assignment codexHash)"
-worktrunk_version="$(assignment worktrunkVersion)"
-worktrunk_sri="$(assignment worktrunkHash)"
 [[ "$codex_sri" == sha256-* ]] || fail "codexHash is not an SRI SHA-256 digest"
-[[ "$worktrunk_sri" == sha256-* ]] || fail "worktrunkHash is not an SRI SHA-256 digest"
 codex_hex="$({ printf '%s' "${codex_sri#sha256-}" | base64 --decode; } | od -An -tx1 | tr -d ' \n')"
-worktrunk_hex="$({ printf '%s' "${worktrunk_sri#sha256-}" | base64 --decode; } | od -An -tx1 | tr -d ' \n')"
 [[ "$codex_hex" =~ ^[[:xdigit:]]{64}$ ]] || fail "cannot decode codexHash"
-[[ "$worktrunk_hex" =~ ^[[:xdigit:]]{64}$ ]] || fail "cannot decode worktrunkHash"
 
 : "${CODEX_BASE_RUNTIME_ARCHIVE:?set CODEX_BASE_RUNTIME_ARCHIVE to the archive to test}"
 runtime_archive="$(readlink -f -- "$CODEX_BASE_RUNTIME_ARCHIVE")"
@@ -49,24 +44,11 @@ tar -xzf "$asset" -C "$root/bin"
 mv "$root/bin/codex-x86_64-unknown-linux-musl" "$root/bin/codex"
 chmod +x "$root/bin/codex"
 
-worktrunk_asset="$root/worktrunk.tar.xz"
-curl --fail --location --retry 3 --retry-all-errors --silent --show-error \
-  --output "$worktrunk_asset" \
-  "https://github.com/max-sixty/worktrunk/releases/download/v${worktrunk_version}/worktrunk-x86_64-unknown-linux-musl.tar.xz"
-printf '%s  %s\n' "$worktrunk_hex" "$worktrunk_asset" | sha256sum --check --status \
-  || fail "downloaded Worktrunk asset does not match worktrunkHash"
-tar -xJf "$worktrunk_asset" --strip-components=1 -C "$root/bin" \
-  worktrunk-x86_64-unknown-linux-musl/wt \
-  worktrunk-x86_64-unknown-linux-musl/git-wt
-chmod +x "$root/bin/wt" "$root/bin/git-wt"
-
 export PATH="$root/bin:$PATH"
 export HOME="$root/home"
 export CODEX_HOME="$root/codex"
 [[ "$(codex --version)" == "codex-cli $codex_version" ]] \
   || fail "downloaded Codex version does not match codexVersion"
-[[ "$(wt --version)" == "wt v$worktrunk_version" ]] \
-  || fail "downloaded Worktrunk version does not match worktrunkVersion"
 
 codex plugin marketplace add "$repo" --json >"$root/marketplace-add.json"
 codex plugin add codex-base@bioinformatist-codex --json >"$root/plugin-add.json"
@@ -75,17 +57,18 @@ improve="$plugin_root/skills/improve"
 
 for relative in \
   .mcp.json \
-  skills/adhx/SKILL.md \
-  skills/adhx/agents/openai.yaml \
-  skills/adhx/LICENSE \
   skills/docs-routing/SKILL.md \
   skills/docs-routing/agents/openai.yaml \
   skills/bend-proof/SKILL.md \
   skills/bend-proof/agents/openai.yaml \
   skills/bend-proof/references/minimal-example.md \
-  skills/worktrunk/SKILL.md \
-  skills/worktrunk/agents/openai.yaml \
-  skills/worktrunk/LICENSE \
+  skills/research/SKILL.md \
+  skills/research/agents/openai.yaml \
+  skills/research/LICENSE \
+  skills/triage/SKILL.md \
+  skills/triage/agents/openai.yaml \
+  skills/triage/AGENT-BRIEF.md \
+  skills/triage/LICENSE \
   skills/retro/SKILL.md \
   skills/retro/agents/openai.yaml \
   skills/prototype/SKILL.md \
@@ -143,15 +126,12 @@ for relative in \
 done
 
 cmp "$repo/plugins/codex-base/skills/improve/config/roles.json" "$improve/config/roles.json"
-if compgen -G "$improve/*.config.toml" >/dev/null; then
-  fail "installed plugin contains runtime profile files"
-fi
 
 mkdir -p "$root/prefix" "$root/child-bin"
 (cd "$(dirname "$runtime_archive")" && sha256sum --check SHA256SUMS)
 tar -xzf "$runtime_archive" -C "$root/prefix"
 cmp "$root/prefix/metadata.json" "$(dirname "$runtime_archive")/metadata.json"
-jq -e '.version == 1 and .target == "x86_64-unknown-linux-musl" and .contract == "1.0.0-codex.19"
+jq -e '.version == 1 and .target == "x86_64-unknown-linux-musl" and .contract == "1.0.0-codex.20"
   and ((.distribution == "local-smoke" and .sourceCommit == null and .sourceTree == null)
        or (.distribution == "ci" and (.sourceCommit | test("^[0-9a-f]{40,64}$")) and (.sourceTree | test("^[0-9a-f]{40,64}$"))))' "$root/prefix/metadata.json" >/dev/null
 for binary in codex-improve merge-codex-base-config; do
@@ -166,11 +146,10 @@ for path in runtime src tests target Cargo.toml Cargo.lock requirements-visual.t
   test ! -e "$improve/$path"
 done
 # Only these host tools reach the native runtime and the shell model substitute.
-for tool in git sh env cat basename sleep; do
+for tool in git sh env timeout; do
   ln -s "$(command -v "$tool")" "$root/child-bin/$tool"
 done
-ln -s "$root/bin/wt" "$root/child-bin/wt"
-PORTABLE_CHILD_PATH="$root/child-bin" python3 -B "$repo/tests/improve/test_runtime.py" "$root/prefix" "$improve"
+PORTABLE_CHILD_PATH="$root/child-bin" python3 -B "$repo/tests/improve/test_runtime.py" "$root/prefix" "$improve" "$repo/src/improve/tests/native_fixture.py"
 PATH="$root/prefix/bin:$PATH" bash "$improve/scripts/codex-improve" --help >/dev/null
 # The portable launcher's missing-runtime and self-recursion errors are explicit.
 for tool in bash dirname readlink; do ln -s "$(command -v "$tool")" "$root/child-bin/$tool"; done

@@ -1,11 +1,10 @@
 use crate::{Result, contracts::*, ensure};
-use nix::{libc, unistd::getuid};
-use serde_json::{Value, json};
+use serde_json::json;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, File, OpenOptions},
+    fs::{self, File},
     io::Read,
-    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
+    os::unix::fs::{MetadataExt, PermissionsExt},
     path::{Path, PathBuf},
     process::{Command, Output},
 };
@@ -71,23 +70,6 @@ fn git_paths(root: &Path, args: &[&str]) -> Result<String> {
 pub fn git(root: &Path, args: &[&str]) -> Result<String> {
     git_env(root, args, &BTreeMap::new(), true)
 }
-pub fn wt(root: &Path, args: &[&str], settings: &[String]) -> Result<Value> {
-    let mut argv = vec!["wt".into(), "-C".into(), root.display().to_string()];
-    for setting in [
-        "list.json-schema=2",
-        "list.full=false",
-        "list.summary=false",
-        "commit.generation.command=\"\"",
-    ]
-    .iter()
-    .map(|s| s.to_string())
-    .chain(settings.iter().cloned())
-    {
-        argv.extend(["--config-set".into(), setting]);
-    }
-    argv.extend(args.iter().map(|s| s.to_string()));
-    strict_json(&command(&argv, None, &BTreeMap::new(), true)?.stdout)
-}
 #[derive(Clone)]
 pub struct Worktree {
     pub path: PathBuf,
@@ -96,6 +78,7 @@ pub struct Worktree {
     pub common_dir: PathBuf,
 }
 pub fn validate_worktree(path: &Path, owned: bool) -> Result<Worktree> {
+    require_physical(path)?;
     let target = path.canonicalize()?;
     ensure(
         target.is_dir()
@@ -118,41 +101,9 @@ pub fn validate_worktree(path: &Path, owned: bool) -> Result<Worktree> {
         &target,
         &["symbolic-ref", "--quiet", "--short", "HEAD"],
         &BTreeMap::new(),
-        owned,
-    )?;
-    ensure(
-        !owned || branch.starts_with("codex/improve-"),
-        "worktree branch is not owned by Improve",
+        false,
     )?;
     let head = git(&target, &["rev-parse", "--verify", "HEAD"])?;
-    let listing = wt(&target, &["list", "--format=json"], &[])?;
-    ensure(
-        listing["schema"].as_u64() == Some(2),
-        "invalid Worktrunk list envelope",
-    )?;
-    let mut found = Vec::new();
-    for item in array(&listing["items"])? {
-        ensure(item.is_object(), "invalid Worktrunk list items")?;
-        if let Some(path) = item["worktree"]["path"].as_str() {
-            if Path::new(path).canonicalize()? == target {
-                found.push(item);
-            }
-        }
-    }
-    ensure(
-        found.len() == 1,
-        "worktree is absent or ambiguous in Worktrunk list",
-    )?;
-    ensure(
-        found[0]["branch"]
-            == if branch.is_empty() {
-                Value::Null
-            } else {
-                json!(branch)
-            }
-            && found[0]["head"]["sha"] == head,
-        "Worktrunk branch or HEAD does not match Git",
-    )?;
     Ok(Worktree {
         path: target,
         branch,
@@ -175,124 +126,123 @@ pub fn require_oid(root: &Path, expected: &str, kind: &str) -> Result<()> {
         format!("expected object is not a {kind}"),
     )
 }
-pub fn create_worktree(repo: &Path, branch: &str, base: &str, root: &Path) -> Result<Worktree> {
-    let suffix = branch.strip_prefix("codex/improve-").unwrap_or("");
-    ensure(
-        !suffix.is_empty()
-            && suffix
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b)),
-        "invalid Improve branch",
-    )?;
+pub fn create_worktree(repo: &Path, task: &str, base: &str, root: &Path) -> Result<Worktree> {
+    ensure(id(task, 32), "invalid task ID")?;
     require_oid(repo, base, "commit")?;
     crate::state::private_stat(root, true)?;
     ensure(
         root.canonicalize()? == root,
-        "owned state root must be physical",
+        "worktree parent must be physical",
     )?;
-    let prior: BTreeSet<_> = fs::read_dir(root)?
-        .map(|e| e.map(|e| e.path()))
-        .collect::<std::io::Result<_>>()?;
-    let settings = vec![format!(
-        "worktree-path={}",
-        json!(format!("{}/{{{{ branch | sanitize }}}}", root.display()))
-    )];
-    let result = wt(
-        repo,
-        &[
-            "switch",
-            "--create",
-            branch,
-            "--base",
-            base,
-            "--no-cd",
-            "--no-hooks",
-            "--format=json",
-        ],
-        &settings,
-    )?;
-    let path = ["path", "worktree_path", "worktree"]
-        .iter()
-        .find_map(|k| result[k].as_str())
-        .ok_or("Worktrunk create did not return a path")?;
-    let path = PathBuf::from(path);
+    let path = root.join(task);
     ensure(
-        path.is_absolute()
-            && path.parent() == Some(root)
-            && !prior.contains(&path)
-            && path.canonicalize()? == path,
-        "Worktrunk did not create a new physical owned path",
+        fs::symlink_metadata(&path).is_err(),
+        "worktree path already exists",
     )?;
-    let before = fs::symlink_metadata(&path)?;
+    let common = validate_worktree(repo, false)?.common_dir;
+    let result = (|| {
+        git(
+            repo,
+            &[
+                "worktree",
+                "add",
+                "--detach",
+                path.to_str().ok_or("non-UTF8 worktree")?,
+                base,
+            ],
+        )?;
+        let created = validate_worktree(&path, true)?;
+        ensure(
+            created.path == path && created.head == base && created.common_dir == common,
+            "created worktree identity differs",
+        )?;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700))?;
+        Ok(created)
+    })();
+    if result.is_err() && path.exists() {
+        // Only the new, physical, empty-of-dirt worktree can be rolled back.
+        let _ = remove_worktree(&path, &common, base);
+    }
+    result
+}
+pub fn require_physical(path: &Path) -> Result<()> {
+    let absolute = std::path::absolute(path)?;
     ensure(
-        before.is_dir() && before.uid() == getuid().as_raw(),
-        "new worktree root is not a physical user directory",
-    )?;
-    let created = validate_worktree(&path, true)?;
+        absolute.canonicalize()? == absolute && !fs::symlink_metadata(path)?.is_symlink(),
+        "path must be physical",
+    )
+}
+pub fn remove_worktree(path: &Path, common: &Path, expected_head: &str) -> Result<()> {
+    require_physical(path)?;
+    let w = validate_worktree(path, true)?;
     ensure(
-        created.branch == branch
-            && created.head == base
-            && created.common_dir
-                == PathBuf::from(git(
-                    repo,
-                    &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-                )?)
-                .canonicalize()?,
-        "Worktrunk created a different branch, base or repository",
+        w.common_dir == common && w.head == expected_head,
+        "worktree ownership or HEAD changed",
     )?;
-    let file = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
-        .open(path)?;
-    let current = file.metadata()?;
     ensure(
-        current.uid() == getuid().as_raw()
-            && (current.dev(), current.ino()) == (before.dev(), before.ino()),
-        "new worktree root changed before permission update",
+        git(
+            path,
+            &[
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+                "--ignored=matching",
+            ],
+        )?
+        .is_empty(),
+        "dirty or ignored contents prevent removal",
     )?;
-    file.set_permissions(fs::Permissions::from_mode(0o700))?;
-    Ok(created)
+    git(
+        path,
+        &["worktree", "remove", path.to_str().ok_or("non-UTF8 path")?],
+    )?;
+    Ok(())
 }
 pub fn copy_ignored(source: &Worktree, target: &Worktree, includes: &[String]) -> Result<()> {
     ensure(
-        source.common_dir == target.common_dir,
-        "cache source and target are different repositories",
+        source.common_dir == target.common_dir && !includes.is_empty(),
+        "copy requires same repository and explicit includes",
     )?;
-    let include = source.path.join(".worktreeinclude");
-    let m = fs::symlink_metadata(&include)?;
-    ensure(
-        m.is_file() && !m.is_symlink(),
-        "cache copy requires a physical .worktreeinclude",
-    )?;
-    let text = fs::read_to_string(include)?;
-    let mut lines: Vec<_> = text
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .collect();
-    let mut supplied: Vec<_> = includes.iter().map(String::as_str).collect();
-    lines.sort();
-    supplied.sort();
-    ensure(
-        !includes.is_empty()
-            && lines == supplied
-            && includes.iter().all(|s| !s.contains(['\n', '\0'])),
-        "cache include set differs from .worktreeinclude",
-    )?;
-    wt(
-        &source.path,
-        &[
-            "step",
-            "copy-ignored",
-            "--from",
-            &source.branch,
-            "--to",
-            &target.branch,
-            "--require-include",
-            "--format=json",
-        ],
-        &[],
-    )?;
+    fn copy(source: &Path, target: &Path) -> Result<()> {
+        let m = fs::symlink_metadata(source)?;
+        ensure(!m.is_symlink(), "ignored copy contains a symlink")?;
+        ensure(
+            fs::symlink_metadata(target).is_err(),
+            "ignored copy would overwrite contents",
+        )?;
+        if m.is_file() {
+            fs::copy(source, target)?;
+        } else {
+            ensure(m.is_dir(), "ignored copy contains a special file")?;
+            fs::create_dir(target)?;
+            for entry in fs::read_dir(source)? {
+                let e = entry?;
+                copy(&e.path(), &target.join(e.file_name()))?;
+            }
+        }
+        Ok(())
+    }
+    for name in includes {
+        ensure(
+            relative_path(&json!(name))
+                && ![".git", ".agents", ".codex"].contains(&name.split('/').next().unwrap()),
+            "invalid ignored include",
+        )?;
+        let src = source.path.join(name);
+        require_physical(&src)?;
+        ensure(
+            git(&source.path, &["check-ignore", "--", name])? == *name,
+            "include must be ignored",
+        )?;
+        let dst = target.path.join(name);
+        let parent = dst.parent().ok_or("missing include parent")?;
+        ensure(
+            parent.exists(),
+            "include parent must already exist; include its directory explicitly",
+        )?;
+        require_physical(parent)?;
+        copy(&src, &dst)?;
+    }
     Ok(())
 }
 pub fn candidate(worktree: &Worktree) -> Result<(String, String)> {
@@ -426,16 +376,29 @@ pub fn check_write_paths(
     Ok(())
 }
 pub fn checkpoint(w: &Worktree, expected: &str, message: &str) -> Result<String> {
-    ensure(!message.trim().is_empty(), "commit message is empty")?;
+    ensure(
+        message.split_once(": ").is_some_and(|(kind, summary)| {
+            !kind.is_empty()
+                && kind.bytes().all(|b| b.is_ascii_lowercase())
+                && !summary.trim().is_empty()
+        }),
+        "checkpoint requires a Conventional Commit message",
+    )?;
     let (parent, tree) = require_candidate(w, expected)?;
     ensure(
         tree != git(&w.path, &["rev-parse", "HEAD^{tree}"])?,
         "candidate is identical to HEAD",
     )?;
-    let original_ref = format!("refs/heads/{}", w.branch);
+    let original_ref = git_env(
+        &w.path,
+        &["symbolic-ref", "--quiet", "HEAD"],
+        &BTreeMap::new(),
+        false,
+    )?;
     ensure(
-        git(&w.path, &["symbolic-ref", "HEAD"])? == original_ref,
-        "worktree is not attached to the expected branch",
+        (original_ref.is_empty() && w.branch.is_empty())
+            || original_ref == format!("refs/heads/{}", w.branch),
+        "worktree attachment changed",
     )?;
     git(&w.path, &["add", "-A"])?;
     ensure(
@@ -458,11 +421,18 @@ pub fn checkpoint(w: &Worktree, expected: &str, message: &str) -> Result<String>
             git(&w.path, &["rev-parse", &format!("{oid}^1")])? == parent,
             "Git hook changed the checkpoint parent",
         )?;
-        git(&w.path, &["update-ref", &original_ref, &oid, &parent])?;
+        if !original_ref.is_empty() {
+            git(&w.path, &["update-ref", &original_ref, &oid, &parent])?;
+        }
         Ok(oid)
     })();
     if attached {
-        git(&w.path, &["symbolic-ref", "HEAD", &original_ref])?;
+        if original_ref.is_empty() {
+            let restored = result.as_ref().unwrap_or(&parent);
+            git(&w.path, &["update-ref", "--no-deref", "HEAD", restored])?;
+        } else {
+            git(&w.path, &["symbolic-ref", "HEAD", &original_ref])?;
+        }
     }
     git_env(
         &w.path,
@@ -638,5 +608,104 @@ mod tests {
         ] {
             assert_eq!(matches(name, pattern), expected, "{name:?} {pattern:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod workspace_tests {
+    use super::*;
+    fn repo(root: &Path) -> PathBuf {
+        let repo = root.join("repo");
+        fs::create_dir(&repo).unwrap();
+        for args in [
+            vec!["init", "-q"],
+            vec!["config", "user.name", "Fixture"],
+            vec!["config", "user.email", "fixture@example.invalid"],
+        ] {
+            git(&repo, &args).unwrap();
+        }
+        fs::write(repo.join("tracked"), "base").unwrap();
+        fs::write(repo.join(".gitignore"), "cache/\n").unwrap();
+        git(&repo, &["add", "."]).unwrap();
+        git(&repo, &["commit", "-qm", "test: base"]).unwrap();
+        repo
+    }
+    #[test]
+    fn exact_base_full_candidate_and_safe_removal() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = repo(temp.path());
+        let base = git(&repo, &["rev-parse", "HEAD"]).unwrap();
+        fs::write(repo.join("tracked"), "newer").unwrap();
+        git(&repo, &["commit", "-qam", "test: newer"]).unwrap();
+        let parent = crate::state::private_dir(&temp.path().join("workspaces")).unwrap();
+        let w = create_worktree(&repo, &crate::state::new_id().unwrap(), &base, &parent).unwrap();
+        assert_eq!(fs::read_to_string(w.path.join("tracked")).unwrap(), "base");
+        assert!(w.branch.is_empty());
+        let index = PathBuf::from(
+            git(
+                &w.path,
+                &["rev-parse", "--path-format=absolute", "--git-path", "index"],
+            )
+            .unwrap(),
+        );
+        let original = fs::read(&index).unwrap();
+        fs::write(w.path.join("tracked"), "changed").unwrap();
+        fs::write(w.path.join("new"), "untracked").unwrap();
+        let (_, tree) = candidate(&w).unwrap();
+        assert_eq!(fs::read(&index).unwrap(), original);
+        assert_eq!(
+            git(&w.path, &["show", &format!("{tree}:new")]).unwrap(),
+            "untracked"
+        );
+        assert!(remove_worktree(&w.path, &w.common_dir, &base).is_err());
+        fs::remove_file(w.path.join("new")).unwrap();
+        git(&w.path, &["restore", "tracked"]).unwrap();
+        fs::create_dir(w.path.join("cache")).unwrap();
+        fs::write(w.path.join("cache/private"), "keep").unwrap();
+        assert!(remove_worktree(&w.path, &w.common_dir, &base).is_err());
+        fs::remove_dir_all(w.path.join("cache")).unwrap();
+        let alias = temp.path().join("alias");
+        std::os::unix::fs::symlink(&w.path, &alias).unwrap();
+        assert!(validate_worktree(&alias, true).is_err());
+        remove_worktree(&w.path, &w.common_dir, &base).unwrap();
+        assert!(!w.path.exists());
+    }
+    #[test]
+    fn explicit_ignored_copy_and_detached_checkpoint() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = repo(temp.path());
+        let source = validate_worktree(&repo, false).unwrap();
+        let parent = crate::state::private_dir(&temp.path().join("workspaces")).unwrap();
+        let w = create_worktree(
+            &repo,
+            &crate::state::new_id().unwrap(),
+            &source.head,
+            &parent,
+        )
+        .unwrap();
+        fs::create_dir(repo.join("cache")).unwrap();
+        fs::write(repo.join("cache/file"), "cache").unwrap();
+        assert!(!w.path.join("cache").exists());
+        copy_ignored(&source, &w, &["cache".into()]).unwrap();
+        assert_eq!(
+            fs::read_to_string(w.path.join("cache/file")).unwrap(),
+            "cache"
+        );
+        assert!(copy_ignored(&source, &w, &["cache".into()]).is_err());
+        assert!(copy_ignored(&source, &w, &["tracked".into()]).is_err());
+        fs::remove_dir_all(w.path.join("cache")).unwrap();
+        fs::write(w.path.join("tracked"), "changed").unwrap();
+        let (_, tree) = candidate(&w).unwrap();
+        let oid = checkpoint(&w, &tree, "feat: reviewed change").unwrap();
+        assert_eq!(git(&w.path, &["rev-parse", "HEAD"]).unwrap(), oid);
+        assert_eq!(git(&w.path, &["rev-parse", "HEAD^{tree}"]).unwrap(), tree);
+        assert_eq!(git(&repo, &["rev-parse", "HEAD"]).unwrap(), source.head);
+        assert!(git(&w.path, &["ls-files", "-u"]).unwrap().is_empty());
+        assert!(integrate_exact(&repo, &oid, &"0".repeat(40)).is_err());
+        let merged = integrate_exact(&repo, &oid, &source.head).unwrap();
+        assert_eq!(
+            git(&repo, &["rev-parse", &format!("{merged}^2")]).unwrap(),
+            oid
+        );
     }
 }

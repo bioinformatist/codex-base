@@ -32,9 +32,9 @@ and `codex-improve` and `codex-doctor` wrappers that accept a Codex package. `ni
 config overlay, MCP wrappers, global instructions, rules, packages, and direct
 unnamespaced skill links. Its `package` option installs one CLI package and passes
 that package's absolute `bin/codex` path to both helpers. The Improve wrapper
-passes the path through the launcher to its worker, so launcher `PATH` changes
+fixes that path before launching App Server through the project launcher, so launcher `PATH` changes
 cannot select another CLI. The portable plugin still resolves `codex` from the
-host `PATH`. Home Manager intentionally renders no Improve profile files.
+host `PATH`.
 
 The desktop SSH client starts Codex App Server on the remote host. That process
 can serve multiple chats, so installing a new binary and starting a new chat
@@ -52,40 +52,60 @@ guidance. Executor prompts retain runner-local scope, checks, STOP, and handoff
 constraints. Codex Base has no model-index or per-model global guidance files,
 and its ordinary runtime default remains Sol with medium reasoning.
 
-Formal planning prerequisites and role selection are described in the
-[workflow guide](workflow.md). The coordinator reads the selected role from
-`src/improve/config/roles.json` independently of the main session's model and
-stores its effective settings with each execution; it does not load Codex profiles.
+Formal planning needs Astra in native Plan Mode with callable context management
+and structured questions. Independent Astra plan review may use read-only
+Default Mode with both capabilities; see the [workflow guide](workflow.md).
 
 ## Executor routing
 
-Improve `.19` uses the public `codex-improve` coordinator and private state in
-`codex-improve-v19`. It rejects older contracts without migrating or resuming
-old tasks. Every plan declares environment, routing, and gate blocks; an
-explicit CLI lane must agree with the plan.
+Improve `.20` holds an official App Server process, connection and loaded
+implementation root. Its private `codex-improve-v20` records retain task/native
+IDs, workspace identity, plan/settings, candidate, usage and review summaries.
+Codex owns full logs, agent dispatch, messages, waits and nested delegation.
+`src/improve/config/roles.json` is the sole role source; native child role files
+are derived from it. Writer/visual use Astra xhigh; other model/effort choices
+remain unchanged. Required unavailable models/efforts fail explicitly.
 
-The reviewed plan selects a writable lane; scout, visual, and reviewer are
-read-only. See [execution lanes](workflow.md#execution) for their conditions.
-Actual Git differences are checked against write paths through execution,
-follow-up, review, and checkpoint; this is a diff check rather than per-path OS
-protection. Protected roots retain their explicit-grant rules.
+The implementation tree shares workspace-write authority and a native 300k
+rollout budget. Scout/visual observation is a role convention inside that
+boundary. A fresh formal read-only review root and descendants share an
+independent 100k. Native hard enforcement is explicitly enabled. Same-task
+continuation and revision keep the original loaded root; a connection/root loss
+stops rather than cold-resuming or forking a new budget. Native cancellation,
+timeouts and limits supply terminal outcomes; Improve has no root timer or
+custom usage counter.
 
-The Nix closure supplies the static Rust runtime, Git, Codex and Worktrunk.
-Portable users install the matching precompiled runtime and supply the host tools.
-The runtime locates resources under its canonical executable prefix;
-`CODEX_IMPROVE_SKILL_ROOT` can select another matching skill layout.
-No Python interpreter or image package is needed at runtime. Native `--image` carries bounded static PNG/JPEG originals from
-private snapshots. The caller supplies and verifies collection records for
-candidate images; unbound observations cannot satisfy a candidate gate. Image
-limits default to eight inputs, 20 MiB each and 50 MiB total; a reviewed plan
-may override them. Images and private paths stay out of ordinary metrics.
+Formal review disables apps/plugins and GUI tools, allows only explicitly
+reviewed existing MCP read tools, verifies inventory/annotations, and retains
+native web and local image access. A filesystem sandbox does not establish MCP
+authority. All external effects remain inside the user's task authorization.
 
-Review binds the original plan, role, grants, exact candidate, method, reviewer
-settings, and required evidence. A new review invalidates the preceding
-approval. Reconciliation retains the original result and records supported
-finding dispositions. Changed support artifacts invalidate approval reuse.
-Checkpoints require current matching approval; integration also binds the
-caller-verified target HEAD and precomputed merge tree. Worktrunk manages
-worktrees and Git owns candidate and checkpoint operations. The coordinator
-does not probe quota, switch models, or replay started calls. The plugin changes
-neither the main model nor native Codex configuration.
+Before capture, the client pages through descendants, interrupts active turns,
+observes terminal states, terminates/re-lists background processes and rechecks
+activity. It keeps the implementation root loaded and idle during independent
+review. Unknown termination cannot approve. Git's temporary index captures the
+complete candidate while preserving the real index. Write-path checks include
+rename endpoints, deletions and type/mode changes; they are diff checks, not
+per-path OS protection. Explicit protected metadata grants still apply.
+
+Prefer host-managed worktrees and their returned paths. Git fills the CLI gap
+with a detached worktree at the exact base. Common-dir, physical path, base and
+task ownership are checked; ignored content is copied only with explicit
+includes. Dirty, ignored, unknown-owned or symlinked worktrees cannot be removed.
+The Nix closure supplies static Rust, Git, coreutils and selected Codex. Portable
+users supply host tools; no Python/Cargo/Nix is needed by the static runtime.
+Resources live beside the canonical executable prefix, optionally selected by
+`CODEX_IMPROVE_SKILL_ROOT`. Original static PNG/JPEG inputs are privately
+snapshotted and sent via native local-image inputs. Defaults are eight images,
+20 MiB each and 50 MiB total, configurable by the reviewed plan. Verified
+collection records bind candidate images; unbound observations cannot satisfy
+acceptance.
+
+Review binds the full plan, actual role/model/effort, task permissions/budget,
+HEAD/tree, method, artifact bytes, images and integration target. Plan, candidate,
+settings or evidence drift invalidates approval. Only complete valid APPROVE
+with exact coverage permits an authorized checkpoint; integration also requires
+the exact target HEAD and merge tree. Git owns hooks and expected-parent updates.
+Historical records remain untouched without import or inherited approval.
+See [lifecycle ownership](improve-lifecycle.md) for the responsibility/deletion
+map, current CLI and remaining gaps.

@@ -2,26 +2,9 @@
   "version": 1,
   "sources": [
     {
-      "name": "worktrunk",
-      "repository": "https://github.com/max-sixty/worktrunk",
-      "version": "0.79.0",
-      "revision": "5ba6f148e8505c20794f2d8bc706aa4f26335c95",
-      "license": "MIT OR Apache-2.0",
-      "includedPaths": ["wt", "git-wt", "skills/worktrunk/SKILL.md", "LICENSE"],
-      "patched": true
-    },
-    {
-      "name": "adhx",
-      "repository": "https://github.com/itsmemeworks/adhx",
-      "revision": "2dafb9c221398372d08f8dc75e857e801089f6b1",
-      "license": "MIT",
-      "includedPaths": ["skills/adhx", "LICENSE"],
-      "patched": true
-    },
-    {
       "name": "mattpocock-skills",
       "repository": "https://github.com/mattpocock/skills",
-      "revision": "b0618bc436ad893b3c5e84e55fba86586d34a404",
+      "revision": "d1478fcb140db0b93c0c8df17bcfd311844749d0",
       "license": "MIT",
       "includedPaths": [
         "skills/engineering/codebase-design",
@@ -34,9 +17,12 @@
         "skills/productivity/handoff",
         "skills/productivity/wait-what",
         "skills/productivity/writing-for-agents",
-        "skills/productivity/to-questionnaire"
+        "skills/productivity/to-questionnaire",
+        "skills/engineering/research",
+        "skills/engineering/triage"
       ],
-      "patched": true
+      "patched": true,
+      "version": "1.3.2"
     },
     {
       "name": "shadcn-improve",
@@ -54,25 +40,34 @@
       "repository": "https://github.com/hardikpandya/stop-slop",
       "revision": "8da1f030185bdfe8471220585162991eaeb970e9",
       "license": "MIT",
-      "includedPaths": ["references"],
+      "includedPaths": [
+        "references"
+      ],
       "patched": true
     },
     {
       "name": "ponytail",
       "repository": "https://github.com/DietrichGebert/ponytail",
-      "version": "5.2.0",
-      "revision": "2961b52fc1fe6a5a87c7a959a79512e5c2f3ffe5",
+      "version": "5.3.3",
+      "revision": "7801d061243d7b753bad0e0b3c057cd250b11755",
       "license": "MIT",
-      "includedPaths": ["skills/ponytail", "skills/ponytail-review", "skills/ponytail-audit", "skills/ponytail-debt"],
+      "includedPaths": [
+        "skills/ponytail",
+        "skills/ponytail-review",
+        "skills/ponytail-audit",
+        "skills/ponytail-debt"
+      ],
       "patched": true
     },
     {
       "name": "playwright-cli",
       "repository": "https://github.com/microsoft/playwright-cli",
-      "version": "0.1.22",
-      "revision": "b85c7a736bb473bf55b584e54a09ffa698d6d871",
+      "version": "0.1.24",
+      "revision": "261206400b18cd0629a8b45dd14ea5488fcf261f",
       "license": "Apache-2.0",
-      "includedPaths": ["skills/playwright-cli"],
+      "includedPaths": [
+        "skills/playwright-cli"
+      ],
       "patched": true
     },
     {
@@ -80,7 +75,11 @@
       "repository": "https://github.com/cursor/plugins",
       "revision": "6ce45c59b9301a638c1fe1a7b8dc2a82b650898f",
       "license": "MIT",
-      "includedPaths": ["pstack/skills/benchmark-checklist/SKILL.md", "pstack/skills/blast-radius/SKILL.md", "pstack/LICENSE"],
+      "includedPaths": [
+        "pstack/skills/benchmark-checklist/SKILL.md",
+        "pstack/skills/blast-radius/SKILL.md",
+        "pstack/LICENSE"
+      ],
       "patched": true
     },
     {
@@ -88,7 +87,10 @@
       "repository": "https://github.com/addyosmani/agent-skills",
       "revision": "aeac41d4d005999432bb7312f7ff06383a91d59d",
       "license": "MIT",
-      "includedPaths": ["skills/deprecation-and-migration/SKILL.md", "LICENSE"],
+      "includedPaths": [
+        "skills/deprecation-and-migration/SKILL.md",
+        "LICENSE"
+      ],
       "patched": true
     }
   ]

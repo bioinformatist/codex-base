@@ -32,7 +32,6 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 - 实现前查证当前文档，隔离执行器验证并简化每个改动步骤；审查和检查点明确对应的候选版本，让工作可以续接和评估。
 - 聚焦的自动技能用于核验基准测量、追踪改动影响和规划弃用迁移，也可显式调用；方法改编自 Lauren Tan 的 pstack 和 Addy Osmani 的 agent-skills。
 - 共享技能覆盖文档检索、调试、测试、设计和文字审阅。[详细能力目录](docs/capabilities.zh-CN.md)列出了它们的触发方式和安装要求。
-- ADHX 可读取用户提供或有边界的网页研究发现的相关公开 X 帖子 URL；它不能搜索 X，长文 Article 内容也可能不完整。
 
 [致谢与许可证](docs/credits.md)说明了上游贡献与我们的适配内容；[来源记录](vendor/sources.json)列出了纳入的路径和固定版本。
 
@@ -61,7 +60,7 @@ Codex Base 将社区技能移植、适配到 Codex，并结合团队实践补充
 
 SSH 连接请按官方[连接说明](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host)配置。只在桌面客户端上安装，不会配置远端主机。
 
-Linux x64 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq、Codex 和 Worktrunk（`wt`）。Improve 使用匹配的预编译 Codex Base 运行时；静态二进制无需 Python、Cargo、Nix 或本地编译。Nix/Home Manager 提供这些二进制及主机工具。WSL2 可以作为 Linux x64 执行主机，仓库应放在其 Linux 文件系统内（例如 `~/src`）。
+Linux x64 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU sed、jq 和 Codex。Improve 使用匹配的预编译 Codex Base 运行时；静态二进制无需 Python、Cargo、Nix 或本地编译。Nix/Home Manager 提供这些二进制及主机工具。WSL2 可以作为 Linux x64 执行主机，仓库应放在其 Linux 文件系统内（例如 `~/src`）。
 
 <a id="选择安装方式"></a>
 
@@ -72,7 +71,7 @@ Linux x64 执行环境需要 `PATH` 中已有 Bash、GNU coreutils、Git、GNU s
 | 提供或配置的内容 | Codex 插件 | Nix / Home Manager 完整环境 |
 |---|---|---|
 | 工程技能 | 带命名空间，例如 `$codex-base:improve` | 无命名空间，例如 `$improve` |
-| Improve CLI | 预编译 `codex-improve`，主机提供 Git、Codex 和 `wt` | 提供 `codex-improve` 和 `wt` |
+| Improve CLI | 预编译 `codex-improve`，主机提供 Git 和 Codex | 提供 `codex-improve`、Git 和 Codex |
 | 全局指引与 GitHub MCP | 无 | 有 |
 | Context7 文档服务 | 匿名 HTTP 默认配置 | 本地匿名 Context7 和可选的用户级认证 |
 | Codex、Code Mode Host、Node、Playwright CLI | 不安装 | 默认 Codex 包含 Code Mode Host，Node 和 Playwright CLI 固定版本；Codex 包可替换 |
@@ -172,6 +171,10 @@ Improve 会查清事实、询问重要且尚未确定的选择，然后在对话
 计划按任务选择[验证方式](docs/workflow.zh-CN.md#verification)，包括必要测试和独立审查。
 
 Default Mode 中的实现、审计和普通生命周期记录不需要重新走正式规划流程。不需要正式规划的任务可以直接使用相应技能，见[详细能力目录](docs/capabilities.zh-CN.md)。
+
+实施使用持续连接的原生团队，根及后代共享 300k rollout 额度；正式验收另起只读根，使用独立 100k。writer 和 visual 使用 Astra xhigh。新任务使用 Improve `.20` 与运行时 `0.20.0`。继续、修订与审查期间保持 App Server 连接和实施根加载；失联即停止。历史记录原样保留，不继续执行、不继承批准。参见[新任务使用与职责](docs/improve-lifecycle.md)。
+
+research 逐项引用一手来源，区分事实、推断与未知；triage 仅显式调用，读取完整讨论与既有决定，再建议或执行已授权的分诊操作。
 
 ## 更新后重新加载
 

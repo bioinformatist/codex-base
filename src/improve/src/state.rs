@@ -8,9 +8,9 @@ use serde_json::Value;
 use sha2::Sha256;
 use std::{
     env,
-    fs::{self, File, OpenOptions},
+    fs::{self, File},
     io::{Read, Write},
-    os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt},
+    os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt},
     path::{Path, PathBuf},
 };
 
@@ -37,18 +37,6 @@ pub fn private_read(path: &Path) -> Result<Vec<u8>> {
     private_stat(path, false)?;
     Ok(fs::read(path)?)
 }
-pub fn private_append(path: &Path) -> Result<File> {
-    let file = OpenOptions::new()
-        .append(true)
-        .custom_flags(nix::libc::O_NOFOLLOW)
-        .open(path)?;
-    let m = file.metadata()?;
-    ensure(
-        m.is_file() && m.uid() == getuid().as_raw() && m.mode() & 0o777 == 0o600,
-        "private append path is unsafe",
-    )?;
-    Ok(file)
-}
 pub fn atomic_private(path: &Path, raw: &[u8]) -> Result<()> {
     if fs::symlink_metadata(path).is_ok() {
         private_stat(path, false)?;
@@ -74,7 +62,7 @@ fn random_bytes<const N: usize>() -> Result<[u8; N]> {
 
 pub struct StateStore {
     pub root: PathBuf,
-    pub executions: PathBuf,
+    pub tasks: PathBuf,
     pub worktrees: PathBuf,
     pub cache: PathBuf,
     key: Vec<u8>,
@@ -96,8 +84,8 @@ impl StateStore {
             m.is_dir() && !m.is_symlink() && m.uid() == getuid().as_raw(),
             "state home is not a physical user-owned directory",
         )?;
-        let root = private_dir(&home.join("codex-improve-v19"))?;
-        let executions = private_dir(&root.join("executions"))?;
+        let root = private_dir(&home.join("codex-improve-v20"))?;
+        let tasks = private_dir(&root.join("tasks"))?;
         let worktrees = private_dir(&root.join("worktrees"))?;
         let cache = private_dir(&root.join("cache"))?;
         let key_path = root.join("key");
@@ -108,7 +96,7 @@ impl StateStore {
         ensure(key.len() == 32, "private state key is invalid")?;
         Ok(Self {
             root,
-            executions,
+            tasks,
             worktrees,
             cache,
             key,
@@ -116,14 +104,14 @@ impl StateStore {
     }
     pub fn path(&self, execution: &str) -> Result<PathBuf> {
         ensure(id(execution, 32), "invalid execution ID")?;
-        Ok(self.executions.join(execution))
+        Ok(self.tasks.join(execution))
     }
     pub fn lock(&self, execution: &str) -> Result<Flock<File>> {
         let path = self.path(execution)?;
         private_stat(&path, true)?;
         Flock::lock(File::open(path)?, FlockArg::LockExclusive).map_err(|(_, e)| e.into())
     }
-    pub fn create(&self, record: &mut Value, plan: &[u8], prompt: &[u8]) -> Result<()> {
+    pub fn create(&self, record: &mut Value, plan: &[u8]) -> Result<()> {
         let location = self.path(string(&record["id"])?)?;
         ensure(
             fs::symlink_metadata(&location).is_err(),
@@ -131,18 +119,7 @@ impl StateStore {
         )?;
         private_dir(&location)?;
         atomic_private(&location.join("plan.md"), plan)?;
-        atomic_private(&location.join("prompt.txt"), prompt)?;
-        for name in [
-            "events.jsonl",
-            "final.json",
-            "diagnostics.txt",
-            "launcher-diagnostics.txt",
-            "preflight.txt",
-        ] {
-            atomic_private(&location.join(name), b"")?;
-        }
         record["plan_hash"] = digest(plan).into();
-        record["prompt_hash"] = digest(prompt).into();
         self.save(record)
     }
     pub fn save(&self, record: &Value) -> Result<()> {
@@ -181,27 +158,11 @@ impl StateStore {
         )?;
         let plan = private_read(&location.join("plan.md"))?;
         ensure(
-            digest(&plan) == record["plan_hash"]
-                && digest(&private_read(&location.join("prompt.txt"))?) == record["prompt_hash"],
-            "private plan or prompt hash mismatch",
+            digest(&plan) == record["plan_hash"],
+            "private plan hash mismatch",
         )?;
         parse_plan(&plan)?;
         Ok(record)
-    }
-    pub fn write_artifact(&self, execution: &str, name: &str, raw: &[u8]) -> Result<()> {
-        ensure(
-            [
-                "events.jsonl",
-                "final.json",
-                "diagnostics.txt",
-                "launcher-diagnostics.txt",
-                "preflight.txt",
-                "metrics.json",
-            ]
-            .contains(&name),
-            "invalid artifact name",
-        )?;
-        atomic_private(&self.path(execution)?.join(name), raw)
     }
 }
 
@@ -210,19 +171,14 @@ mod tests {
     use super::*;
     use serde_json::json;
     #[test]
-    fn authenticated_roundtrip_and_old_state_untouched() {
+    fn authenticated_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
-        let old = dir.path().join("codex-improve-v18");
-        fs::create_dir(&old).unwrap();
-        fs::write(old.join("sentinel"), b"old state remains").unwrap();
         let store = StateStore::new(Some(dir.path())).unwrap();
         let plan = format!(
             "- **Improve contract**: `{CONTRACT}`\n```json codex-improve-environment\n{{\"version\":1,\"launcher\":[\"env\"],\"probes\":[]}}\n```\n```json codex-improve-routing\n{{\"version\":1,\"lane\":\"standard\",\"writePaths\":[\"*\"],\"requiredEvidence\":[]}}\n```\n```json codex-improve-gates\n{{\"version\":1,\"gates\":[]}}\n```\n"
         );
         let mut record = json!({"id":new_id().unwrap(),"contract":CONTRACT,"value":"值"});
-        store
-            .create(&mut record, plan.as_bytes(), b"prompt")
-            .unwrap();
+        store.create(&mut record, plan.as_bytes()).unwrap();
         let execution = record["id"].as_str().unwrap();
         let _lock = store.lock(execution).unwrap();
         assert_eq!(store.load(execution).unwrap(), record);
@@ -231,10 +187,6 @@ mod tests {
         raw[10] ^= 1;
         fs::write(&path, raw).unwrap();
         assert!(store.load(execution).is_err());
-        assert_eq!(
-            fs::read(old.join("sentinel")).unwrap(),
-            b"old state remains"
-        );
         fs::set_permissions(&store.cache, fs::Permissions::from_mode(0o755)).unwrap();
         assert!(StateStore::new(Some(dir.path())).is_err());
     }

@@ -31,19 +31,9 @@ let
   selectedCodex = pkgs.writeShellScriptBin "codex" ''
     printf '%s\n' "$@" > "$CODEX_PACKAGE_LOG/''${1-unknown}.args"
     case "''${1-}" in
-      --version) echo 'codex-cli selected' ;;
+      doctor) echo 'selected native doctor' ;;
       plugin) echo 'github@openai-curated installed, enabled' ;;
-      exec)
-        echo '{"type":"thread.started"}'
-        echo '{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":2,"output_tokens":3}}'
-        while [ "$#" -gt 0 ]; do
-          if [ "$1" = "--output-last-message" ]; then
-            printf '%s\n' '{"status":"COMPLETE","steps":["selected"],"stoppedBecause":null,"filesChanged":[],"notes":[]}' > "$2"
-            break
-          fi
-          shift
-        done
-        ;;
+      --strict-config) exec ${python}/bin/python3 ${srcRoot}/src/improve/tests/native_fixture.py "$@" ;;
       *) exit 90 ;;
     esac
   '';
@@ -96,7 +86,7 @@ in {
       export SELECTED_DOCTOR=${selectedDoctor}/bin/codex-doctor
       export SELECTED_IMPROVE=${selectedImprove}/bin/codex-improve
       export UNUSABLE_IMPROVE=${unusableImprove}/bin/codex-improve
-      export FIXTURE_LAUNCHER_PATH=${pkgs.lib.makeBinPath [ pkgs.gitMinimal packages.worktrunk pkgs.coreutils ]}
+      export FIXTURE_LAUNCHER_PATH=${pkgs.lib.makeBinPath [ pkgs.gitMinimal pkgs.coreutils ]}
       bash ${srcRoot}/tests/codex-package-selection.bash
       touch $out
     '';
@@ -114,10 +104,6 @@ in {
       cmp ${srcRoot}/src/bend-proof/$file ${generatedSkills}/bend-proof/$file
     done
     grep -Fqx '  allow_implicit_invocation: true' ${generatedSkills}/bend-proof/agents/openai.yaml
-    cmp ${inputs.adhx}/LICENSE ${generatedSkills}/adhx/LICENSE
-    cmp ${inputs.adhx}/LICENSE ${srcRoot}/plugins/codex-base/licenses/adhx-MIT.txt
-    test "$(jq -r '.sources[] | select(.name == "adhx") | .revision' ${srcRoot}/vendor/sources.json)" = "2dafb9c221398372d08f8dc75e857e801089f6b1"
-    test "$(jq -r '.sources[] | select(.name == "adhx") | .includedPaths | join(" ")' ${srcRoot}/vendor/sources.json)" = "skills/adhx LICENSE"
     for skill in benchmark-checklist blast-radius deprecation-and-migration; do
       cmp ${srcRoot}/src/$skill/SKILL.md ${generatedSkills}/$skill/SKILL.md
       cmp ${srcRoot}/src/$skill/LICENSE ${generatedSkills}/$skill/LICENSE
@@ -127,9 +113,6 @@ in {
     cmp ${srcRoot}/src/blast-radius/LICENSE ${srcRoot}/plugins/codex-base/licenses/pstack-MIT.txt
     cmp ${srcRoot}/src/deprecation-and-migration/LICENSE ${srcRoot}/plugins/codex-base/licenses/addyosmani-agent-skills-MIT.txt
     cmp ${inputs.ponytail}/LICENSE ${srcRoot}/plugins/codex-base/licenses/ponytail-MIT.txt
-    grep -Fqx 'name: adhx' ${generatedSkills}/adhx/SKILL.md
-    grep -Fq 'allow_implicit_invocation: true' ${generatedSkills}/adhx/agents/openai.yaml
-    grep -Fq 'Use $adhx ' ${generatedSkills}/adhx/agents/openai.yaml
     python - <<'PY'
     import json
     from pathlib import Path
@@ -157,11 +140,11 @@ in {
       ${srcRoot}/.github/PULL_REQUEST_TEMPLATE.md ${srcRoot}/docs \
       ${srcRoot}/plugins/codex-base/.codex-plugin/plugin.json \
       ${srcRoot}/plugins/codex-base/assets ${srcRoot}/vendor
-    test "$(find ${srcRoot}/plugins/codex-base/licenses -type f | wc -l)" -eq 9
+    test "$(find ${srcRoot}/plugins/codex-base/licenses -type f | wc -l)" -eq 7
     touch $out
   '';
   mattpocock-skills = mkTest "mattpocock-skills-contract" shellTools ''
-    expected='codebase-design diagnosing-bugs domain-modeling tdd retro prototype grilling handoff wait-what writing-for-agents to-questionnaire'
+    expected='codebase-design diagnosing-bugs domain-modeling tdd retro prototype grilling handoff wait-what writing-for-agents to-questionnaire research triage'
     actual=$(jq -r '.sources[] | select(.name == "mattpocock-skills") | .includedPaths[] | split("/")[-1]' ${srcRoot}/vendor/sources.json | paste -sd ' ' -)
     test "$actual" = "$expected"
     for skill in $expected; do test -d "${generatedSkills}/$skill"; done
@@ -210,17 +193,8 @@ in {
     bash ${srcRoot}/scripts/check-codex-release
     touch $out
   '';
-  codex-release-updater = mkTest "codex-release-updater-tests" (shellTools ++ [ python ]) ''
-    bash ${srcRoot}/tests/codex-release-updater.bash
-    touch $out
-  '';
   workflow-lint = mkTest "workflow-lint" [ pkgs.actionlint pkgs.gnugrep ] ''
     actionlint ${srcRoot}/.github/workflows/*.yml
-    workflow=${srcRoot}/.github/workflows/maintenance-codex.yml
-    test "$(grep -Fxc '      - uses: actions/checkout@v4' "$workflow")" -eq 1
-    grep -F -A 5 '      - uses: actions/checkout@v4' "$workflow" \
-      | grep -Fqx '          ref: main'
-    grep -Fq 'peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1' "$workflow"
     touch $out
   '';
   typos = mkTest "public-docs-typos" [ pkgs.typos ] ''
@@ -301,7 +275,7 @@ in {
         return [line.split('|')[1].strip() for line in path.read_text().splitlines()
                 if line.startswith('| ') and not line.startswith('| ID ') and not line.startswith('|---')]
     expected_ids = [
-        'global-agents', 'docs-routing', 'adhx', 'github-mcp', 'improve', 'bend-proof',
+        'global-agents', 'docs-routing', 'research', 'triage', 'github-mcp', 'improve', 'bend-proof',
         'executor-routing', 'early-simplification', 'grilling',
         'ponytail-review', 'ponytail-audit', 'ponytail-debt',
         'diagnosing-bugs', 'tdd', 'codebase-design', 'domain-modeling',
@@ -373,11 +347,11 @@ in {
   '';
   improve-runtime = pkgs.rustPlatform.buildRustPackage {
     pname = "improve-runtime-tests";
-    version = "0.19.0";
+    version = "0.20.0";
     inherit (packages.codex-base-runtime) src;
     cargoLock.lockFile = ../Cargo.lock;
     cargoBuildFlags = [ "--workspace" ];
-    nativeBuildInputs = [ pkgs.rustfmt pkgs.gitMinimal packages.worktrunk ];
+    nativeBuildInputs = [ pkgs.rustfmt pkgs.gitMinimal python ];
     checkPhase = ''
       runHook preCheck
       cargo fmt --all --check
@@ -397,36 +371,34 @@ in {
     test ! -e "$root/src"
     test ! -e "$root/Cargo.toml"
     bash ${srcRoot}/src/improve/scripts/codex-improve --help >/dev/null
-    test -r ${generatedSkills}/worktrunk/LICENSE
-    test -r ${generatedSkills}/worktrunk/agents/openai.yaml
     touch $out
   '';
   codex-layout = packages.codex;
   home-manager =
     assert builtins.hasAttr ".agents/skills/improve" files;
-    assert builtins.hasAttr ".agents/skills/worktrunk" files;
-    assert builtins.hasAttr ".agents/skills/adhx" files;
     assert builtins.hasAttr ".agents/skills/benchmark-checklist" files;
     assert builtins.hasAttr ".agents/skills/blast-radius" files;
     assert builtins.hasAttr ".agents/skills/deprecation-and-migration" files;
     assert builtins.hasAttr ".agents/skills/docs-routing" files;
     assert builtins.hasAttr ".agents/skills/bend-proof" files;
     assert builtins.hasAttr ".agents/skills/writing-for-agents" files;
+    assert builtins.hasAttr ".agents/skills/research" files;
+    assert builtins.hasAttr ".agents/skills/triage" files;
     assert builtins.hasAttr ".agents/skills/to-questionnaire" files;
     assert builtins.hasAttr ".agents/skills/wait-what" files;
     assert builtins.hasAttr ".codex/AGENTS.md" files;
     assert builtins.hasAttr ".codex/rules/baseline.rules" files;
     assert !(builtins.hasAttr ".agents/skills/improve" filesOff);
-    assert !(builtins.hasAttr ".agents/skills/worktrunk" filesOff);
     assert builtins.hasAttr ".agents/skills/benchmark-checklist" filesOff;
     assert builtins.hasAttr ".agents/skills/blast-radius" filesOff;
     assert builtins.hasAttr ".agents/skills/deprecation-and-migration" filesOff;
     assert builtins.hasAttr ".agents/skills/docs-routing" filesOff;
     assert builtins.hasAttr ".agents/skills/bend-proof" filesOff;
-    assert builtins.hasAttr ".agents/skills/adhx" filesOff;
     assert !(builtins.hasAttr ".agents/skills/stop-slop" filesOff);
     assert !(builtins.hasAttr ".agents/skills/diagnosing-bugs" filesOff);
     assert !(builtins.hasAttr ".agents/skills/writing-for-agents" filesOff);
+    assert !(builtins.hasAttr ".agents/skills/research" filesOff);
+    assert !(builtins.hasAttr ".agents/skills/triage" filesOff);
     assert !(builtins.hasAttr ".agents/skills/to-questionnaire" filesOff);
     assert !(builtins.hasAttr ".agents/skills/wait-what" filesOff);
     assert hm.config.programs.codexBase.stopSlop.enable;
@@ -438,7 +410,6 @@ in {
     assert builtins.elem packages.codex hm.config.home.packages;
     assert builtins.elem pkgs.curl hm.config.home.packages;
     assert builtins.elem packages.codex-improve hm.config.home.packages;
-    assert builtins.elem packages.worktrunk hm.config.home.packages;
     assert pkgs.lib.hasInfix ''configFile="$HOME/.codex/config.toml"'' activation;
     assert pkgs.lib.hasInfix ''if [ -L "$configFile" ]; then rm -f "$configFile"; fi'' activation;
     mkTest "home-manager-contract" (shellTools ++ [ python ]) ''
@@ -531,10 +502,9 @@ with tempfile.TemporaryDirectory() as td:
     assert repeated == merged
 PY
       cmp ${generatedSkills}/docs-routing/SKILL.md ${files.".agents/skills/docs-routing".source}/SKILL.md
-      cmp ${generatedSkills}/adhx/SKILL.md ${files.".agents/skills/adhx".source}/SKILL.md
       touch $out
     '';
-  plugin-smoke = mkTest "plugin-smoke" [ packages.codex packages.codex-improve packages.worktrunk python pkgs.bash pkgs.coreutils pkgs.jq ] ''
+  plugin-smoke = mkTest "plugin-smoke" [ packages.codex packages.codex-improve python pkgs.bash pkgs.coreutils pkgs.jq ] ''
     HOME="$TMPDIR/real-home" mkdir -p "$TMPDIR/real-home"
     HOME="$TMPDIR/real-home" bash ${srcRoot}/tests/plugin-smoke.bash
     touch $out

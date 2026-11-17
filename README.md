@@ -26,13 +26,13 @@ Codex Base combines adapted community skills with our team's workflow and enviro
 
 Our Improve workflow builds on the audit and planning foundations from [shadcn's Improve](https://github.com/shadcn/improve). We adapt selected skills from [Matt Pocock](https://github.com/mattpocock/skills) for requirements clarification, debugging, testing, design, retrospectives, prototypes, and agent guidance. We also adapt and integrate [Ponytail](https://github.com/DietrichGebert/ponytail) for implementation, comprehensive change review, repository audits, and shortcut debt; [stop-slop](https://github.com/hardikpandya/stop-slop) for prose editing; and the [Playwright CLI skill](https://github.com/microsoft/playwright-cli) for browser work.
 
-Our work focuses on adapting these foundations to Codex, extending and connecting the planning, execution, and review workflow, adding documentation and bounded public-X research support, and maintaining the plugin and Nix/Home Manager environment. In this setup:
+Our work focuses on adapting these foundations to Codex, extending and connecting the planning, execution, and review workflow, adding documentation lookup and bounded research and triage, and maintaining the plugin and Nix/Home Manager environment. In this setup:
 
 - Formal planning resolves material choices and produces a complete plan in chat. An authorized implementation phase can then persist it and delegate bounded work.
 - Implementation consults current documentation; an isolated executor verifies and simplifies each changing step. Reviews and checkpoints identify the candidate they cover so work can be resumed and assessed.
 - Focused automatic skills vet measured benchmarks, trace change impact, and plan deprecation cutovers; explicit invocation is also available. They adapt Lauren Tan’s pstack and Addy Osmani’s agent-skills methods.
 - Shared skills cover documentation lookup, debugging, testing, design, and prose review. The [capability catalog](docs/capabilities.md) lists their triggers and installation requirements.
-- ADHX reads relevant public X post URLs supplied by users or found through bounded web research; it is not an X search service, and long-form Article content may be incomplete.
+- Research cites primary sources and separates facts, inference and unknowns. Explicit triage reads full discussions and prior decisions before recommending or applying an authorized outcome.
 
 The [credits and licenses](docs/credits.md) describe the upstream contributions and our adaptations; [source records](vendor/sources.json) identify the included paths and pinned revisions.
 
@@ -61,7 +61,7 @@ Install and configure Codex Base on the machine that executes the task:
 
 For SSH setup, follow the official [connection guide](https://learn.chatgpt.com/docs/remote-connections#connect-to-an-ssh-host). Installing on the desktop client alone does not configure the remote host.
 
-Linux x64 execution needs Bash, GNU coreutils, Git, GNU sed, jq, Codex, and Worktrunk (`wt`) on `PATH`. Install the matching precompiled Codex Base runtime for Improve. The static binaries need no Python, Cargo, Nix, or local compilation. Nix/Home Manager supplies these binaries and the host tools. WSL2 can provide a Linux x64 execution host; keep repositories in its Linux filesystem (for example `~/src`).
+Linux x64 execution needs Bash, GNU coreutils, Git, GNU sed, jq, and Codex on `PATH`. Install the matching precompiled Codex Base runtime for Improve. The static binaries need no Python, Cargo, Nix, or local compilation. Nix/Home Manager supplies these binaries and the host tools. WSL2 can provide a Linux x64 execution host; keep repositories in its Linux filesystem (for example `~/src`).
 
 <a id="choose-an-installation"></a>
 
@@ -72,7 +72,7 @@ Choose the plugin to add the portable workflow to an existing Codex setup, or Ho
 | Provided or configured | Codex plugin | Nix / Home Manager full environment |
 |---|---|---|
 | Engineering skills | Namespaced, such as `$codex-base:improve` | Unnamespaced, such as `$improve` |
-| Improve CLI | Precompiled `codex-improve` with host Git, Codex and `wt` | Packaged `codex-improve` plus `wt` |
+| Improve CLI | Precompiled `codex-improve` with host Git and Codex | Packaged `codex-improve`, Git and Codex |
 | Global guidance and GitHub MCP | No | Yes |
 | Context7 documentation services | Anonymous HTTP defaults | Local anonymous Context7, and optional per-user authentication |
 | Codex, Code Mode Host, Node, Playwright CLI | No | Default Codex package with Code Mode Host, plus pinned Node and Playwright CLI; Codex package can be replaced |
@@ -169,7 +169,9 @@ Enter built-in Plan Mode with `/plan` or Shift+Tab in the CLI; the desktop compo
 
 Improve discovers facts, asks about material unresolved choices, and presents the complete replacement plan in chat. Planning creates no plan, questionnaire, handoff, or temporary files. Once you accept the plan, authorize implementation in Default Mode; that later writable phase can persist the plan and execute it.
 
-The plan selects [verification](docs/workflow.md#verification) for the task, including necessary tests and independent review.
+Implementation uses one connected native team with a shared 300k rollout budget; independent formal review uses a fresh read-only root with its own 100k. Writer and visual use Astra xhigh. The plan selects [verification](docs/workflow.md#verification), including necessary tests and Ponytail review.
+
+New tasks use Improve `.20` and runtime `0.20.0`. Keep the App Server connection and implementation root loaded through continuation and review; losing either stops the task. Historical records stay untouched and cannot be continued or supply approval. See [new-task usage and ownership](docs/improve-lifecycle.md).
 
 Default Mode implementation, audits, and routine lifecycle bookkeeping do not require a new formal-planning workflow. Use individual skills directly when a task does not need formal planning; see the [capability catalog](docs/capabilities.md).
 

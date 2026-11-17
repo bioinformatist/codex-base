@@ -1,10 +1,8 @@
-{ pkgs, skills }:
+{ pkgs, toolPkgs, mcpNixos, skills }:
 let
   codexVersion = "0.169.0";
   codexHash = "sha256-mvTXUfzhg/rt6mKUN9UlLb9FjusEEwz0+XvoRGIeqYU=";
   codexCodeModeHostHash = "sha256-y+1qjSXoJoeSt1d2f7x21MYuhLz47kpj+XVH8N46rOs=";
-  worktrunkVersion = "0.79.0";
-  worktrunkHash = "sha256-uMGQsdZSNw759rj0aUotaDG1si9LeJ8EdhKq0ydkxs8=";
   codexAsset = pkgs.fetchurl {
     url = "https://github.com/openai/codex/releases/download/rust-v${codexVersion}/codex-x86_64-unknown-linux-musl.tar.gz";
     hash = codexHash;
@@ -13,36 +11,19 @@ let
     url = "https://github.com/openai/codex/releases/download/rust-v${codexVersion}/codex-code-mode-host-x86_64-unknown-linux-musl.tar.gz";
     hash = codexCodeModeHostHash;
   };
-  worktrunkAsset = pkgs.fetchurl {
-    url = "https://github.com/max-sixty/worktrunk/releases/download/v${worktrunkVersion}/worktrunk-x86_64-unknown-linux-musl.tar.xz";
-    hash = worktrunkHash;
-  };
-  worktrunk = pkgs.stdenvNoCC.mkDerivation {
-    pname = "worktrunk";
-    version = worktrunkVersion;
-    src = worktrunkAsset;
-    dontUnpack = true;
-    nativeBuildInputs = [ pkgs.gnutar pkgs.xz ];
-    installPhase = ''
-      mkdir -p "$out/bin" "$out/share/licenses/worktrunk"
-      tar -xJf "$src" --strip-components=1 -C "$out/bin" \
-        worktrunk-x86_64-unknown-linux-musl/wt \
-        worktrunk-x86_64-unknown-linux-musl/git-wt
-      tar -xOJf "$src" worktrunk-x86_64-unknown-linux-musl/LICENSE \
-        > "$out/share/licenses/worktrunk/LICENSE"
-      chmod 755 "$out/bin/wt" "$out/bin/git-wt"
-      chmod 644 "$out/share/licenses/worktrunk/LICENSE"
-    '';
-    doInstallCheck = true;
-    installCheckPhase = ''
-      "$out/bin/wt" --version | grep -F '${worktrunkVersion}'
-      test -x "$out/bin/git-wt"
-      test -s "$out/share/licenses/worktrunk/LICENSE"
-    '';
-    meta = { mainProgram = "wt"; platforms = [ "x86_64-linux" ]; license = [ pkgs.lib.licenses.mit pkgs.lib.licenses.asl20 ]; };
-  };
 in let self = rec {
-  inherit worktrunk;
+  github-mcp-server = toolPkgs.github-mcp-server.overrideAttrs (old: {
+    version = "2.1.0";
+    src = toolPkgs.fetchFromGitHub {
+      owner = "github"; repo = "github-mcp-server"; tag = "v2.1.0";
+      hash = "sha256-yMwLpdl8Zw+sAn+6IoFGdSHD2pjENYVrLrSWOzHJCLw=";
+    };
+    # Remove this override when nixpkgs-tools supplies GitHub MCP 2.1.0 or newer.
+    vendorHash = "sha256-2RfJhHB5dL8fHZY1gunVRAGGA3pOAA1YOeyi40Tfovc=";
+    ldflags = map (flag: builtins.replaceStrings [ old.version ] [ "2.1.0" ] flag) old.ldflags;
+  });
+  context7-mcp = toolPkgs.context7-mcp;
+  mcp-nixos = mcpNixos.lib.mkMcpNixos { inherit pkgs; };
   codex = pkgs.stdenvNoCC.mkDerivation {
     pname = "codex";
     version = codexVersion;
@@ -71,11 +52,11 @@ in let self = rec {
   playwright-cli = pkgs.writeShellScriptBin "playwright-cli" ''
     export PATH="${pkgs.nodejs_24}/bin:$PATH"
     export npm_config_cache="''${XDG_CACHE_HOME:-$HOME/.cache}/npm"
-    exec ${pkgs.nodejs_24}/bin/npx -y @playwright/cli@0.1.22 "$@"
+    exec ${pkgs.nodejs_24}/bin/npx -y @playwright/cli@0.1.24 "$@"
   '';
   codex-base-runtime = pkgs.pkgsStatic.rustPlatform.buildRustPackage {
     pname = "codex-base-runtime";
-    version = "0.19.0";
+    version = "0.20.0";
     src = pkgs.lib.fileset.toSource {
       root = ../.;
       fileset = pkgs.lib.fileset.unions [ ../Cargo.toml ../Cargo.lock ../src/improve ../src/config-merge ../plugins/codex-base/skills/improve ];
@@ -96,7 +77,7 @@ in let self = rec {
   '';
   codex-improve = pkgs.lib.makeOverridable ({ codex ? self.codex }: pkgs.writeShellApplication {
     name = "codex-improve";
-    runtimeInputs = [ pkgs.gitMinimal worktrunk ];
+    runtimeInputs = [ pkgs.gitMinimal pkgs.coreutils ];
     text = ''
       export CODEX_IMPROVE_CODEX=${pkgs.lib.escapeShellArg "${codex}/bin/codex"}
       exec ${self.codex-base-runtime}/bin/codex-improve "$@"
@@ -106,7 +87,7 @@ in let self = rec {
     name = "codex-doctor";
     runtimeInputs = [ pkgs.gnugrep ];
     text = ''
-      ${codex}/bin/codex --version
+      ${codex}/bin/codex doctor "$@"
       ${codex}/bin/codex plugin list --marketplace openai-curated | grep -E '^github@openai-curated[[:space:]]+installed, enabled' >/dev/null
       command -v mcp-nixos >/dev/null || { echo "mcp-nixos: missing from PATH" >&2; exit 1; }
     '';

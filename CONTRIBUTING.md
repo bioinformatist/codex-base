@@ -19,7 +19,7 @@ PyYAML, and the SVG renderer.
 ## Editable and generated files
 
 `src/improve` is the editable Improve source, and `src/docs-routing` is the
-editable documentation-routing source. The skills under
+editable documentation-routing source. `src/research` and `src/triage` own their local adaptations. The skills under
 `plugins/codex-base/skills` are generated from that source and pinned upstream
 inputs; do not edit them directly. Regenerate them with:
 
@@ -116,8 +116,9 @@ authorize integration, publication, deployment, or changes to those gates.
 
 Keep `README.md` and `README.zh-CN.md` semantically equivalent. Update both
 capability catalogs together and preserve their row IDs and order. When the
-Codex release pin changes, use `scripts/update-codex-release`; the two README
-version sentences and all release pins are one atomic update.
+Codex release pin changes, update source/lock, CLI and Code Mode Host fixed
+hashes, and both README version sentences atomically. Follow the manual
+procedure in [updating](docs/updating.md#codex-releases).
 
 The SVG files are their own editable sources. When changing the logo or workflow
 diagram, update the matching brief under `docs/assets/prompts`, render the

@@ -4,7 +4,6 @@ let
   cfg = config.programs.codexBase;
   system = pkgs.stdenv.hostPlatform.system;
   packages = self.packages.${system};
-  toolPkgs = inputs.nixpkgs-tools.legacyPackages.${system};
   skillRoot = ../plugins/codex-base/skills;
   shellCacheHome = "${config.xdg.cacheHome}/codex-shell";
   writableRoots = lib.unique ([ shellCacheHome ] ++ map toString cfg.writableRoots);
@@ -20,7 +19,7 @@ let
     if [ -z "$token" ]; then token="$(${pkgs.gh}/bin/gh auth token --hostname github.com 2>/dev/null || true)"; fi
     [ -n "$token" ] || { echo "GitHub token not found in configured file, environment, or gh auth" >&2; exit 1; }
     export GITHUB_PERSONAL_ACCESS_TOKEN="$token"
-    exec ${toolPkgs.github-mcp-server}/bin/github-mcp-server stdio --toolsets context,issues,pull_requests,repos,users,orgs
+    exec ${packages.github-mcp-server}/bin/github-mcp-server stdio --toolsets context,issues,pull_requests,repos,users,orgs
   '';
   context7Auth = pkgs.writeShellScriptBin "context7-auth-mcp-server" ''
     set -euo pipefail
@@ -29,7 +28,7 @@ let
     key="$(tr -d '\n' < "$key_file")"
     [ -n "$key" ] || { echo "Context7 API key file is empty: $key_file" >&2; exit 1; }
     export CONTEXT7_API_KEY="$key"
-    exec ${toolPkgs.context7-mcp}/bin/context7-mcp
+    exec ${packages.context7-mcp}/bin/context7-mcp
   '';
   trustedToml = lib.concatMapStringsSep "\n\n" (path: ''
     [projects."${path}"]
@@ -71,7 +70,7 @@ let
     command = "${githubMcp}/bin/github-mcp-server"
 
     [mcp_servers.context7]
-    command = "${toolPkgs.context7-mcp}/bin/context7-mcp"
+    command = "${packages.context7-mcp}/bin/context7-mcp"
     required = false
     startup_timeout_sec = 30
     tool_timeout_sec = 120
@@ -108,9 +107,9 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    home.packages = [ cfg.package toolPkgs.mcp-nixos pkgs.nodejs_24 pkgs.curl packages.playwright-cli
+    home.packages = [ cfg.package packages.mcp-nixos pkgs.nodejs_24 pkgs.curl packages.playwright-cli
       (packages.codex-doctor.override { codex = cfg.package; }) ]
-      ++ lib.optionals cfg.improve.enable [ (packages.codex-improve.override { codex = cfg.package; }) packages.worktrunk ];
+      ++ lib.optionals cfg.improve.enable [ (packages.codex-improve.override { codex = cfg.package; }) ];
     home.file = lib.mkMerge [
       {
         ".agents/skills/docs-routing" = linkSkill "docs-routing";
@@ -119,13 +118,11 @@ in {
         ".agents/skills/blast-radius" = linkSkill "blast-radius";
         ".agents/skills/deprecation-and-migration" = linkSkill "deprecation-and-migration";
         ".agents/skills/playwright-cli" = linkSkill "playwright-cli";
-        ".agents/skills/adhx" = linkSkill "adhx";
         ".agents/skills/stop-slop" = lib.mkIf cfg.stopSlop.enable (linkSkill "stop-slop");
         ".agents/skills/ponytail-review" = lib.mkIf (cfg.ponytail.enable || cfg.improve.enable) (linkSkill "ponytail-review");
         ".agents/skills/ponytail-audit" = lib.mkIf cfg.ponytail.enable (linkSkill "ponytail-audit");
         ".agents/skills/ponytail-debt" = lib.mkIf cfg.ponytail.enable (linkSkill "ponytail-debt");
         ".agents/skills/improve" = lib.mkIf cfg.improve.enable (linkSkill "improve");
-        ".agents/skills/worktrunk" = lib.mkIf cfg.improve.enable (linkSkill "worktrunk");
         ".codex/AGENTS.md".text = builtins.readFile ../config/AGENTS.md
           + lib.optionalString (cfg.extraInstructions != "") "\n${cfg.extraInstructions}";
         ".codex/rules/baseline.rules".source = ../config/baseline.rules;
@@ -135,7 +132,7 @@ in {
         ".agents/skills/grilling" ".agents/skills/handoff" ".agents/skills/domain-modeling"
         ".agents/skills/retro" ".agents/skills/prototype"
         ".agents/skills/writing-for-agents" ".agents/skills/to-questionnaire"
-        ".agents/skills/wait-what"
+        ".agents/skills/wait-what" ".agents/skills/research" ".agents/skills/triage"
       ] (path: linkSkill (baseNameOf path))))
     ];
     home.activation.codex-base-config = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

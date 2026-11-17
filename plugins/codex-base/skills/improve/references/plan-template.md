@@ -30,13 +30,13 @@ already has another purpose, numbered in recommended execution order.
 > HEAD across every Modification scope and Evidence/drift path>` → no relevant
 > drift, or the live state matches the Current state after explicit comparison.
 > A mismatch is a STOP. The runner owns the plan snapshot/hash and candidate
-> identity; never calculate, reconstruct, or update either, or invoke candidate,
-> checkpoint, or resume operations.
+> identity; never calculate, reconstruct, or update either, or send capture,
+> review, commit, integrate or cleanup operations.
 
 ## Status
 
 - **Status**: TODO
-- **Improve contract**: `1.0.0-codex.19`
+- **Improve contract**: `1.0.0-codex.20`
 - **Implementation review**: PENDING | APPROVED | REVISE | BLOCKED
 - **Checkpoint**: NONE | RESUMABLE | INTEGRATED
 - **External acceptance**: NOT REQUIRED | PENDING | PASSED | FAILED
@@ -46,7 +46,7 @@ already has another purpose, numbered in recommended execution order.
 - **Risk**: LOW | MED | HIGH
 - **Executor lane**: economy | standard | deep | writer
 - **Executor routing evidence**: <why this lane satisfies the routing contract>
-- **Recovery seams**: none | <one to three dependency-ordered seams with paths, gates, and candidate lane>
+- **Recovery scope**: none | <bounded in-scope continuation on the same loaded root>
 - **Depends on**: none | <plan identifier; inline any code-only exception's exact approved checkpoint or landing commit and observable prerequisite>
 - **Category**: bug | security | perf | tests | tech-debt | migration | dx | docs | direction
 - **Artifact policy**: <repository convention, or local-only fallback>
@@ -110,17 +110,12 @@ be empty; the environment block accepts no omission-reason field.>
 {
   "version": 1,
   "launcher": ["env"],
-  "probes": [],
-  "cache": {"xdgScope": "execution"}
+  "probes": []
 }
 ```
 
-<Omitting `cache` means fresh per-execution XDG scope. Add
-`"cache":{"xdgScope":"worktree"}` only with evidence that expensive state
-must survive revision/recovery in this registered worktree; record the rationale
-in Semantic anchors and add a clean-state gate. Cache hits are never evidence.
-The coordinator reads this block directly from the plan. Do not include secrets
-or environment-variable values.>
+<Caches stay outside the candidate under the task's private cache. The
+coordinator reads the literal launcher/probes from this block; include no secrets.>
 
 ## Execution isolation
 
@@ -174,8 +169,8 @@ this section is omitted.>
 ```
 
 <Choose exact repository-relative files or glob patterns. For writer, add the
-settled materials described in planning-contract.md; for required visual
-inputs, name their authenticated execution and opaque input IDs there.>
+settled materials described in planning-contract.md; for visual
+inputs, name original images and verified candidate collection evidence.>
 
 ```json codex-improve-gates
 {
@@ -225,9 +220,9 @@ An asynchronous handoff requires a resumable Checkpoint and exact ID.>
 
 ## Git workflow
 
-- Branch/worktree: created by `codex-improve execute`; create no replacement.
+- Branch/worktree: selected from a host-managed worktree or created by the connected client at the exact base; create no replacement.
 - Leave executor changes uncommitted for main-agent review.
-- The executor must not edit plan/index artifacts, invoke candidate/checkpoint/resume
+- The executor must not edit plan/index artifacts, invoke capture/review/commit/integrate/cleanup
   operations, commit, merge, push, publish, deploy, integrate, or remove the worktree.
 - The main agent owns plan/index updates and any separately authorized lifecycle
   actions. It may create a local checkpoint through the runner only after all
