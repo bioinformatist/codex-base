@@ -14,7 +14,7 @@
   "properties": {
     "verdict": {
       "type": "string",
-      "description": "Current implementation review only. APPROVE requires no findings or review blockers and PASS for every coverage entry. Deferred acceptance may remain pending.",
+      "description": "Current implementation review only. APPROVE requires no findings or review blockers and PASS for every required coverage ID. Only acceptance explicitly deferred by the approved plan may remain pending.",
       "enum": [
         "APPROVE",
         "REVISE",
@@ -79,7 +79,7 @@
     },
     "coverage": {
       "type": "array",
-      "description": "Checks required for the current implementation review. Put later CI, integration or physical acceptance only in deferred_acceptance; do not duplicate them here as BLOCKED.",
+      "description": "Exactly one entry for scope and each requiredEvidence ID. The client binds IDs and entry count to the approved plan. Only explicitly declared deferred acceptance belongs in deferred_acceptance.",
       "minItems": 1,
       "items": {
         "type": "object",
@@ -136,7 +136,7 @@
     },
     "deferred_acceptance": {
       "type": "array",
-      "description": "Later checks explicitly deferred by the approved plan. These may remain pending with an APPROVE verdict; missing current implementation evidence belongs in coverage or review_blockers instead.",
+      "description": "Only IDs explicitly declared as deferred acceptance by the approved plan. The client constrains these IDs for each review and requires an empty array when none are declared. Missing current implementation evidence belongs in coverage or review_blockers.",
       "items": {
         "type": "object",
         "additionalProperties": false,

@@ -124,7 +124,7 @@ inputs.codex-base = {
 
 按你平时的部署流程激活使用该模块的 Home Manager 或 NixOS 配置。这条路径会提供技能、执行器和托管配置，无需再单独安装插件。
 
-Nix / Home Manager 完整环境当前固定 Codex 0.169.0 和 Code Mode Host。
+Nix / Home Manager 完整环境当前固定 Codex 0.170.0 和 Code Mode Host。
 这描述的是默认包；如需提供其他 CLI 包，参见 [Codex 软件包选择](docs/configuration.zh-CN.md#codex-package-selection)。
 
 ### 3. 配置并验证
@@ -155,7 +155,7 @@ Home Manager 用户请使用不带插件前缀的 `$stop-slop`。这一步检查
 
 ### 以合适的模型启动任务
 
-托管默认值是 `gpt-6.1-sol`、`medium` 推理强度；Plan Mode 使用 `high`。正式 Improve 规划需要具备相应能力的 Astra Plan Mode 会话。开始前请核对[规划前提](docs/workflow.zh-CN.md#overview)和[配置](docs/configuration.zh-CN.md#model-choice)。
+托管默认值是 `gpt-6.2-sol`，推理强度和 verbosity 均为 `medium`；普通 Plan Mode 使用 `high` 推理强度。正式 Improve 规划和独立计划审阅使用 `gpt-6.2-astra` / `xhigh`。开始前请核对[规划前提](docs/workflow.zh-CN.md#overview)和[配置](docs/configuration.zh-CN.md#model-choice)。
 
 ### 先规划，再授权实现
 
@@ -172,7 +172,7 @@ Improve 会查清事实、询问重要且尚未确定的选择，然后在对话
 
 Default Mode 中的实现、审计和普通生命周期记录不需要重新走正式规划流程。不需要正式规划的任务可以直接使用相应技能，见[详细能力目录](docs/capabilities.zh-CN.md)。
 
-实施使用持续连接的原生团队，根及后代共享 300k rollout 额度；正式验收另起只读根，使用独立 100k。writer 和 visual 使用 Astra xhigh。新任务使用 Improve `.20` 与运行时 `0.20.0`。继续、修订与审查期间保持 App Server 连接和实施根加载；失联即停止。历史记录原样保留，不继续执行、不继承批准。参见[新任务使用与职责](docs/improve-lifecycle.md)。
+实施使用持续连接的原生团队，根及后代共享 300k rollout 额度；正式验收另起只读根，使用独立 100k。writer 和 visual 使用 Astra 6.2 xhigh，代码 reviewer 使用 Astra 6.2 high；全部角色使用 medium verbosity。新任务使用 Improve `.20` 与运行时 `0.20.0`。继续、修订与审查期间保持 App Server 连接和实施根加载；失联即停止。历史记录原样保留，不继续执行、不继承批准。参见[新任务使用与职责](docs/improve-lifecycle.md)。
 
 research 逐项引用一手来源，区分事实、推断与未知；triage 仅显式调用，读取完整讨论与既有决定，再建议或执行已授权的分诊操作。
 

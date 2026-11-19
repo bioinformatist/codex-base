@@ -259,8 +259,11 @@ authorized handoff.
 
 Writable lanes are economy, standard, deep and writer; an explicit CLI lane
 must match. `config/roles.json` is the single model/effort/instruction source,
-including native supporting roles. Writer and visual use Astra xhigh; formal
-code reviewer remains Sol high, and formal plan review remains Astra.
+including native supporting roles. Standard/deep use Sol 6.2 medium/xhigh;
+economy uses Luna low. Writer/visual use Astra 6.2 xhigh, scout uses Sol 6.2
+medium, and formal code review uses Astra 6.2 high. Formal planning and plan
+review use Astra 6.2 xhigh. All roles use medium verbosity. Verify actual
+startup settings; unavailable models or efforts fail without fallback.
 
 The implementation tree shares workspace-write authority and a 300000-unit
 native budget, with remaining reminders at 150000, 75000 and 30000. Formal
@@ -288,13 +291,58 @@ scope at capture, review, commit and integration; violations retain artifacts.
 Writer requires settled `inputs.writer`: `facts` (objects with `fact` and
 `source`), `conclusions`, `audience`, `language`, `terminology`, `preserve`,
 `scope`, `acceptance`. Arrays except terminology are nonempty; audience/language
-are strings. Missing or conflicting facts stop writing. Atomic code and docs
-stay with the same engineering task. `inputs.imageLimits` may set positive
+are strings. If missing or conflicting facts prevent accurate writing, stop
+the affected work and identify the gap. Atomic code and docs stay with the
+same engineering task. `inputs.imageLimits` may set positive
 `count`, `perImageBytes` and `totalBytes`; defaults are 8, 20 MiB and 50 MiB.
 Original images and verified collection provenance remain privately bound to
 the candidate. Visual is an observing native role, not a separate runner.
 
 ## Verification and acceptance
+
+### Acceptance feasibility before READY
+
+In the existing independent plan review, walk through the hardest acceptance
+case end to end: **operator authority → fixed inputs → artifacts and candidate
+binding → failure handling → final judge**. Record the case and conclusion in
+the plan's Verification and acceptance contract. Check:
+
+- Each operator has authority for its exact actions, including protected paths,
+  external effects, capture and evidence collection. A read-only reviewer or
+  executor with read-only `.git` cannot perform the controller's capture.
+- Inputs are fixed at the point the check needs them. For exact-candidate
+  checks: finish generation, confirm every agent and terminal has stopped
+  writing, capture the complete candidate, check synchronization in the frozen
+  Git workspace, export, then build/test with outputs outside the candidate.
+  Packaging before capture cannot establish that a package came from that
+  candidate; bind it through unchanged-input evidence or rebuild after export.
+- Each required artifact has a producer, location, provenance and binding to
+  the candidate and environment. State who verifies that mapping and what
+  invalidates it; a self-reported identity or package metadata alone is not
+  source evidence.
+- Missing authority, uncertain freeze, failed checks and unavailable artifacts
+  have an explicit STOP or recovery path within scope, preserving evidence.
+  Distinguish a specified freeze procedure from observed runtime termination.
+- Name the final judge for each gate and the integration decision. Independent
+  review uses the exact candidate and current required evidence; pending or
+  unknown results cannot approve.
+
+For a bootstrap upgrade, distinguish the installed tool's present capabilities
+from capabilities delivered by the candidate. Fix the actual executable and
+coordinator/roles used for this task before execution. The old tool must be able
+to perform the planned acceptance with its current authority; candidate recovery
+or permission behavior cannot be relied on to conduct or rescue that acceptance.
+An unworkable path is BLOCKED until the plan provides an authorized viable route.
+
+For paid/model-backed behavior, prefer source, configuration, existing events,
+static scenarios, offline protocol fixtures and builds that do not invoke a
+model. Do not launch dedicated A/B, smoke, real-child, end-to-end, budget-limit
+or prompt experiments that consume subscription quota. Observe model effects,
+live capabilities and runtime boundaries only during otherwise required normal
+work; record unobserved behavior as `NOT RUN`. Normal implementation and
+independent review are delivery work, not permission to embed extra experiments.
+Unknown runtime behavior is not PASS and does not block other verifiable work;
+a missing required capability or acceptance result still blocks its own gate.
 
 ### Verification selection
 
@@ -398,8 +446,11 @@ exact revision, baseline, decisions, and evidence under the live prerequisites:
 3. **Zero-context** — verify the executor and every later acceptance operator
    can act using only the plan, listed repository evidence, and any conditional
    Operational handoff.
-4. **Independent Astra review — Logic** — check precedence, dependencies, lifecycle, STOP conditions,
-   verification, rollback, and acceptance for contradictions.
+4. **Independent Astra review — Logic** — check precedence, dependencies,
+   lifecycle, STOP conditions, verification, rollback, and acceptance for
+   contradictions. Complete the hardest-acceptance walkthrough above, including
+   installed-versus-delivered bootstrap capabilities and paid-run evidence
+   selection, before judging READY.
 5. **Necessity** — first test the plan as a whole: every triggered Route
    checkpoint must have Fresh evidence that supports its Route claim and must use the
    Cheapest discriminator. Only a route-selecting evidence plan needs a

@@ -15,20 +15,28 @@ authorization. Formal plans are the handoff contract.
 
 ## Formal Planning Prerequisites
 
-The main advisor for formal `plan`, `review-plan`, and material replanning
-must use Astra in built-in Plan Mode. An independent Astra plan reviewer may
-use read-only Default Mode. Both need live native context management and
-structured questions. Ordinary Default-mode implementation, execution, audits,
-and authorized lifecycle or dossier bookkeeping remain available.
+The target for formal `plan`, `review-plan`, and material replanning is
+`gpt-6.2-astra` with `xhigh` reasoning. The main advisor must use built-in Plan
+Mode; an independent plan reviewer uses the same model and effort and may use
+read-only Default Mode. Both need live native context management and structured
+questions. Only an explicit user choice permits an older Astra as a temporary
+alternative, with the same mode and capability requirements; never switch
+automatically. Ordinary Default-mode implementation, execution, audits, and
+authorized lifecycle or dossier bookkeeping remain available.
 
 At entry, after context recovery, after any model/mode/tool change, and before
-READY, verify the current model and mode from trusted session metadata and
-verify callable native context-management and question tools. Defaults, old
-records, model self-reports, provider listings, and feature flags are not live
-evidence. Stop formal planning if any prerequisite is absent; name the missing
-capability and request a capable Astra session. Enabling an experimental flag
-does not guarantee that the tool will be available. Discover visible facts
-without asking the user to confirm them; ask only material unsettled choices.
+READY, verify the current model, effort and mode from trusted session metadata.
+Check for direct native `new_context`, callable `get_context_remaining`, and a
+structured question tool available in the current mode. Inspect actual tool
+exposure, resolving nested tool catalogs where necessary: no direct entry in a
+nested catalog does not prove absence. Verify availability without switching
+context as a test. Defaults, old records, model self-reports, provider listings,
+and feature flags are not live evidence. Missing or unverified prerequisites
+make formal planning BLOCKED; name the gap and request a capable
+`gpt-6.2-astra` / `xhigh` session.
+Ordinary Plan Mode may still provide a draft, without a formal READY verdict.
+Discover visible facts without asking the user to confirm them; ask only
+material unsettled choices.
 
 Plan Mode is read-only. Render each complete replacement plan in chat; do not
 write plans, questionnaires, handoffs, or temporary files. Saving a reviewed
@@ -81,8 +89,10 @@ research questions.
 Preserve semantic anchors, reasons and approved scope. Render complete plans
 in Plan Mode; later writable persistence requires authorization. Give a fresh
 independent Astra context the exact complete revision, baseline, decisions and
-evidence for Ponytail Logic, Necessity and Elegance review. Verify findings and
-repeat only when a material change invalidates the earlier result. Record the
+evidence for Ponytail Logic, Necessity and Elegance review, including the
+planning contract's hardest-acceptance walkthrough and evidence selection.
+Verify findings and repeat only when a material change invalidates the earlier
+result. Record the
 exact revision and READY/BLOCKED verdict. Self-review is not independent review.
 Use `bend-proof` only for selected Bend work or an existing proof contract.
 

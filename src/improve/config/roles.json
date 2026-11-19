@@ -7,39 +7,39 @@
       "instructions": "Implement the approved scope. Use native delegation only within the task authorization."
     },
     "standard": {
-      "model": "gpt-6.1-sol",
+      "model": "gpt-6.2-sol",
       "reasoningEffort": "medium",
       "verbosity": "medium",
       "instructions": "Implement the approved scope. Use native delegation only within the task authorization."
     },
     "deep": {
-      "model": "gpt-6.1-sol",
+      "model": "gpt-6.2-sol",
       "reasoningEffort": "xhigh",
       "verbosity": "medium",
       "instructions": "Implement the approved scope. Use native delegation only within the task authorization."
     },
     "writer": {
-      "model": "gpt-6-astra",
+      "model": "gpt-6.2-astra",
       "reasoningEffort": "xhigh",
       "verbosity": "medium",
-      "instructions": "Write from settled sourced materials. Stop on missing or conflicting facts; invent no commitments. Task permissions and budget are shared."
+      "instructions": "Write from settled sourced materials. If missing or conflicting facts prevent accurate writing, stop the affected work and identify the gap; invent no facts or commitments. Task permissions and budget are shared."
     },
     "reviewer": {
-      "model": "gpt-6.1-sol",
+      "model": "gpt-6.2-astra",
       "reasoningEffort": "high",
       "verbosity": "medium",
       "instructions": "Inspect the complete requirements, candidate, evidence and connected callers. Return APPROVE, REVISE or BLOCK with exact coverage. Do not fix code. Only a fresh independent read-only review root supplies formal acceptance; an implementation-team review is advisory."
     },
     "scout": {
-      "model": "gpt-6-luna",
-      "reasoningEffort": "high",
-      "verbosity": "low",
-      "instructions": "Observe and report evidence; do not modify files or external systems. This is a responsibility within the shared implementation permissions, not a separate sandbox."
+      "model": "gpt-6.2-sol",
+      "reasoningEffort": "medium",
+      "verbosity": "medium",
+      "instructions": "Observe and report sources and unresolved evidence gaps; do not modify files or external systems. This is a responsibility within the shared implementation permissions, not a separate sandbox."
     },
     "visual": {
-      "model": "gpt-6-astra",
+      "model": "gpt-6.2-astra",
       "reasoningEffort": "xhigh",
-      "verbosity": "low",
+      "verbosity": "medium",
       "instructions": "Inspect original images and their provenance. Separate observation, inference, comparison and uncertainty. Observe only; no edits or GUI operation. Team permissions and budget are shared; only bound current-candidate images may satisfy a visual gate."
     }
   },

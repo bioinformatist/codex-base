@@ -2,7 +2,8 @@
 let
   mkTest = name: inputs': text: pkgs.runCommand name { nativeBuildInputs = inputs'; } text;
   shellTools = [ pkgs.bash pkgs.coreutils pkgs.gitMinimal pkgs.gnused pkgs.jq pkgs.shellcheck-minimal ];
-  python = pkgs.python3.withPackages (p: [ p.pyyaml p.pillow ]);
+  python = pkgs.python3.withPackages (p: [ p.pyyaml p.pillow p.jsonschema ]);
+  configSchema = "${inputs.codex-src}/codex-rs/core/config.schema.json";
   instructionSentinel = "Appended instruction sentinel.";
   skillValidator = "${inputs.codex-src}/codex-rs/skills/src/assets/samples/skill-creator/scripts/quick_validate.py";
   hm = inputs.home-manager.lib.homeManagerConfiguration {
@@ -352,6 +353,7 @@ in {
     cargoLock.lockFile = ../Cargo.lock;
     cargoBuildFlags = [ "--workspace" ];
     nativeBuildInputs = [ pkgs.rustfmt pkgs.gitMinimal python ];
+    CODEX_CONFIG_SCHEMA = configSchema;
     checkPhase = ''
       runHook preCheck
       cargo fmt --all --check
@@ -431,11 +433,9 @@ in {
       done
 python - <<'PY'
 import os
-import stat
 import subprocess
-import tempfile
+import sys
 from pathlib import Path
-import tomllib
 
 closure = Path("${hmClosure}/store-paths").read_text().splitlines()
 base_instructions = Path("${srcRoot}/config/AGENTS.md").read_bytes()
@@ -451,55 +451,10 @@ merge_helpers = [
 assert len(managed) == 1, f"expected exactly one managed config in closure, got {len(managed)}"
 assert merge_helpers, "expected native merge helper in activation closure"
 
-managed_path = Path(managed[0])
-merge_helper = Path("${packages.merge-codex-base-config}/bin/merge-codex-base-config")
-
-def run_merge(target: Path) -> dict:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.check_call([str(merge_helper), str(managed_path), str(target)])
-    assert stat.S_IMODE(target.stat().st_mode) == 0o600
-    return tomllib.loads(target.read_text())
-
-def assert_managed(merged: dict) -> None:
-    assert merged["model"] == "gpt-6.1-sol"
-    assert merged["model_reasoning_effort"] == "medium"
-    assert merged["model_verbosity"] == "medium"
-    assert merged["plan_mode_reasoning_effort"] == "high"
-    assert merged["sandbox_mode"] == "workspace-write"
-    assert merged["approval_policy"] == "on-request"
-    assert merged["web_search"] == "live"
-    assert merged["mcp_oauth_credentials_store"] == "file"
-    assert merged["features"]["context_management"]["experimental_mode"] is True
-    assert merged["features"]["code_mode"]["enabled"] is True
-    assert merged["features"]["default_mode_request_user_input"] is True
-    assert merged["features"]["memories"] is True
-    assert merged["features"]["hooks"] is True
-
-with tempfile.TemporaryDirectory() as td:
-    # Merge into an absent configuration.
-    empty_target = Path(td) / ".codex" / "config.toml"
-    assert not empty_target.exists()
-    empty = run_merge(empty_target)
-    assert_managed(empty)
-    assert "model_context_window" not in empty
-    assert "model_auto_compact_token_limit" not in empty
-
-    # Merge into a pre-populated config; owned managed values must win without erasing siblings.
-    existing_path = Path(td) / "existing.toml"
-    existing_path.write_text("""model_context_window = 123456\nmodel_auto_compact_token_limit = 100000\n[mcp_servers.custom]\nurl = \"https://custom.example/mcp\"\n[history]\nfile = \"persisted.log\"\n\n[features]\nshell_snapshot = false\ncontext_management.experimental_mode = false\ndefault_mode_request_user_input = false\n\n[features.code_mode]\nenabled = false\ndefault_exec_yield_time_ms = 250\n""")
-    merged = run_merge(existing_path)
-    assert_managed(merged)
-    assert merged["features"]["shell_snapshot"] is False
-    assert merged["features"]["code_mode"]["default_exec_yield_time_ms"] == 250
-    assert merged["history"] == {"file": "persisted.log"}
-
-    assert merged["model_context_window"] == 123456
-    assert merged["model_auto_compact_token_limit"] == 100000
-    assert merged["mcp_servers"]["custom"] == {"url": "https://custom.example/mcp"}
-
-    repeated = run_merge(existing_path)
-    assert_managed(repeated)
-    assert repeated == merged
+subprocess.check_call([
+    sys.executable, "${srcRoot}/tests/codex-config-consistency.py", "${configSchema}",
+    "${srcRoot}", managed[0], "${packages.merge-codex-base-config}/bin/merge-codex-base-config",
+])
 PY
       cmp ${generatedSkills}/docs-routing/SKILL.md ${files.".agents/skills/docs-routing".source}/SKILL.md
       touch $out

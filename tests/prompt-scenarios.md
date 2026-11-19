@@ -73,18 +73,19 @@ not require a new planning workflow or gate it on the optional capability.
 cross-module feature.
 
 **Expected observable behavior:** Do not produce the formal plan there. Direct
-the user to built-in Plan Mode in a capable session.
+the user to built-in Plan Mode in a capable Astra session; formal planning is
+BLOCKED until the prerequisites are verified.
 
 **Runtime observation:** NOT RUN
 
 ## SC-08: Plan Mode without context management is gated
 
 **Input/context:** Built-in Plan Mode is active and structured questions work,
-but native context management is absent even though its config flag is `true`.
+but direct native `new_context` is absent even though its config flag is `true`.
 
-**Expected observable behavior:** Stop, name native context management as the
-missing capability, and direct the user to reopen the task in a capable Plan
-Mode session.
+**Expected observable behavior:** Mark formal planning BLOCKED, name direct
+`new_context` as missing, and request a capable Plan Mode session. Ordinary Plan
+Mode may still give a draft without a formal READY verdict.
 
 **Runtime observation:** NOT RUN
 
@@ -101,12 +102,15 @@ Mode session.
 
 ## SC-10: Capable Plan Mode continues
 
-**Input/context:** Trusted session metadata identifies Astra in built-in Plan Mode, with callable
-native context management and structured questions. Repository discovery has enough access to begin formal
-planning.
+**Input/context:** Trusted session metadata identifies `gpt-6.2-astra` / `xhigh`
+in built-in Plan Mode, with direct native `new_context`, callable
+`get_context_remaining` and structured questions available. Repository discovery
+has enough access to begin formal planning.
 
-**Expected observable behavior:** Discover facts, ask only material unsettled
-choices, and then render a complete replacement plan in chat.
+**Expected observable behavior:** Verify tool exposure without actively
+switching context, discover facts, ask only material unsettled choices, and
+render a complete replacement plan in chat. READY also requires independent
+review of the hardest acceptance case.
 
 **Runtime observation:** NOT RUN
 
@@ -115,8 +119,11 @@ choices, and then render a complete replacement plan in chat.
 **Input/context:** Capable Plan Mode uses Sol at medium reasoning without Code
 Mode. Native context management and structured questions are both live.
 
-**Expected observable behavior:** Stop formal Improve planning and request a capable Astra Plan Mode session.
-Code Mode and a particular effort level are not prerequisites.
+**Expected observable behavior:** Mark formal Improve planning BLOCKED and
+request a capable Astra Plan Mode session targeting `gpt-6.2-astra` / `xhigh`.
+Use an older Astra temporarily only if the user explicitly chooses it and its
+mode/tools meet the requirements. Code Mode remains optional; no automatic
+model switch occurs.
 
 **Runtime observation:** NOT RUN
 
@@ -204,7 +211,8 @@ and apply the same relevance, version, and source checks to its result.
 ## SC-24: Configured context management needs a callable tool
 
 **Input/context:** Plan Mode is active and configuration enables native context
-management, but the session exposes no callable context-management tool.
+management, but the actual tool inventory confirms direct `new_context` is
+absent.
 
 **Expected observable behavior:** Treat the capability as unavailable. Stop
 formal Improve planning and name the missing callable capability. A config
@@ -214,11 +222,13 @@ value or Plan Mode label alone does not establish a usable capability.
 
 ## SC-25: Listed provider without a callable tool is insufficient
 
-**Input/context:** A context-management provider appears in the session
-inventory, but none of its tools can be called in this session.
+**Input/context:** Direct `new_context` is present and a context-management
+provider appears in the session inventory, but resolving its actual tool
+catalog confirms `get_context_remaining` cannot be called in this session.
 
 **Expected observable behavior:** Do not claim the capability works from the
-provider name alone. Stop formal planning and report the missing callable tool.
+provider name alone. Mark formal planning BLOCKED and report the missing
+callable `get_context_remaining` tool.
 
 **Runtime observation:** NOT RUN
 
@@ -317,16 +327,33 @@ static content checks, not observed model routing or obedience.
 | Later task touches a project with agreed laws/proofs | Existing proof contract and gates remain binding even without a new stronger-verification section | PASS | NOT RUN |
 | Missing Bend/Lean, exhausted budget, or failing counterexample | Report unfinished gate and stop affected step; no automatic install, language migration, or replacement of reviewer | PASS | NOT RUN |
 
+### Plan 046: specification and cache boundaries
+
+Each row records a static inspection of `src/bend-proof/SKILL.md` against the
+approved Plan 046 clauses. Artifacts below are documents inspected or hypothetical
+task records to require, not proof outputs produced in this review. All six
+static conclusions are PASS; runtime observations and new proof runs are NOT RUN.
+
+| Clause | Authority | Input | Artifact inspected or required | Static conclusion |
+|---|---|---|---|---|
+| Protect specification dependencies | Plan 046; [Bend PR #1932](https://github.com/bendlang/bend/pull/1932) | A law uses a predicate that imports a reference helper from an editable file | Bind the claim; transitive definition trace and proposed helper diff | Protect both helpers when they determine the fixed law's meaning; changing that meaning requires plan revision |
+| Allow approved implementation edits | Plan 046 edit boundary | Fix the implementation under proof while keeping the agreed specification and its helpers fixed | Bind the claim; approved paths and implementation diff | Permit the implementation edit within scope; protection of specifications does not freeze the implementation |
+| Wrapper hits cannot approve | Plan 046; [official cache guide](https://github.com/bendlang/bend/blob/v2.0.40/tools/bend-cache/README.md) | Development `bend-cache` reports a hit | Check and record; wrapper output without a new direct verdict | Development feedback only; the formal gate remains unsatisfied |
+| Direct verdict and kernel cache | Plan 046 formal gate | Run `bend PROOF.bend --verdict` directly using a previously compiled Lean checking kernel | Check and record; direct command, diagnostics, file/tool identities and kernel source/build or binary provenance | Traceable kernel compilation reuse is allowed; assess the new direct verdict against the delivered code |
+| No forced SPEC split | Plan 046 small-proof boundary | A small proof has fixed laws and helpers without a separate `SPEC` file | Bind the claim; existing file layout and protected definitions | Keep the layout; a separate `SPEC` file is unnecessary |
+| Preserve historical version evidence | Plan 046 version boundary | Historical 2.0.38/Lean 4.34.0 results accompany a 2.0.40 recommendation | Check and record; unchanged verified minimal example | Historical results remain historical; 2.0.40 is untested, with no installation, upgrade or new proof run implied |
+
 ## SC-31: Independent Astra review may use read-only Default Mode
 
-**Input/context:** The main Astra advisor has a complete Plan Mode revision.
-An independent Astra context in read-only Default Mode exposes native context
-management and structured questions.
+**Input/context:** The main Astra 6.2 / xhigh advisor has a complete Plan Mode revision.
+An independent `gpt-6.2-astra` / `xhigh` context in read-only Default Mode exposes
+direct `new_context`, callable `get_context_remaining` and structured questions.
 
 **Expected observable behavior:** Give it the full exact plan, baseline,
 decisions, and evidence for Ponytail Logic/Necessity/Elegance review. The main
 advisor verifies findings and records the exact approved revision. It creates
-no temporary planning files and does not substitute self-review.
+no temporary planning files and does not substitute self-review. Review includes
+the hardest-acceptance walkthrough before READY.
 
 **Runtime observation:** NOT RUN
 
@@ -335,8 +362,9 @@ no temporary planning files and does not substitute self-review.
 **Input/context:** A writer plan lacks sources or has contradictory technical
 conclusions.
 
-**Expected observable behavior:** Stop before writing, identify the missing or
-conflicting materials, and invent no facts or commitments. Writer uses the task permissions and native delegation only when authorized;
+**Expected observable behavior:** If missing or conflicting facts prevent accurate
+writing, stop the affected work and identify the gap; invent no facts or
+commitments. Writer uses the task permissions and native delegation only when authorized;
 missing materials cannot be invented by a helper.
 
 **Runtime observation:** NOT RUN
@@ -364,7 +392,7 @@ and block the visual gate before invoking a reviewer with missing originals.
 ## Current research, triage and native workflow scenarios
 
 These are source-level scenario inspections, not recorded model runs. Runtime
-observations remain NOT RUN until the coordinator invokes the actual models.
+observations remain NOT RUN until observed during otherwise required normal work.
 The existing connected fixture supplies deterministic protocol evidence.
 
 | Scenario | Expected observable behavior | Source inspection |
@@ -385,3 +413,31 @@ The existing connected fixture supplies deterministic protocol evidence.
 
 **Runtime observation:** NOT RUN for research/triage and actual model/permission
 behavior. Static inspection does not establish live capabilities or approval.
+
+## Plan acceptance and capability diagnosis: static walkthrough
+
+This is implementation analysis for Plan 044, not the independent G1 verdict.
+Each row traces operator authority, fixed inputs, artifacts/binding, the
+applicable clause and its static conclusion. References below are relative to
+`src/improve/references/`: **Feasibility** means `planning-contract.md` →
+Acceptance feasibility before READY; **Gates** means its Gates and evidence;
+**Prerequisites** means `../SKILL.md` → Formal Planning Prerequisites. The plan
+template's Hardest acceptance walkthrough records the result; G1 still needs an
+independent review of the captured candidate and current required evidence.
+
+| Scenario / fixed input | Operator authority | Artifacts and candidate binding | Applicable clause | Static conclusion | Runtime observation |
+|---|---|---|---|---|---|
+| SC-07/11: Default Mode advisor or Sol session asks for formal READY | Advisor can inspect and report; cannot substitute a model or mode | Trusted current model/mode and actual tools accompany the complete revision; an old review cannot approve it | Prerequisites | BLOCKED for formal planning; request capable Astra Plan Mode, target 6.2 Astra/xhigh; older Astra only by explicit user choice | NOT RUN |
+| SC-08/24: Flag enabled, direct native `new_context` confirmed absent | Advisor inspects tools, without switching context or changing settings | Actual inventory and trusted model/mode, rather than a flag, support the gap report | Prerequisites | BLOCKED for formal planning; ordinary Plan Mode may give a draft | NOT RUN |
+| SC-25: Provider listed, `get_context_remaining` unavailable after catalog resolution | Advisor may resolve actual nested tools, not infer capability from provider name | Resolved callable inventory records the missing tool for this session | Prerequisites | BLOCKED for formal planning; no forced `token_budget` or model fallback | NOT RUN |
+| SC-09: Structured question tool absent in current mode | Advisor inspects current-mode availability | Tool exposure and mode accompany the gap report | Prerequisites | BLOCKED for formal planning; no READY based on configuration alone | NOT RUN |
+| SC-35: Nested catalog lacks a direct entry, but resolves callable `get_context_remaining`; native `new_context` is direct and questions available | Advisor resolves tools without an active context switch | Trusted model/mode and resolved tool surface establish availability, not model performance | Prerequisites | No false absence diagnosis from catalog layout; continue if the other prerequisites hold | NOT RUN |
+| SC-10/31: All capabilities present with target model/mode | Main advisor uses Plan Mode; independent Astra reviewer may use read-only Default Mode | Exact complete revision, baseline, decisions and walkthrough go to independent review | Prerequisites; Feasibility; Convergence protocol | Formal planning/review can proceed; availability alone does not grant READY | NOT RUN |
+| SC-36: Runtime archive packaged before complete candidate capture | Executor generates within writePaths; controller confirms freeze, captures and exports; checker builds outside candidate | Pre-capture archive/metadata lacks source binding; require verified unchanged-input mapping or rebuild from export, then bind artifact/environment to captured candidate | Feasibility; Gates; `closing-the-loop.md` → Freeze and capture | Unbound archive cannot satisfy the gate; use generation → freeze → capture → sync check → export → build/package → evidence → independent judgment | NOT RUN |
+| SC-37: Bootstrap plan expects old executor with read-only `.git` to capture or use candidate-only recovery | Executor's authority excludes capture; controller owns it and the final evidence handoff | Pin installed executable/coordinator/roles and identify current capabilities separately from candidate outputs; offline fixtures can verify new behavior without using it to rescue this run | Feasibility; `closing-the-loop.md` → Start one connected task | BLOCKED until a viable authorized acceptance route exists; candidate capability cannot supply missing acceptance authority | NOT RUN |
+| SC-38: Proposed check deliberately exhausts subscription budget or starts a real-child/prompt experiment | Existing implementation/review authority covers delivery work, not dedicated quota-consuming tests | Use source/configuration, existing events, static cases, offline fixtures and non-model builds; bind check evidence to relevant candidate inputs/environment | Feasibility | Omit the dedicated run; report live behavior NOT RUN, keep verifiable work moving and leave any required unsatisfied gate pending | NOT RUN |
+| SC-39: Freeze procedure is written, but actual stopped writers/terminals have not been observed | Controller must discover/interrupt descendants and list/terminate/re-list terminals; independent reviewer judges current gate evidence | A procedure or root completion is not termination evidence; preserve last confirmed facts, with no approvable capture while termination is unknown | Feasibility; Gates; `closing-the-loop.md` → Freeze and capture | Static procedure is reviewable; actual freeze remains unverified, blocking capture/acceptance until confirmed | NOT RUN |
+
+Static content inspection finds each specified route in the edited instructions;
+it does not establish real termination, model behavior, tool availability in a
+future session, G1 approval or G2 success. No model experiment was run.

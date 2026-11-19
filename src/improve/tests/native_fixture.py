@@ -43,12 +43,13 @@ for raw in sys.stdin:
         continue
     method, params = message['method'], message.get('params', {})
     notifications = []
+    disconnect_start = False
     if method == 'initialize':
         result = {}
     elif method == 'model/list':
         result = page([{'model': model, 'supportedReasoningEfforts': [
             {'reasoningEffort': effort} for effort in ('low', 'medium', 'high', 'xhigh')]}
-            for model in ('gpt-6-luna', 'gpt-6.1-sol', 'gpt-6-astra')], params)
+            for model in ('gpt-6-luna', 'gpt-6.2-sol', 'gpt-6.2-astra')], params)
     elif method == 'config/read':
         result = {'config': {'mcp_servers': {'docs': {}, 'write': {}}}}
     elif method == 'thread/start':
@@ -72,12 +73,29 @@ for raw in sys.stdin:
             assert path.read_bytes().startswith(b'\x89PNG') and path.stat().st_mode & 0o777 == 0o400
         turn = {'id': f'turn-{len(data["turns"])}', 'status': 'inProgress', 'items': [], 'error': None}
         data['turns'].append(turn)
+        disconnect_start = (case == 'disconnect-start-review' and data['review']
+                            or case == 'disconnect-start-implementation' and not data['review'] and len(data['turns']) == 2)
         result = {'turn': dict(turn)}
         if data['review']:
-            routing = json.loads(re.search(r'```json codex-improve-routing\n(.*?)\n```', params['input'][0]['text'], re.S)[1])
+            prompt = params['input'][0]['text']
+            routing = json.loads(re.search(r'```json codex-improve-routing\n(.*?)\n```', prompt, re.S)[1])
+            gates = json.loads(re.search(r'```json codex-improve-gates\n(.*?)\n```', prompt, re.S)[1])['gates']
+            checks = sorted(['scope', *routing['requiredEvidence']])
+            deferred = sorted(g['id'] for g in gates if g['class'] == 'deferred acceptance')
+            schema = params['outputSchema']['properties']
+            assert schema['coverage']['minItems'] == schema['coverage']['maxItems'] == len(checks)
+            for name in ('coverage', 'findings'):
+                assert schema[name]['items']['properties']['check']['enum'] == checks
+            assert schema['deferred_acceptance']['maxItems'] == len(deferred)
+            if deferred:
+                assert schema['deferred_acceptance']['items']['properties']['check']['enum'] == deferred
+            assert json.loads(re.search(r'Review checks:\n(.*?)\n', prompt)[1]) == {
+                'coverage': checks, 'deferred_acceptance': deferred}
             verdict = {'revise': 'REVISE', 'block': 'BLOCK'}.get(case, 'APPROVE')
             coverage = [{'check': check, 'status': 'PASS', 'evidence': 'current fixture'}
                         for check in ['scope', *routing['requiredEvidence']]]
+            if case == 'invalid':
+                coverage[3]['check'] = 'G2'
             findings, blockers = [], []
             if verdict == 'REVISE':
                 coverage[0]['status'] = 'FAIL'
@@ -87,11 +105,16 @@ for raw in sys.stdin:
                 coverage[0]['status'] = 'BLOCKED'
                 blockers = [{'item': 'fixture blocker', 'impact': 'cannot approve'}]
             report = {'verdict': verdict, 'summary': 'fixture review', 'findings': findings,
-                      'coverage': coverage, 'review_blockers': blockers, 'deferred_acceptance': []}
+                      'coverage': coverage, 'review_blockers': blockers,
+                      'deferred_acceptance': [{'check': check, 'owner': 'coordinator', 'reason': 'after publication',
+                                               'evidence_required': 'exact candidate CI'} for check in deferred]}
         else:
-            Path(data['cwd'], 'tracked').write_text('native change')
+            Path(data['cwd'], 'tracked').write_text('native change' if len(data['turns']) == 1 else 'native revision')
             report = {'status': 'COMPLETE', 'steps': ['changed; ponytail=lean'],
-                      'stoppedBecause': None, 'filesChanged': ['tracked'], 'notes': []}
+                      'stoppedBecause': None, 'filesChanged': ['tracked'],
+                      'notes': ['pending submission report'] if disconnect_start else []}
+            if case == 'executor-stopped':
+                report.update(status='STOPPED', stoppedBecause='fixture scope conflict')
             if case in ('writers', 'unconfirmed') and 'child-a' not in threads:
                 for name in ('child-a', 'child-b', 'nested-c'):
                     threads[name] = {'turns': [], 'cwd': data['cwd'], 'review': False}
@@ -99,12 +122,13 @@ for raw in sys.stdin:
                                              {'id': 'child-turn', 'status': 'inProgress', 'items': [], 'error': None}]
                 terminals['child-b'] = ['101', '102']
         notifications.append(('turn/started', {'threadId': root, 'turn': dict(turn)}))
-        if case != 'hold' or data['review']:
-            text = 'invalid final' if case == 'invalid' and data['review'] else json.dumps(report)
+        if case not in ('hold', 'review-running') or data['review']:
+            text = 'invalid final' if case == 'invalid-implementation' and not data['review'] else json.dumps(report)
             item = {'id': 'final', 'type': 'agentMessage', 'phase': 'final_answer', 'text': text}
             turn['items'] = [item]
             turn['status'] = 'completed'
-            if case == 'budget' and data['review']:
+            if (data['review'] and (case == 'budget' or case == 'writers' and root == 'root-1')
+                    or case in ('implementation-budget', 'interrupted-no-evidence') and not data['review']):
                 turn['status'] = 'failed'
                 turn['error'] = {'codexErrorInfo': 'sessionBudgetExceeded', 'message': 'budget reached'}
             if case == 'timeout' and data['review']:
@@ -112,9 +136,19 @@ for raw in sys.stdin:
                 turn['error'] = {'codexErrorInfo': 'other', 'message': 'request timed out'}
             if case == 'cancelled' and data['review']:
                 turn['status'] = 'interrupted'
-            notifications += [('item/completed', {'threadId': root, 'turnId': turn['id'], 'item': item}),
-                              ('thread/tokenUsage/updated', {'threadId': root, 'tokenUsage': {'total': {'totalTokens': 12}}}),
-                              ('turn/completed', {'threadId': root, 'turn': dict(turn)})]
+            if case in ('failed-empty', 'failed-report') and data['review']:
+                turn['status'] = 'failed'
+                turn['error'] = {'codexErrorInfo': 'other', 'message': 'fixture failure'}
+            if case == 'failed-empty' and data['review']:
+                turn['items'] = []
+            else:
+                notifications.append(('item/completed', {'threadId': root, 'turnId': turn['id'], 'item': item}))
+            notifications.append(('thread/tokenUsage/updated', {'threadId': root, 'turnId': turn['id'],
+                                                               'tokenUsage': {'total': {'totalTokens': 12}}}))
+            if case in ('cancel-review', 'disconnect-review') and data['review'] or disconnect_start:
+                turn['status'] = 'inProgress'
+            else:
+                notifications.append(('turn/completed', {'threadId': root, 'turn': dict(turn)}))
             if case == 'unloaded':
                 notifications.append(('thread/status/changed', {'threadId': root, 'status': {'type': 'notLoaded'}}))
     elif method == 'thread/list':
@@ -136,7 +170,7 @@ for raw in sys.stdin:
         result = {}
         for turn in threads[params['threadId']]['turns']:
             if turn['id'] == params['turnId']:
-                turn['status'] = 'interrupted'
+                turn['status'] = 'completed' if case == 'cancel-review' else 'interrupted'
                 notifications.append(('turn/completed', {'threadId': params['threadId'], 'turn': dict(turn)}))
     elif method == 'thread/backgroundTerminals/list':
         result = page([{'processId': process} for process in terminals.get(params['threadId'], [])], params)
@@ -156,6 +190,9 @@ for raw in sys.stdin:
     else:
         send({'id': message['id'], 'error': {'code': -32601, 'message': method}})
         continue
-    send({'id': message['id'], 'result': result})
+    if not disconnect_start:
+        send({'id': message['id'], 'result': result})
     for name, value in notifications:
         event(name, **value)
+    if disconnect_start or method == 'turn/start' and case == 'disconnect-review' and threads[params['threadId']]['review']:
+        sys.exit(0)

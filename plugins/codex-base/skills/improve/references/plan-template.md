@@ -150,6 +150,23 @@ plan BLOCKED; after approval add its paths and checks to this plan.>
 
 ## Verification and acceptance contract
 
+### Hardest acceptance walkthrough
+
+<Select the hardest case and trace it in the existing independent plan review.
+Fill every row; an authority, data-flow or binding gap blocks READY.>
+
+| Link | Concrete procedure and evidence |
+|---|---|
+| Operator authority | <each operator/action and its existing permission; controller-owned actions stay with the controller> |
+| Fixed inputs | <when inputs become immutable; generation → confirmed stopped writers/terminals → capture → sync check in frozen Git workspace → export → build/test outside candidate> |
+| Artifacts and binding | <producer, location, provenance, candidate/environment binding, mapping verifier and invalidation> |
+| Failure handling | <STOP or bounded authorized recovery for missing authority, uncertain freeze, failed checks or unavailable artifacts; preserve evidence> |
+| Final judge | <who judges each gate and integration; exact candidate and current required evidence> |
+
+- **Walkthrough conclusion**: <viable | BLOCKED with the exact gap>
+- **Bootstrap capabilities**: <N/A, or installed executable/coordinator/roles and present authority versus candidate-delivered behavior; explain how the installed tool can complete acceptance without relying on the upgrade>
+- **Evidence selection**: <source/configuration, existing events, static scenarios, offline fixtures or builds without model calls; runtime observations only from otherwise required normal work, unobserved behavior NOT RUN; no dedicated subscription-consuming experiments>
+
 ### Stronger verification (conditional)
 
 <Omit this section for ordinary verification. When selected during planning,
