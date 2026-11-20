@@ -14,7 +14,7 @@ and authorize a new task at an explicit base; history is evidence, not authority
 | Per-role token quotas and attempt timers | Native root rollout budget; implementation 300k, review 100k | Role tokenLimit/reminders, initial/follow-up timeout matrix, process/quiet/heartbeat supervision | Explicit enforcement/config and outcome adaptation remain; no custom meter, quota proxy or root timer |
 | Worktree inventory and lifecycle | Host managed-worktree tool, or detached Git worktree at exact base | Worktrunk package/skill and duplicate inventory | Git common-dir/base/physical ownership, explicit ignored includes and safe cleanup remain until equivalent native checks cover them |
 | Candidate, evidence and approval identity | Git temporary index and deterministic Rust acceptance kernel | Old record formats and lifecycle approval plumbing | `contracts.rs`, `reviews.rs`, `git_worktree.rs` bind plan, actual settings, full tree, artifact bytes and target/merge tree; native completion alone does not replace this |
-| Freeze and independent acceptance | Native descendant/turn/terminal APIs; fresh read-only Sol high root | Per-role isolated execution services and visual runner | Paged freeze and read-only MCP allowlist checks stay until native atomic freeze/acceptance supplies equivalent proof |
+| Freeze and independent acceptance | Native descendant/turn/terminal APIs; fresh read-only Astra 6.2 high root | Per-role isolated execution services and visual runner | Paged freeze and read-only MCP allowlist checks stay until native atomic freeze/acceptance supplies equivalent proof |
 | Complete logs and agent lifecycle | Codex native history | Parallel transport/event logs and session database | Private authenticated task summaries retain necessary native IDs, candidate, usage and review evidence only |
 | Automatic dependency updates and public-X adapter | Manual maintenance and ordinary research | Dedicated updater/workflow, Renovate and ADHX source/distribution | External bot and installed marketplace state require separate authorized action; see [updating](updating.md#retired-automation-and-installations) |
 
@@ -41,9 +41,26 @@ revision. Commands are JSON lines: `turn` starts/continues implementation,
 `capture` freezes writers then returns HEAD/tree, `images` imports private
 originals/provenance, and `review` supplies the exact tree and evidence dossier.
 `status` reads current facts; `answer` relays a native structured question.
-Native results distinguish cancellation, timeout, budget exhaustion, invalid
-output and unknown failure; none can approve. Only complete valid APPROVE with
-required coverage can do so. REVISE returns to the original loaded root.
+Review coverage is exactly `scope` plus the plan's `requiredEvidence` IDs. The
+submitted schema, prompt and Rust validation use the same IDs; diagnostics name
+missing, duplicate, unknown or overlapping checks. Only acceptance explicitly
+declared deferred by the plan may remain pending. Complete valid APPROVE with
+unchanged binding grants approval; other review results cannot. REVISE returns
+to the original loaded implementation root.
+
+`review` also accepts a confirmed native failed/interrupted implementation with
+outcome budget_exhausted, timed_out, cancelled or failed. It still requires the
+same connected loaded root, confirmed freeze of all writers and terminals,
+valid candidate/scope and current PASS evidence. Unknown/running turns, invalid
+completed reports and executor STOPPED do not qualify. The implementation's
+terminal result remains separate from independent acceptance.
+
+`dossier.notes` carries verified facts with sources, questions for independent
+judgment, and candidate/input changes. The prompt includes a validated
+gate/status/artifact/hash summary and only the immediately preceding
+`previousReview` diagnostic snapshot. A new review first freezes the old review
+root and independently rechecks observations that cannot be mapped to current
+inputs. The snapshot carries no approval.
 
 Commit, integration and cleanup are separate authorized operations. `close`
 freezes both roots and ends the connection. `inspect TASK_ID` reads an
@@ -51,6 +68,15 @@ authenticated summary after closing; it cannot reconnect or prove continuity.
 Connection/loaded-root loss stops the task with last confirmed usage and
 artifacts retained. A cold resume/fork or new root requires explicit new-budget
 authority. There is no runtime fallback to historical contracts.
+
+Normal, failed and cancelled turns retain bounded raw text, parsed JSON, report
+and coverage diagnostics, native errors and thread/turn IDs; review records also
+retain their source candidate binding. Cancellation saves the report after
+confirmed freeze and grants no approval, including a completion race. Error
+exits save cached diagnostics without RPCs. `nativeStatus` is `unknown` until
+`turn/completed`; `lastNativeStatus` and last usage remain available.
+`finalUsage: null` explicitly means the final measurement is unknown. These facts
+are visible through `status`, terminal events and authenticated `inspect`.
 
 See the canonical [connected workflow](../src/improve/references/closing-the-loop.md)
 for command shapes, review dossier and image collection evidence. Gate results

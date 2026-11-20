@@ -35,7 +35,21 @@ This is a merge fragment, not a replacement file or per-start flag. Keep unrelat
 
 After saving, [reload the execution runtime](../README.md#reload-after-an-update). Configured flags request features; they do not prove that the live task provides them or guarantee better results. The experiment requires an eligible ChatGPT session on the supported OpenAI backend, and the service can still withhold the capability from the starting model. Consult the current [model documentation](https://learn.chatgpt.com/docs/models#experimental-context-management) for availability. See the [workflow guide](workflow.md#overview) for formal planning and review prerequisites.
 
-The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers context management, Code Mode, and Plan Mode effort. The Default Mode question flag is supported by the verified Codex [feature declaration](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/core/tests/suite/request_user_input.rs).
+The official [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) covers context management, Code Mode, and Plan Mode effort. The Default Mode question flag is supported by the verified Codex [feature declaration](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/features/src/lib.rs) and [request-user-input tests](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/core/tests/suite/request_user_input.rs).
+
+Managed defaults leave `token_budget`, `subagent_default_context_limits`,
+`defer_mailbox_preemption`, and `login_shell_package_path` unset. The checks use
+the pinned 0.170.0 [Draft 07 configuration schema](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/core/config.schema.json)
+to validate the actual generated and merged TOML, documentation fragments, and
+native role files. Schema validity does not prove live tool availability.
+
+For formal planning diagnostics, read the current model and mode from trusted session metadata, then inspect the actual tools:
+
+- Native `new_context` must be directly exposed; do not invoke it just to test a context switch.
+- `get_context_remaining` must be callable. Resolve nested tool catalogs before concluding it is missing; lack of a direct entry there is insufficient.
+- A structured question tool must be available in the current mode.
+
+An enabled flag or model-catalog capability marker cannot replace these checks. Missing or unverified prerequisites make formal Improve planning BLOCKED, while ordinary Plan Mode can provide a draft. The target remains `gpt-6.2-astra` / `xhigh`; an older Astra is a temporary alternative only when the user explicitly chooses it and that session meets the mode and capability requirements. Do not automatically switch models, force `token_budget`, or run subscription-consuming capability experiments. Observe runtime behavior during otherwise required normal work and label unobserved behavior `NOT RUN`.
 
 <a id="codex-package-selection"></a>
 
@@ -65,7 +79,12 @@ Definitions of this option merge through the native Nix module system; use `lib.
 
 ## Model choice
 
-Home Manager defaults to `gpt-6.1-sol` with medium reasoning and high reasoning in Plan Mode. The plugin does not change the main session's model. See the [workflow guide](workflow.md#execution) for planning prerequisites and separate executor lane settings.
+Home Manager defaults to `gpt-6.2-sol` with medium reasoning and verbosity;
+ordinary Plan Mode uses the same model with high reasoning. Formal planning
+and independent plan review use `gpt-6.2-astra` / xhigh. The plugin does not
+change the main session's model. See the [workflow guide](workflow.md#execution)
+for planning prerequisites and the role table, and [client provenance](architecture.md#pinned-client-evidence)
+for the public template evidence and its limits.
 
 ## Model context defaults
 
@@ -77,9 +96,9 @@ When the displayed window differs, check in order: the actual executing binary
 and version (including a desktop or SSH App Server), selected model, online versus
 cached/bundled catalog, effective config and launch overrides, then a new chat
 after reloading the runtime. Do not delete user overrides automatically.
-The [model manager source](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/models-manager/src/manager.rs)
-and [model metadata](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/models-manager/src/model_info.rs)
-and [protocol formulas](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/protocol/src/openai_models.rs)
+The [model manager source](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/models-manager/src/manager.rs)
+and [model metadata](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/models-manager/src/model_info.rs)
+and [protocol formulas](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/protocol/src/openai_models.rs)
 explain this resolution and budgeting; see also the official
 [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
 
@@ -130,3 +149,8 @@ Home Manager users must also reverse the managed overlay before activation, or a
 ## Preserving user configuration
 
 Home Manager merges its managed values and preserves unrelated user tables, custom MCP entries, and context-window overrides. Updates do not automatically remove user-customized entries.
+
+Home Manager no longer supplies `personality`. Codex 0.170.0 still accepts
+`friendly` and `pragmatic`, but they no longer select a writing style. The
+merge helper preserves an existing user value; removing the managed default
+does not clean up an actual Home or add a migration step.

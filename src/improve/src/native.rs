@@ -58,8 +58,11 @@ fn lines(reader: impl std::io::Read + Send + 'static, tx: Sender<Input>, control
 #[derive(Default)]
 pub struct TurnResult {
     pub status: String,
+    pub completed: bool,
     pub text: String,
+    pub text_error: Option<String>,
     pub error: Value,
+    pub usage: Value,
 }
 /// A connected official App Server, with only the native facts needed for acceptance.
 pub struct Native {
@@ -68,6 +71,7 @@ pub struct Native {
     rx: Receiver<Input>,
     commands: VecDeque<Value>,
     next_id: u64,
+    pub pending_turn: Option<(String, String)>,
     pub turns: BTreeMap<(String, String), TurnResult>,
     pub usage: BTreeMap<String, Value>,
     closed: BTreeSet<String>,
@@ -106,6 +110,7 @@ impl Native {
             rx,
             commands: VecDeque::new(),
             next_id: 0,
+            pending_turn: None,
             turns: BTreeMap::new(),
             usage: BTreeMap::new(),
             closed: BTreeSet::new(),
@@ -124,6 +129,9 @@ impl Native {
         Ok(())
     }
     pub fn rpc(&mut self, method: &str, params: Value) -> Result<Value> {
+        if method == "turn/start" {
+            self.pending_turn = None;
+        }
         self.next_id += 1;
         let id = self.next_id;
         self.send(&json!({"id":id,"method":method,"params":params}))?;
@@ -137,10 +145,23 @@ impl Native {
                             v.get("error").is_none(),
                             format!("native {method}: {}", v["error"]),
                         )?;
-                        return v
+                        let result = v
                             .get("result")
                             .cloned()
-                            .ok_or_else(|| "native response lacks result".into());
+                            .ok_or("native response lacks result")?;
+                        if method == "turn/start" {
+                            self.pending_turn = None;
+                        }
+                        return Ok(result);
+                    }
+                    if method == "turn/start"
+                        && v["method"] == "turn/started"
+                        && v["params"]["threadId"] == params["threadId"]
+                    {
+                        self.pending_turn = Some((
+                            string(&params["threadId"])?.into(),
+                            string(&v["params"]["turn"]["id"])?.into(),
+                        ));
                     }
                     self.observe(v)?;
                 }
@@ -189,6 +210,8 @@ impl Native {
             "thread/tokenUsage/updated" => {
                 self.usage
                     .insert(string(&p["threadId"])?.into(), p["tokenUsage"].clone());
+                let key = (string(&p["threadId"])?.into(), string(&p["turnId"])?.into());
+                self.turns.entry(key).or_default().usage = p["tokenUsage"].clone();
             }
             "turn/started" | "turn/completed" => {
                 let key = (
@@ -202,6 +225,7 @@ impl Native {
                     "unknown native turn status",
                 )?;
                 turn.status = status.into();
+                turn.completed = method == "turn/completed";
                 turn.error = p["turn"]["error"].clone();
                 if let Some(items) = p["turn"]["items"].as_array() {
                     for item in items {
@@ -228,7 +252,7 @@ impl Native {
         .contains(&method)
         {
             emit(
-                &json!({"event":method,"threadId":p["threadId"],"turnId":p["turn"]["id"],"status":p["turn"]["status"],"usage":p["tokenUsage"]}),
+                &json!({"event":method,"threadId":p["threadId"],"turnId":p.get("turnId").unwrap_or(&p["turn"]["id"]),"status":p["turn"]["status"],"usage":p["tokenUsage"]}),
             )?;
         }
         Ok(())
@@ -378,17 +402,39 @@ fn final_text(turn: &mut TurnResult, item: &Value) -> Result<()> {
         && (item["phase"].is_null() || item["phase"] == "final_answer")
     {
         let text = string(&item["text"])?;
-        ensure(
-            text.len() <= FINAL_LIMIT,
-            "native final output exceeds report limit",
-        )?;
-        turn.text = text.into();
+        let mut end = text.len().min(FINAL_LIMIT);
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        turn.text = text[..end].into();
+        turn.text_error = (text.len() > FINAL_LIMIT)
+            .then(|| "native final output exceeds 64 KiB report limit; rawReport truncated".into());
     }
     Ok(())
 }
-pub fn outcome(turn: &TurnResult, review: bool) -> (String, Option<Value>) {
-    if turn.status != "completed" {
-        let result = match turn.status.as_str() {
+pub fn outcome(turn: &TurnResult, review: bool) -> Value {
+    let parsed = strict_json(turn.text.as_bytes());
+    let (report, report_error) = match parsed {
+        Ok(report) => {
+            let error = if review {
+                validate_review(&report)
+            } else {
+                validate_executor(&report)
+            }
+            .err()
+            .map(|e| e.to_string());
+            (report, error)
+        }
+        Err(error) => (Value::Null, Some(error.to_string())),
+    };
+    let report_error = turn.text_error.clone().or(report_error);
+    let status = if turn.completed {
+        turn.status.as_str()
+    } else {
+        "unknown"
+    };
+    let result = if status != "completed" {
+        match status {
             "failed" | "interrupted" if turn.error["codexErrorInfo"] == "sessionBudgetExceeded" => {
                 "budget_exhausted"
             }
@@ -408,34 +454,17 @@ pub fn outcome(turn: &TurnResult, review: bool) -> (String, Option<Value>) {
             "interrupted" => "cancelled",
             "failed" => "failed",
             _ => "unknown",
-        };
-        return (result.into(), None);
-    }
-    if !turn.error.is_null() {
-        return ("invalid_output".into(), None);
-    }
-    let Ok(report) = strict_json(turn.text.as_bytes()) else {
-        return ("invalid_output".into(), None);
-    };
-    if (if review {
-        validate_review(&report)
+        }
+    } else if !turn.error.is_null() || report_error.is_some() {
+        "invalid_output"
     } else {
-        validate_executor(&report)
-    })
-    .is_err()
-    {
-        return ("invalid_output".into(), None);
-    }
-    (
-        (if review {
-            report["verdict"].as_str()
-        } else {
-            report["status"].as_str()
-        })
-        .unwrap()
-        .into(),
-        Some(report),
-    )
+        report[if review { "verdict" } else { "status" }]
+            .as_str()
+            .unwrap()
+    };
+    json!({"outcome":result,"nativeStatus":status,"lastNativeStatus":turn.status,
+        "rawReport":turn.text,"report":report,"reportError":report_error,"nativeError":turn.error,
+        "finalUsage":if status == "completed" && turn.error.is_null() { &turn.usage } else { &Value::Null }})
 }
 
 #[cfg(test)]
@@ -446,10 +475,13 @@ mod tests {
         let report = json!({"verdict":"APPROVE","summary":"checked","findings":[],"coverage":[{"check":"scope","status":"PASS","evidence":"read"}],"review_blockers":[],"deferred_acceptance":[]});
         let mut turn = TurnResult {
             status: "completed".into(),
+            completed: true,
             text: report.to_string(),
-            error: Value::Null,
+            usage: json!({"total":{"totalTokens":12}}),
+            ..Default::default()
         };
-        assert_eq!(outcome(&turn, true).0, "APPROVE");
+        assert_eq!(outcome(&turn, true)["outcome"], "APPROVE");
+        assert_eq!(outcome(&turn, true)["finalUsage"], turn.usage);
         for (status, expected) in [
             ("interrupted", "cancelled"),
             ("failed", "failed"),
@@ -457,7 +489,11 @@ mod tests {
             ("unknown", "unknown"),
         ] {
             turn.status = status.into();
-            assert_eq!(outcome(&turn, true), (expected.into(), None));
+            let saved = outcome(&turn, true);
+            assert_eq!(saved["outcome"], expected);
+            assert_eq!(saved["report"], report);
+            assert_eq!(saved["rawReport"], turn.text);
+            assert!(saved["finalUsage"].is_null());
         }
         for (error, expected) in [
             (
@@ -479,15 +515,42 @@ mod tests {
         ] {
             turn.status = "failed".into();
             turn.error = error;
-            assert_eq!(outcome(&turn, true), (expected.into(), None));
+            let saved = outcome(&turn, true);
+            assert_eq!(saved["outcome"], expected);
+            assert_eq!(saved["report"], report);
+            assert_eq!(saved["nativeError"], turn.error);
         }
         turn.status = "completed".into();
-        assert_eq!(outcome(&turn, true).0, "invalid_output");
+        assert_eq!(outcome(&turn, true)["outcome"], "invalid_output");
         turn.error = Value::Null;
-        turn.status = "completed".into();
+        turn.completed = false;
+        assert_eq!(outcome(&turn, true)["nativeStatus"], "unknown");
+        assert_eq!(outcome(&turn, true)["report"], report);
+        turn.completed = true;
         turn.text = "no findings".into();
-        assert_eq!(outcome(&turn, true).0, "invalid_output");
+        assert_eq!(outcome(&turn, true)["outcome"], "invalid_output");
+        assert!(outcome(&turn, true)["reportError"].is_string());
         turn.text = json!({"verdict":"APPROVE","summary":"incomplete"}).to_string();
-        assert!(outcome(&turn, true).1.is_none());
+        assert_eq!(outcome(&turn, true)["report"]["summary"], "incomplete");
+        assert!(outcome(&turn, true)["reportError"].is_string());
+        turn.text.clear();
+        turn.status = "failed".into();
+        assert_eq!(outcome(&turn, true)["outcome"], "failed");
+        assert!(outcome(&turn, true)["report"].is_null());
+    }
+    #[test]
+    fn report_limit_retains_a_bounded_utf8_diagnostic() {
+        let mut turn = TurnResult::default();
+        final_text(
+            &mut turn,
+            &json!({"type":"agentMessage","text":"中".repeat(FINAL_LIMIT)}),
+        )
+        .unwrap();
+        assert!(turn.text.len() <= FINAL_LIMIT);
+        let saved = outcome(&turn, true);
+        assert!(saved["reportError"].as_str().unwrap().contains("64 KiB"));
+        assert_eq!(saved["rawReport"], turn.text);
+        final_text(&mut turn, &json!({"type":"agentMessage","text":"{}"})).unwrap();
+        assert!(turn.text_error.is_none());
     }
 }

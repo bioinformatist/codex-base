@@ -51,7 +51,7 @@ exec 3> "$tmp/control"
 printf '%s\n' '{"op":"close"}' >&3
 wait "$client"
 exec 3>&-
-jq -se 'any(.[]; .ready.implementation.model == "gpt-6.1-sol") and any(.[]; .result.closed == true)' "$tmp/improve.jsonl" >/dev/null
+jq -se 'any(.[]; .ready.implementation.model == "gpt-6.2-sol") and any(.[]; .result.closed == true)' "$tmp/improve.jsonl" >/dev/null
 test "$(cat "$CODEX_PACKAGE_LOG/--strict-config.args")" = $'--strict-config\napp-server'
 test ! -e "$tmp/conflict.log"
 

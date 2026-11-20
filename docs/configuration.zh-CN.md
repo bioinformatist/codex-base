@@ -37,7 +37,20 @@ default_mode_request_user_input = true
 
 保存后[重新加载执行运行时](../README.zh-CN.md#更新后重新加载)。配置开关只是请求能力，不能证明当前任务已经具备它们，也不保证结果更好。实验需要受支持的 OpenAI 后端及符合资格的 ChatGPT 会话，服务端仍可不向启动模型开放该能力。当前开放范围请查阅[模型文档](https://learn.chatgpt.com/docs/models#experimental-context-management)。正式规划和审查的前提见[工作流指南](workflow.zh-CN.md#overview)。
 
-官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由已核对的 Codex [功能声明](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/core/tests/suite/request_user_input.rs)支持。
+官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)说明了上下文管理、Code Mode 和 Plan Mode 推理强度。Default Mode 提问开关则由已核对的 Codex [功能声明](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/features/src/lib.rs)及[结构化提问测试](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/core/tests/suite/request_user_input.rs)支持。
+
+托管默认值不设置 `token_budget`、`subagent_default_context_limits`、
+`defer_mailbox_preemption` 和 `login_shell_package_path`。检查使用固定 0.170.0 的
+[Draft 07 配置 schema](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/core/config.schema.json)，
+校验实际生成和合并的 TOML、文档片段及原生角色文件。通过 schema 校验不能证明实际工具可用。
+
+诊断正式规划能力时，先从可信会话元数据读取当前模型和模式，再检查实际工具：
+
+- 原生 `new_context` 须直接暴露；不为测试切窗而调用它。
+- `get_context_remaining` 须可调用。认定缺失前须解析嵌套工具目录，不能仅凭其中没有直接条目下结论。
+- 当前模式须提供可用的结构化提问工具。
+
+配置开关或模型目录的能力标记不能替代这些检查。前提缺失或未经确认时，正式 Improve 规划为 BLOCKED，普通 Plan Mode 可给草案。目标仍为 `gpt-6.2-astra` / `xhigh`；旧代 Astra 仅在用户主动选择且会话满足模式和能力要求时作为临时备选。不自动切换模型，不强开 `token_budget`，不启动消耗订阅额度的能力试验。实际运行在原本要做的正常工作中观察，未观察项标记 `NOT RUN`。
 
 <a id="codex-package-selection"></a>
 
@@ -71,7 +84,10 @@ programs.codexBase.package = inputs.some-cli.packages.${pkgs.system}.default;
 
 ## 模型选择
 
-Home Manager 默认使用 `gpt-6.1-sol`、`medium` 推理强度，Plan Mode 使用 `high`。插件不会修改主会话的模型。规划前提和独立的执行通道设置见[工作流指南](workflow.zh-CN.md#execution)。
+Home Manager 默认使用 `gpt-6.2-sol`，推理强度和 verbosity 均为 medium；普通 Plan Mode
+使用同一模型和 high 推理强度。正式规划及独立计划审阅使用 `gpt-6.2-astra` / xhigh。
+插件不会修改主会话的模型。规划前提和角色表见[工作流指南](workflow.zh-CN.md#execution)，
+公开模板证据及其边界见[客户端来源](architecture.md#pinned-client-evidence)。
 
 ## 模型上下文默认值
 
@@ -82,9 +98,9 @@ Codex Base 不设置 `model_context_window` 和 `model_auto_compact_token_limit`
 显示窗口与预期不符时，依次检查：实际执行的二进制及版本（包括桌面或 SSH
 App Server）、所选模型、在线或缓存/内置目录、有效配置及启动覆盖，最后在
 重新加载运行时后创建新对话。不要自动删除用户覆盖值。
-[模型管理器源码](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/models-manager/src/manager.rs)
-、[模型元数据](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/models-manager/src/model_info.rs)
-和[协议公式](https://github.com/openai/codex/blob/360319d8dee62d87e2d59fc0c21805d79519cfed/codex-rs/protocol/src/openai_models.rs)
+[模型管理器源码](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/models-manager/src/manager.rs)
+、[模型元数据](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/models-manager/src/model_info.rs)
+和[协议公式](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/protocol/src/openai_models.rs)
 解释了目录解析和预算；另见官方[配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。
 
 更新消费方的 `codex-base` 输入会更新模块与技能。若消费方覆盖了
@@ -137,3 +153,6 @@ Home Manager 用户还应在激活前撤销托管覆盖层中的对应设置，�
 ## 保留用户配置
 
 Home Manager 合并受管配置值，同时保留无关的用户配置表、自定义 MCP 和上下文窗口覆盖值。更新不会自动删除用户自定义条目。
+
+Home Manager 不再提供 `personality`。Codex 0.170.0 仍接受 `friendly` 和 `pragmatic`，
+但它们不再选择文风。合并器保留已有用户值；移除托管默认值不代表真实 Home 已清理，也不新增迁移步骤。

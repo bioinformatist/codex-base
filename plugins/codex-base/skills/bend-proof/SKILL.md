@@ -20,18 +20,30 @@ a bounded claim before implementation.
 Trace proof imports through laws to the actual implementation and inspect
 whether the properties capture the requested behavior. For a sorter, ordering
 alone permits an always-empty result; preserving the input elements also
-matters. Preserve agreed laws: a property change needs explicit plan revision.
-Keep proof files without a runtime entry point and runtime examples in tests.
+matters. Protect the agreed specifications and the transitive definitions that
+determine their meaning, including predicate and reference helpers in otherwise
+editable files ([upstream example](https://github.com/bendlang/bend/pull/1932)).
+The implementation under proof may change within the approved edit scope;
+changing the fixed specification or its meaning requires plan revision.
+Small proofs need no separate `SPEC` file. Keep proof files without a runtime
+entry point and runtime examples in tests.
 
 ## Check and record
 
-Use the project's pinned tools and commands. The reference was verified with
-Bend 2.0.38 and Lean 4.34.0. `bend PROOF.bend` gives quick feedback;
-`bend PROOF.bend --verdict` is the formal proof gate. Record both separately.
-In this release, `--verdict` uses BendTT, an independent checking kernel built
+Use the project's pinned tools and commands. The reference's historical results
+used Bend 2.0.38 and Lean 4.34.0. Bend 2.0.40 is an untested upgrade recommendation
+for target projects, not a tool installed or verified by this repository.
+`bend PROOF.bend` gives quick feedback; run `bend PROOF.bend --verdict`
+directly for the formal proof gate. Record both separately.
+In Bend 2.0.38, `--verdict` uses BendTT, an independent checking kernel built
 from the release's `bendtt.lean` with Lean 4.34.0 on first use, or selected by
 `BENDTT`. Record the kernel's source/build identity or the supplied binary's
-provenance, along with any `BEND_DIR` override. A cache hit is not proof evidence.
+provenance, along with any `BEND_DIR` override. A traceable Lean kernel compilation
+cache may be reused while running the direct verdict command.
+
+The [`bend-cache` wrapper](https://github.com/bendlang/bend/blob/v2.0.40/tools/bend-cache/README.md)
+may speed development checks; its cache hits are not new verdict evidence and
+cannot satisfy the formal gate. Use the direct CLI result if they disagree.
 
 Before claiming success, verify tool versions (`bend version`, `lean --version`
 when used), checked files and transitive imports, exit status, and diagnostics.

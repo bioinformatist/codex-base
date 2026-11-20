@@ -12,6 +12,14 @@ Engineering contract, gates and STOP conditions against the repository. Resolve
 relevant drift before dispatch. A plan file cannot grant protected metadata
 access or external effects; those need explicit authority.
 
+Confirm the plan's hardest-acceptance walkthrough is viable with the installed
+tool and actual operator permissions. For bootstrap upgrades, keep the selected
+executable, coordinator and roles fixed for this task; candidate capabilities
+are delivery targets, not tools for accepting or rescuing this run. Use source,
+existing events, static scenarios and offline fixtures for paid-run claims as
+specified in the planning contract. Leave unobserved runtime behavior `NOT RUN`
+and collect observations during otherwise required normal work only.
+
 Prefer a clean worktree returned by the host's managed-worktree tool, supplying
 its exact path using `--worktree`. It must match the full base commit in the same
 repository. Otherwise the client creates a detached Git worktree at that base.
@@ -86,6 +94,13 @@ environment, commands and results. Reuse evidence only with a complete unchanged
 input/environment mapping. Uncertainty invalidates the affected check; a changed
 candidate always needs new approval.
 
+Finish generation before freeze and capture. Run a Git-dependent synchronization
+check in the frozen workspace after capture and confirm the candidate is
+unchanged before export. A package made before capture needs verified
+unchanged-input binding or a rebuild from the export. A written freeze procedure
+does not prove that real agents or terminals stopped; unknown termination
+blocks capture and acceptance.
+
 ## Independent formal review
 
 Supply all required check gates' current PASS evidence before review. Required
@@ -100,7 +115,7 @@ review gates receive exact coverage alongside `scope`. For required G1:
     "environment":"EXACT_PLAN_ENVIRONMENT","head":"HEAD","tree":"TREE",
     "planHash":"PLAN_HASH"
   }],
-  "notes":"Inspect the complete candidate, requirements, reasons and evidence."
+  "notes":"1. Verified facts and sources: G1 artifact.\n2. Questions for independent judgment: inspect connected callers against the complete plan.\n3. Candidate or input changes: initial candidate."
 }
 ```
 
@@ -108,11 +123,20 @@ Use returned identities, byte hashes, absolute artifact paths and exact gate
 environments. Include required check gates once each; unknown/duplicate gates
 fail. PENDING cannot satisfy an implementation gate.
 
+Organize `dossier.notes` as verified facts with sources, questions still needing
+independent judgment, and candidate or input changes. The reviewer also receives
+a mechanical summary of current validated gate/status/artifact paths and hashes,
+the complete plan and code entry points. Before a new review, freeze the previous
+review root. `previousReview` retains only that immediately preceding review's
+identity, binding, native result, raw/parsed report and diagnostics. It is
+handoff context, never approval. Code observations without an exact mapping to
+current inputs remain questions for the new reviewer to check independently.
+
 ```json
 {"op":"review","tree":"TREE","dossier":"/private/review.json"}
 ```
 
-Review starts a fresh Sol high local read-only root with a separate native
+Review starts a fresh Astra 6.2 high local read-only root with a separate native
 budget; descendants inherit it. The reviewer receives the full plan, reasons,
 exact candidate, Ponytail method, gate evidence and original private images.
 Inspect connected callers and tests, not just the diff or claimed gaps; never
@@ -121,6 +145,25 @@ and GUI tools are disabled. Optional `reviewTools` names existing MCP tools
 independently verified as read-only. The client checks their actual inventory
 and annotations. Missing tools, writable exposure or unverified permissions block
 review; a local sandbox cannot establish external tool authority.
+
+The same computed check sets constrain the submitted schema, prompt and Rust
+validation: `coverage.check` and `findings.check` use `scope` plus
+`requiredEvidence`; `deferred_acceptance.check` uses only gates explicitly
+declared as deferred acceptance. With no such gates, the array must be empty.
+Coverage has exactly one entry per required ID. Missing, duplicate, unknown and
+overlapping coverage/deferred IDs produce diagnostics naming the offending IDs.
+CI, integration or physical acceptance can be deferred only when the plan
+explicitly declares it.
+
+`review` accepts a normal `COMPLETE` implementation, or a native-confirmed
+`failed`/`interrupted` turn whose outcome is `budget_exhausted`, `timed_out`,
+`cancelled` or `failed`. Each route requires the live connection, same loaded
+implementation root, frozen descendants and terminals, valid candidate and write
+scope, and current PASS evidence for every required check. Unknown or running
+turns, completed turns with invalid reports, and executor `STOPPED` reports do
+not qualify. The implementation result remains recorded separately from the
+new independent review. Changed candidates require recapture, current evidence
+and new approval.
 
 Images use `{"op":"images","manifest":"/private/images.json"}` after capture.
 The manifest has `version:1` and `images` entries with `path`, `purpose`
@@ -141,8 +184,8 @@ Only complete valid `APPROVE` with exact unique coverage grants approval.
 ```
 
 Freeze, capture, rerun affected checks and review again. `BLOCK` preserves missing
-evidence or uncertainty. Cancellation, timeout, budget exhaustion, native failure,
-invalid output and unknown results cannot approve. Allow at most two revision
+evidence or uncertainty. Cancelled, timed out, exhausted, failed, invalid or
+unknown review runs cannot approve. Allow at most two revision
 rounds and one bounded in-scope recovery as skill rules; further work needs user
 direction. Native deadlines, interruption and budget limits govern execution.
 The coordinator adds no root or per-role attempt timer.
@@ -192,6 +235,23 @@ the connection, ending budget continuity. Connection or loaded-root loss is a
 STOP: preserve workspace, last confirmed usage and evidence. A cold resume, fork
 or replacement root cannot silently reset the budget; a new root needs explicit
 authority.
+
+All finish paths save cached report material, including failed turns, active
+cancellation and connection/root/model errors. `status`, `finished`, `stopped`
+and `inspect` expose `rawReport` (up to 64 KiB), parsed `report`, `reportError`,
+review `coverageError`, `nativeError`, thread/turn IDs and the review's source
+candidate binding. Oversized raw text is truncated at a UTF-8 boundary and marked
+invalid. Native terminal state (`nativeStatus`) is separate from report verdict
+and approval. Without `turn/completed`, it is `unknown`; `lastNativeStatus` and
+last observed usage remain available. `finalUsage: null` means no trusted final
+measurement; only a normally completed turn with matching native turn usage can
+provide one.
+
+After confirmed cancellation the client saves cached material before setting
+`cancelled`, and clears approval even if normal completion was observed during
+the operation. Later finish processing still retains the report. Error exits
+save diagnostics from cache without new RPCs or reconnection. Only normal review
+completion with valid report/coverage and unchanged binding can grant approval.
 
 `codex-improve inspect TASK_ID` reads authenticated task summaries without a model
 call; a summary cannot prove a live loaded root or continue it.

@@ -10,7 +10,7 @@
     stop-slop = { url = "github:hardikpandya/stop-slop/8da1f030185bdfe8471220585162991eaeb970e9"; flake = false; };
     ponytail = { url = "github:DietrichGebert/ponytail/7801d061243d7b753bad0e0b3c057cd250b11755"; flake = false; };
     playwright-cli = { url = "github:microsoft/playwright-cli/261206400b18cd0629a8b45dd14ea5488fcf261f"; flake = false; };
-    codex-src = { url = "github:openai/codex/rust-v0.169.0"; flake = false; };
+    codex-src = { url = "github:openai/codex/rust-v0.170.0"; flake = false; };
   };
   outputs = inputs@{ self, nixpkgs, ... }:
     let
@@ -38,11 +38,12 @@
       apps.${system}.sync-vendored-skills = { type = "app"; program = "${sync}/bin/sync-vendored-skills"; };
       checks.${system} = import ./nix/checks.nix { inherit pkgs srcRoot generatedSkills inputs self; packages = basePackages; };
       devShells.${system}.default = pkgs.mkShell {
+        CODEX_CONFIG_SCHEMA = "${inputs.codex-src}/codex-rs/core/config.schema.json";
         packages = [
           pkgs.bash pkgs.coreutils pkgs.diffutils pkgs.git pkgs.curl pkgs.gnused
           pkgs.gnutar pkgs.jq pkgs.gh pkgs.shellcheck pkgs.actionlint pkgs.typos
           pkgs.rustc pkgs.cargo pkgs.rustfmt
-          (pkgs.python3.withPackages (p: [ p.pyyaml p.pillow ])) pkgs.librsvg basePackages.codex
+          (pkgs.python3.withPackages (p: [ p.pyyaml p.pillow p.jsonschema ])) pkgs.librsvg basePackages.codex
         ];
       };
     };

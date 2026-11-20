@@ -50,11 +50,12 @@ environment-specific policy such as proxy handling belongs in a consuming
 module's extra instructions. The portable plugin does not install global
 guidance. Executor prompts retain runner-local scope, checks, STOP, and handoff
 constraints. Codex Base has no model-index or per-model global guidance files,
-and its ordinary runtime default remains Sol with medium reasoning.
+and its ordinary runtime default is Sol 6.2 with medium reasoning and verbosity.
 
-Formal planning needs Astra in native Plan Mode with callable context management
-and structured questions. Independent Astra plan review may use read-only
-Default Mode with both capabilities; see the [workflow guide](workflow.md).
+Formal planning uses Astra 6.2 xhigh in native Plan Mode with callable context
+management and structured questions. Independent plan review uses the same
+model and effort and may use read-only Default Mode with both capabilities;
+see the [workflow guide](workflow.md).
 
 ## Executor routing
 
@@ -63,8 +64,13 @@ implementation root. Its private `codex-improve-v20` records retain task/native
 IDs, workspace identity, plan/settings, candidate, usage and review summaries.
 Codex owns full logs, agent dispatch, messages, waits and nested delegation.
 `src/improve/config/roles.json` is the sole role source; native child role files
-are derived from it. Writer/visual use Astra xhigh; other model/effort choices
-remain unchanged. Required unavailable models/efforts fail explicitly.
+are derived from it, with instructions used as both native role descriptions
+and developer instructions. Economy uses Luna low; standard/deep use Sol 6.2
+medium/xhigh; writer/visual use Astra 6.2 xhigh; scout uses Sol 6.2 medium and
+reports sources and evidence gaps; formal code review uses Astra 6.2 high.
+All roles use medium verbosity. Writer stops affected work when missing or
+conflicting facts prevent accurate writing and reports the gap. Required
+unavailable models/efforts fail explicitly.
 
 The implementation tree shares workspace-write authority and a native 300k
 rollout budget. Scout/visual observation is a role convention inside that
@@ -103,9 +109,44 @@ acceptance.
 
 Review binds the full plan, actual role/model/effort, task permissions/budget,
 HEAD/tree, method, artifact bytes, images and integration target. Plan, candidate,
-settings or evidence drift invalidates approval. Only complete valid APPROVE
-with exact coverage permits an authorized checkpoint; integration also requires
+settings or evidence drift invalidates approval. Only normally completed valid
+APPROVE with exact coverage permits an authorized checkpoint; integration also requires
 the exact target HEAD and merge tree. Git owns hooks and expected-parent updates.
 Historical records remain untouched without import or inherited approval.
+
+The review schema, prompt and validation share `scope` plus `requiredEvidence`
+and the plan's explicit deferred IDs. Native terminal status, bounded raw/parsed
+reports, validation diagnostics, usage and approval are stored separately.
+Cancellation saves cached reports after freeze and never grants approval; error
+exits preserve cached diagnostics without RPCs. Missing `turn/completed` leaves
+native status unknown and missing trustworthy final metering stays null.
+
+A confirmed failed/interrupted implementation may reach independent review
+after the same loaded-root, freeze, candidate, scope and current-evidence checks
+as COMPLETE. Its implementation result remains intact. `dossier.notes` organizes
+verified facts/sources, unresolved judgment and input changes. A review freezes
+its predecessor and receives only the immediately preceding `previousReview`
+snapshot plus a validated evidence summary; that context cannot approve a new
+candidate.
+
 See [lifecycle ownership](improve-lifecycle.md) for the responsibility/deletion
 map, current CLI and remaining gaps.
+
+## Pinned client evidence
+
+The default CLI and Code Mode Host are 0.170.0, with Codex source pinned to
+[`29eb79e9866b3262a777fdf8195c1b9e63684c91`](https://github.com/openai/codex/tree/29eb79e9866b3262a777fdf8195c1b9e63684c91).
+The public [model catalog](https://github.com/openai/codex/blob/29eb79e9866b3262a777fdf8195c1b9e63684c91/codex-rs/models-manager/models.json)
+and its UTF-8 `instructions_template` values have these SHA-256 digests:
+
+| Public client input | SHA-256 |
+|---|---|
+| `models.json` | `d50b6749506d97e5f334dbabcb666eb1689f423cf3e88cfabdcf3c536b873068` |
+| Sol 6.2 / Astra 6.2 `instructions_template` | `aa47d2dee261594c4944241b646088730d74d87afa4da8d2da0554540a5e7623` |
+| Luna `instructions_template` | `e52174f354e3970ad8de5935fff8d04ddf2890a35659283d163befb56490198c` |
+
+These identify public client templates. Remote effective templates, live model
+capabilities and actual model behavior remain unverified. Feature flags and catalog
+markers do not establish callable tools. This migration uses static and offline
+checks; live behavior remains for observation during normal work. A downstream
+package override and an actual deployment require their own verification.

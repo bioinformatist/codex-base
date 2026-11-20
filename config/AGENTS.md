@@ -9,7 +9,8 @@ override them.
   state and run existing focused checks.
 - Use the smallest coherent change. Treat new tests, CI checks, policies,
   guardrails, abstractions, and documentation as separate scope unless the
-  task requires them or concrete uncovered behavior warrants them.
+  user task or repository requirements call for them, or concrete uncovered
+  behavior warrants them.
 
 ## Communication
 

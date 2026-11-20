@@ -125,7 +125,7 @@ In your Home Manager module, with `inputs` in scope:
 
 Activate the consuming Home Manager or NixOS configuration using your usual deployment procedure. This route provides the skills, runners, and managed configuration; a separate plugin installation is unnecessary.
 
-The full Nix / Home Manager environment currently pins Codex 0.169.0 and Code Mode Host.
+The full Nix / Home Manager environment currently pins Codex 0.170.0 and Code Mode Host.
 This describes the default package; to supply another CLI package, see [Codex package selection](docs/configuration.md#codex-package-selection).
 
 ### 3. Configure and verify
@@ -156,7 +156,7 @@ These instructions apply to **both installation methods**. A Codex task means on
 
 ### Start with the right model
 
-The managed default is `gpt-6.1-sol` with `medium` reasoning; Plan Mode uses `high`. Formal Improve planning needs a capable Astra Plan Mode session. Check the [planning prerequisites](docs/workflow.md#overview) and [configuration](docs/configuration.md#model-choice) before starting.
+The managed default is `gpt-6.2-sol` with `medium` reasoning and verbosity; ordinary Plan Mode uses `high` reasoning. Formal Improve planning and independent plan review use `gpt-6.2-astra` / `xhigh`. Check the [planning prerequisites](docs/workflow.md#overview) and [configuration](docs/configuration.md#model-choice) before starting.
 
 ### Plan, then authorize implementation
 
@@ -169,7 +169,7 @@ Enter built-in Plan Mode with `/plan` or Shift+Tab in the CLI; the desktop compo
 
 Improve discovers facts, asks about material unresolved choices, and presents the complete replacement plan in chat. Planning creates no plan, questionnaire, handoff, or temporary files. Once you accept the plan, authorize implementation in Default Mode; that later writable phase can persist the plan and execute it.
 
-Implementation uses one connected native team with a shared 300k rollout budget; independent formal review uses a fresh read-only root with its own 100k. Writer and visual use Astra xhigh. The plan selects [verification](docs/workflow.md#verification), including necessary tests and Ponytail review.
+Implementation uses one connected native team with a shared 300k rollout budget; independent formal review uses a fresh read-only root with its own 100k. Writer and visual use Astra 6.2 xhigh; the code reviewer uses Astra 6.2 high. All roles use medium verbosity. The plan selects [verification](docs/workflow.md#verification), including necessary tests and Ponytail review.
 
 New tasks use Improve `.20` and runtime `0.20.0`. Keep the App Server connection and implementation root loaded through continuation and review; losing either stops the task. Historical records stay untouched and cannot be continued or supply approval. See [new-task usage and ownership](docs/improve-lifecycle.md).
 
