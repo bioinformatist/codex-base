@@ -62,18 +62,37 @@ gate/status/artifact/hash summary and only the immediately preceding
 root and independently rechecks observations that cannot be mapped to current
 inputs. The snapshot carries no approval.
 
-Commit, integration and cleanup are separate authorized operations. `close`
-freezes both roots and ends the connection. `inspect TASK_ID` reads an
-authenticated summary after closing; it cannot reconnect or prove continuity.
-Connection/loaded-root loss stops the task with last confirmed usage and
-artifacts retained. A cold resume/fork or new root requires explicit new-budget
-authority. There is no runtime fallback to historical contracts.
+Commit, integration and worktree cleanup are separate authorized operations.
+`close` freezes the implementation root, all registered review roots and their
+verified descendants. The client saves the terminal reports, candidate bindings
+and frozen thread IDs before marking the task `closed` and starting archive.
+A task can close before its first turn or after capture without a review.
+
+The archive phase has a shared 30-second deadline. The client checks each saved
+ID against the paginated archived and unarchived history lists. If a parent
+archives and a child remains unarchived, the client rechecks ownership and
+inactivity before one more attempt on the remaining threads. An unconfirmed
+request ends the archive phase with the affected result unknown. The client
+then closes its App Server's stdin and gives the child five seconds to exit
+before terminating it.
+
+`close` returns `archive` and `shutdown` alongside `closed` and `worktree`.
+`inspect TASK_ID` exposes the same results, including each thread's status under
+`archive.threads`. Partial or unknown cleanup leaves the task closed and
+preserves its reports and approval. A save failure returns an error. Losing the
+connection or a loaded root during implementation or review stops the task with
+its last confirmed usage and artifacts. Starting a replacement root requires
+explicit authority for a new budget.
 
 Normal, failed and cancelled turns retain bounded raw text, parsed JSON, report
-and coverage diagnostics, native errors and thread/turn IDs; review records also
-retain their source candidate binding. Cancellation saves the report after
-confirmed freeze and grants no approval, including a completion race. Error
-exits save cached diagnostics without RPCs. `nativeStatus` is `unknown` until
+and coverage diagnostics, native errors and thread/turn IDs. Review records
+also retain their source candidate binding. `roots` records each start attempt
+and any returned thread and session IDs, even when startup validation fails. A
+lost start response leaves an unknown registration. `reviewHistory` retains
+earlier rounds with their turn IDs, reports and bindings. Cancellation saves
+the report after confirmed freeze and grants no approval, including a
+completion race. Error exits save cached diagnostics without RPCs.
+`nativeStatus` is `unknown` until
 `turn/completed`; `lastNativeStatus` and last usage remain available.
 `finalUsage: null` explicitly means the final measurement is unknown. These facts
 are visible through `status`, terminal events and authenticated `inspect`.

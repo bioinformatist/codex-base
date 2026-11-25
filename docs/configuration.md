@@ -90,6 +90,12 @@ for the public template evidence and its limits.
 
 Codex Base leaves `model_context_window` and `model_auto_compact_token_limit` unset and preserves user overrides. Codex's model catalog uses remote, cached, or bundled metadata according to its refresh policy. It prefers `context_window` and falls back to `max_context_window`; a user window override cannot exceed the model maximum.
 
+Improve enables `features.subagent_default_context_limits` when starting its
+implementation and review root threads. Subagents of those threads use their
+selected model's default context window and auto-compaction threshold. Explicit
+limits still apply to the parent threads. Ordinary sessions and their subagents
+follow the user's configuration.
+
 The usable budget uses the model's configured percentage, defaulting to 95%. The auto-compaction threshold is the smaller of the configured threshold and 90% of the window. For a 500,000-token window, 475,000 usable tokens and a 450,000 threshold apply only at 95% and without a lower configured threshold. This example is not an account or model promise. Window size does not establish that native context tools are callable.
 
 When the displayed window differs, check in order: the actual executing binary

@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 
 from jsonschema import Draft7Validator
@@ -16,7 +17,8 @@ binary, skill = map(Path, sys.argv[1:3])
 fixture = Path(__file__).with_name('native_fixture.py')
 with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
     root = Path(temp)
-    env = {**os.environ, 'HOME': str(root / 'home'), 'XDG_STATE_HOME': str(root / 'state'),
+    env = {'PATH': os.environ['PATH'], 'HOME': str(root / 'home'), 'CODEX_HOME': str(root / 'codex-home'),
+           'XDG_STATE_HOME': str(root / 'state'),
            'CODEX_IMPROVE_SKILL_ROOT': str(skill), 'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'}
     repo = root / 'repo'
     repo.mkdir()
@@ -35,7 +37,9 @@ with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
     import shlex
     fake.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(fixture))} "$@"\n')
     fake.chmod(0o755)
-    env['CODEX_IMPROVE_CODEX'] = str(fake)
+    wrapper = root / 'codex-wrapper'
+    wrapper.write_text(f'#!/bin/sh\nexec 3<&0\n{shlex.quote(str(fake))} "$@" <&3 3<&- &\nwait "$!"\n')
+    wrapper.chmod(0o755)
     gates = [{'id': f'G{i}', 'class': 'implementation gate', 'kind': 'check', 'check': 'fixture check',
               'invalidatedBy': ['tracked'], 'environment': 'fixture', 'conditions': 'current behavior'}
              for i in range(1, 6)]
@@ -50,8 +54,10 @@ with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
                              'requiredEvidence': [g['id'] for g in gates], 'reviewTools': {'docs': ['read']}}),
                 ('gates', {'version': 1, 'gates': [*gates, *deferred]}))))
         log = root / f'{case}.jsonl'
+        codex = wrapper if case == 'shutdown-wrapper' else fake
         proc = subprocess.Popen([str(binary), 'session', str(plan), str(repo)],
-                                env={**env, 'NATIVE_FIXTURE_CASE': case, 'NATIVE_FIXTURE_LOG': str(log)},
+                                env={**env, 'CODEX_IMPROVE_CODEX': str(codex),
+                                     'NATIVE_FIXTURE_CASE': case, 'NATIVE_FIXTURE_LOG': str(log)},
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         def until(key, value=None):
             for line in proc.stdout:
@@ -67,6 +73,89 @@ with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
     def inspect(task):
         return json.loads(subprocess.check_output([str(binary), 'inspect', task['id']], env=env))
 
+    def archive_calls(log):
+        return [call['params']['threadId'] for call in map(json.loads, log.read_text().splitlines())
+                if call.get('method') == 'thread/archive']
+
+    stalled = {'shutdown-stall': 'terminated', 'shutdown-wrapper': 'unknown'}
+    for case in ('ready-close', 'ready-cancel-close', 'saved-close-fails', 'active-close',
+                 'late-close-activity', 'late-close-child', 'foreign-family', 'unloaded-child', 'history-unavailable',
+                 'partial-child', 'parent-rejected', *stalled):
+        proc, log, op, until = launch(case)
+        task = until('ready')['ready']
+        path = root / 'state/codex-improve-v20/tasks' / task['id'] / 'record.json'
+        if case == 'saved-close-fails':
+            path.chmod(0o644)
+        if case == 'ready-cancel-close':
+            op('cancel', target='implementation')
+            assert until('op', 'cancel')['result']['confirmed']
+        elif case in (*stalled, 'history-unavailable', 'parent-rejected', 'late-close-activity', 'late-close-child'):
+            op('turn')
+            assert until('finished', 'implementation')['outcome'] == 'COMPLETE'
+        if case in stalled:
+            op('capture')
+            candidate = until('op', 'capture')['result']
+        started = time.monotonic()
+        op('close')
+        if case == 'saved-close-fails':
+            assert proc.wait(timeout=10) == 2
+            assert 'could not persist closed task before archive' in proc.stderr.read()
+            path.chmod(0o600)
+            assert inspect(task) == task and not archive_calls(log)
+            continue
+        if case in ('active-close', 'late-close-activity', 'late-close-child', 'foreign-family',
+                    'unloaded-child', 'history-unavailable'):
+            stopped = until('stopped')['stopped']
+            expected = {'active-close': 'no identifiable turn',
+                        'late-close-activity': 'native activity invalidated close freeze',
+                        'late-close-child': 'native thread child-a has no freeze under its root',
+                        'foreign-family': 'outside the registered session',
+                        'unloaded-child': 'unloaded before its freeze was confirmed',
+                        'history-unavailable': 'unavailable before first user message'}[case]
+            assert expected in stopped['stoppedBecause']
+            assert stopped['phase'] == 'stopped'
+            assert proc.wait(timeout=10) == 2 and not archive_calls(log)
+            if case == 'late-close-child':
+                assert 'closeFreeze' not in inspect(task)
+            continue
+        try:
+            returncode = proc.wait(timeout=10)
+        finally:
+            if case == 'shutdown-wrapper':
+                log.with_suffix('.release').touch()
+        assert returncode == 0, proc.stderr.read()
+        elapsed = time.monotonic() - started
+        result = until('op', 'close')['result']
+        saved = inspect(task)
+        assert result['closed'] and result['worktree'] == task['worktree']
+        assert saved['phase'] == 'closed' and 'review' not in saved
+        assert saved['archive'] == result['archive'] and saved['shutdown'] == result['shutdown']
+        if case == 'partial-child':
+            assert saved['archive']['status'] == 'partial'
+            assert saved['archive']['threads'] == {'root-0': 'archived', 'child-a': 'unarchived'}
+            assert archive_calls(log) == ['root-0', 'child-a']
+        elif case == 'parent-rejected':
+            assert saved['archive']['status'] == 'partial'
+            assert saved['archive']['threads'] == {'root-0': 'unarchived', 'child-a': 'archived'}
+            assert archive_calls(log) == ['root-0', 'child-a', 'root-0']
+            assert saved['outcome'] == 'COMPLETE' and saved['report']['status'] == 'COMPLETE'
+        else:
+            assert saved['archive']['status'] == 'archived'
+            assert saved['archive']['threads'] == {'root-0': 'archived'}
+            assert archive_calls(log) == ['root-0']
+        if case in stalled:
+            assert saved['outcome'] == 'COMPLETE' and saved['report']['status'] == 'COMPLETE'
+            assert saved['candidate_head'] == candidate['head'] and saved['candidate_tree'] == candidate['tree']
+            assert saved['shutdown']['status'] == stalled[case] and 4.8 <= elapsed < 10
+            if case == 'shutdown-wrapper':
+                assert 'stdout closure could not be confirmed' in saved['shutdown']['error']
+        elif case != 'parent-rejected':
+            assert saved['outcome'] == ('cancelled' if case == 'ready-cancel-close' else 'unknown')
+            assert 'turnId' not in saved and 'candidate_tree' not in saved and 'report' not in saved
+            assert saved['approval'] is None
+        if case not in stalled:
+            assert saved['shutdown']['status'] == 'exited'
+
     def write_dossier(case, task, candidate, notes):
         artifact = root / f'{case}.evidence'
         artifact.write_text('current deterministic fixture passed')
@@ -79,14 +168,27 @@ with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
         return dossier
 
     for case in ('writers', 'revise', 'block', 'invalid', 'budget', 'timeout', 'cancelled',
-                 'write-tool', 'extra-tool', 'hold', 'lost', 'lost-during-review', 'unloaded',
-                 'unconfirmed', 'wrong-model', 'wrong-effort', 'deferred', 'failed-empty',
+                 'write-tool', 'extra-tool', 'hold', 'lost', 'lost-during-review', 'unloaded', 'unload-reused-child',
+                 'unconfirmed', 'wrong-model', 'wrong-effort', 'lost-thread-start', 'deferred', 'failed-empty',
                  'failed-report', 'disconnect-review', 'disconnect-start-review', 'disconnect-start-implementation',
                  'cancel-review', 'implementation-budget',
-                 'interrupted-no-evidence', 'executor-stopped', 'invalid-implementation', 'review-running'):
+                 'interrupted-no-evidence', 'executor-stopped', 'invalid-implementation', 'review-running',
+                 'archive-stall'):
         proc, log, op, until = launch(case)
-        if case in ('wrong-model', 'wrong-effort'):
-            assert 'native model, effort' in until('stopped')['stopped']['stoppedBecause']
+        if case in ('wrong-model', 'wrong-effort', 'lost-thread-start'):
+            stopped = until('stopped')['stopped']
+            registration, = inspect(stopped)['roots']
+            assert registration['role'] == 'deep' and registration['cwd'] == stopped['worktree']
+            assert registration['attemptId']
+            if case == 'lost-thread-start':
+                assert 'App Server connection lost' in stopped['stoppedBecause']
+                assert registration['status'] == 'unknown'
+                assert 'threadId' not in registration and 'sessionId' not in registration
+            else:
+                assert 'native model, effort' in stopped['stoppedBecause']
+                assert registration['status'] == 'started'
+                assert registration['threadId'] == registration['sessionId'] == 'root-0'
+            assert not archive_calls(log)
             assert proc.wait(timeout=10) == 2
             continue
         task = until('ready')['ready']
@@ -101,6 +203,7 @@ with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
             assert stopped['report']['status'] == 'COMPLETE' and stopped['nativeStatus'] == 'completed'
             assert inspect(task)['rawReport'] == stopped['rawReport']
             assert proc.wait(timeout=10) == 2
+            assert not archive_calls(log)
             continue
         if case in ('hold', 'review-running'):
             until('op', 'turn')
@@ -149,6 +252,17 @@ with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
             assert proc.wait(timeout=10) == 2
             continue
         candidate = until('op', 'capture')['result']
+        if case == 'unload-reused-child':
+            assert 'child-a' in candidate['freeze']['threads']
+            op('turn', prompt='Apply the requested in-scope revision.')
+            result = next(item for item in map(json.loads, proc.stdout)
+                          if 'stopped' in item or item.get('finished') == 'implementation')
+            assert 'stopped' in result, result
+            stopped = result['stopped']
+            assert 'unloaded before its freeze was confirmed' in stopped['stoppedBecause']
+            assert stopped['phase'] == 'stopped' and stopped['outcome'] == 'unknown'
+            assert proc.wait(timeout=10) == 2 and not archive_calls(log)
+            continue
         if case == 'writers':
             image = root / 'reference.png'
             image.write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='))
@@ -178,7 +292,12 @@ with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
             assert proc.wait(timeout=10) == 2
             continue
         if case in ('write-tool', 'extra-tool'):
-            assert 'writable external tool' in until('stopped')['stopped']['stoppedBecause']
+            stopped = until('stopped')['stopped']
+            assert 'writable external tool' in stopped['stoppedBecause']
+            registration = inspect(task)['roots'][-1]
+            assert registration['role'] == 'reviewer' and registration['status'] == 'started'
+            assert registration['threadId'] == registration['sessionId'] == 'root-1'
+            assert not archive_calls(log)
             assert proc.wait(timeout=10) == 2
             continue
         if case in ('lost-during-review', 'disconnect-review', 'disconnect-start-review'):
@@ -267,11 +386,30 @@ with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
             op('status')
             status = until('op', 'status')['result']
             assert status['previousReview'] == second and 'previousReview' not in second
+            assert status['reviewHistory'] == [first, second]
             assert status['review']['binding']['tree'] == changed['tree']
             assert status['approval'] == status['review']['id']
+        started = time.monotonic()
         op('close')
-        until('op', 'close')
+        if case == 'archive-stall':
+            assert proc.wait(timeout=40) == 0, proc.stderr.read()
+            assert 29 <= time.monotonic() - started < 40
+        closed = until('op', 'close')['result']
         assert proc.wait(timeout=10) == 0, proc.stderr.read()
+        saved = inspect(task)
+        assert saved['phase'] == 'closed' and closed['closed']
+        assert saved['outcome'] == status['outcome'] and saved['report'] == status['report']
+        assert saved['approval'] == status['approval'] and saved['review'] == status['review']
+        assert saved['candidate_tree'] == status['candidate_tree'] and saved['candidate_head'] == status['candidate_head']
+        assert saved['archive'] == closed['archive'] and saved['shutdown'] == closed['shutdown']
+        if case == 'archive-stall':
+            assert saved['archive']['status'] == 'partial' and '30-second deadline' in saved['archive']['error']
+            assert saved['archive']['threads'] == {'root-0': 'unknown', 'root-1': 'unarchived'}
+            assert archive_calls(log) == ['root-0']
+        else:
+            assert saved['archive']['status'] == 'archived' and saved['shutdown']['status'] == 'exited'
+            assert saved['archive']['threads'].keys() == saved['closeFreeze'].keys()
+            assert set(saved['archive']['threads'].values()) == {'archived'}
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         starts = [c['params'] for c in calls if c.get('method') == 'thread/start']
         assert len(starts) == (4 if case == 'writers' else 2)
@@ -294,6 +432,10 @@ with tempfile.TemporaryDirectory(prefix='improve-connected-') as temp:
             previous = json.loads(re.search(r'Previous review:\n(.*?)\n', prompt)[1])
             assert previous is None if index == 0 else previous['id'] == (first if index == 1 else second)['id']
         if case == 'writers':
+            assert saved['reviewHistory'] == [first, second]
+            assert set(saved['archive']['threads']) == {
+                'root-0', 'root-1', 'root-2', 'root-3', 'child-a', 'child-b', 'nested-c', 'review-child'}
+            assert archive_calls(log) == ['root-0', 'root-1', 'root-2', 'root-3', 'child-a']
             assert any(c.get('method') == 'turn/interrupt' and c['params']['threadId'] == 'child-a' for c in calls)
             assert {c['params']['processId'] for c in calls if c.get('method') == 'thread/backgroundTerminals/terminate'} == {'101', '102'}
             assert any(c.get('method') == 'thread/list' and c['params'].get('cursor') for c in calls)

@@ -26,7 +26,11 @@ pub fn private_stat(path: &Path, directory: bool) -> Result<()> {
 }
 pub fn private_dir(path: &Path) -> Result<PathBuf> {
     match fs::DirBuilder::new().mode(0o700).create(path) {
-        Ok(()) => {}
+        Ok(()) => {
+            if let Some(parent) = path.parent() {
+                File::open(parent)?.sync_all()?;
+            }
+        }
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(e) => return Err(e.into()),
     }
@@ -41,14 +45,16 @@ pub fn atomic_private(path: &Path, raw: &[u8]) -> Result<()> {
     if fs::symlink_metadata(path).is_ok() {
         private_stat(path, false)?;
     }
+    let parent = path.parent().ok_or("missing parent")?;
     let mut tmp = tempfile::Builder::new()
         .prefix(".tmp-")
-        .tempfile_in(path.parent().ok_or("missing parent")?)?;
+        .tempfile_in(parent)?;
     tmp.as_file()
         .set_permissions(fs::Permissions::from_mode(0o600))?;
     tmp.write_all(raw)?;
     tmp.as_file().sync_all()?;
     tmp.persist(path)?;
+    File::open(parent)?.sync_all()?;
     Ok(())
 }
 pub fn new_id() -> Result<String> {

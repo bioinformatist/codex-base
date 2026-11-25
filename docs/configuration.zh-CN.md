@@ -93,6 +93,10 @@ Home Manager 默认使用 `gpt-6.2-sol`，推理强度和 verbosity 均为 mediu
 
 Codex Base 不设置 `model_context_window` 和 `model_auto_compact_token_limit`，并保留用户覆盖值。Codex 模型目录按刷新策略使用远程、缓存或内置元数据。它优先使用 `context_window`，缺省时使用 `max_context_window`；用户窗口覆盖值不能超过模型上限。
 
+Improve 创建实施根和审查根时会启用 `features.subagent_default_context_limits`。
+这些会话的子代理采用各自所选模型的默认上下文窗口和自动压缩阈值。显式设置的限制
+仍适用于父会话。普通会话及其子代理继续遵循用户配置。
+
 可用预算使用模型配置的百分比，默认 95%；自动压缩阈值取指定阈值与窗口 90% 的较小者。对于 500,000 token 的窗口，仅在使用 95% 且没有更低指定阈值时，可用预算为 475,000、压缩阈值为 450,000。这不是对账户或模型的承诺。窗口大小不能证明原生上下文工具实际可调用。
 
 显示窗口与预期不符时，依次检查：实际执行的二进制及版本（包括桌面或 SSH

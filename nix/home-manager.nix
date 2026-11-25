@@ -6,6 +6,7 @@ let
   packages = self.packages.${system};
   skillRoot = ../plugins/codex-base/skills;
   shellCacheHome = "${config.xdg.cacheHome}/codex-shell";
+  shellCacheRule = "d ${builtins.toJSON (lib.replaceStrings [ "%" ] [ "%%" ] shellCacheHome)} 0700 - - - -";
   writableRoots = lib.unique ([ shellCacheHome ] ++ map toString cfg.writableRoots);
   trustedProjects = lib.unique (map toString cfg.trustedProjects);
   githubTokenPath = if cfg.githubTokenFile == null then "" else toString cfg.githubTokenFile;
@@ -61,7 +62,7 @@ let
     status_line = ["model-with-reasoning", "current-dir", "context-remaining", "five-hour-limit", "weekly-limit", "thread-title"]
 
     [shell_environment_policy]
-    set = { XDG_CACHE_HOME = "${shellCacheHome}" }
+    set = { XDG_CACHE_HOME = ${builtins.toJSON shellCacheHome} }
 
     ${trustedToml}
 
@@ -134,10 +135,14 @@ in {
         ".agents/skills/wait-what" ".agents/skills/research" ".agents/skills/triage"
       ] (path: linkSkill (baseNameOf path))))
     ];
-    home.activation.codex-base-config = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    systemd.user.tmpfiles.rules = lib.mkIf pkgs.stdenv.hostPlatform.isLinux [ shellCacheRule ];
+    home.activation.codex-base-config = lib.hm.dag.entryAfter [ "writeBoundary" ] (''
+      ${lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+        run ${pkgs.systemd}/bin/systemd-tmpfiles --user --create - <<< ${lib.escapeShellArg shellCacheRule}
+      ''}
       configFile="$HOME/.codex/config.toml"
       if [ -L "$configFile" ]; then rm -f "$configFile"; fi
       ${mergeConfig}/bin/merge-codex-base-config ${managedConfig} "$configFile"
-    '';
+    '');
   };
 }
