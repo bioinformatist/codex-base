@@ -311,6 +311,7 @@ impl Session {
         .clone();
         let location = self.store.path(string(&self.task["id"])?)?;
         let mut config = json!({"model_reasoning_effort":role["reasoningEffort"],"model_verbosity":role["verbosity"],
+            "features.subagent_default_context_limits":true,
             "features.rollout_budget.enabled":true,"features.rollout_budget.enforce_limit":true,
             "features.rollout_budget.limit_tokens":budget["limit"],"features.rollout_budget.reminder_at_remaining_tokens":budget["reminders"],
             "agents.enabled":true,"web_search":"live","sandbox_workspace_write.writable_roots":self.task["grants"].as_array().unwrap().iter().map(|g|Path::new(self.task["worktree"].as_str().unwrap()).join(g.as_str().unwrap())).collect::<Vec<_>>(),

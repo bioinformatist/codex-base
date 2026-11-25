@@ -77,6 +77,7 @@ for raw in sys.stdin:
         root = f'root-{len([t for t in threads if t.startswith("root-")])}'
         review = params['sandbox'] == 'read-only'
         config = params['config']
+        assert config['features.subagent_default_context_limits'] is True
         assert config['features.rollout_budget.enforce_limit'] is True
         assert config['features.rollout_budget.limit_tokens'] > 0
         threads[root] = {'turns': [], 'cwd': params['cwd'], 'model': params['model'], 'review': review, 'config': config}
