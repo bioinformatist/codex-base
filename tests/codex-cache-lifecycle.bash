@@ -96,6 +96,8 @@ if [[ $1 == --sandbox ]]; then
             "$codex" -c 'sandbox_mode="workspace-write"' "$@"
     )
 
+    # The sandboxed Bash expands the variables in this script.
+    # shellcheck disable=SC2016
     run_codex sandbox -- "$bash_bin" -ec '
         : > workspace-marker
         test "$XDG_CACHE_HOME" = "$1"
@@ -117,11 +119,15 @@ if [[ $1 == --sandbox ]]; then
         --expr "import (builtins.fetchTarball \"file://$tarball\")")
     test "$result" = 42
 
+    # The sandboxed Bash expands the variables in this script.
+    # shellcheck disable=SC2016
     run_codex sandbox -- "$bash_bin" -ec '
         : > "$XDG_CACHE_HOME/allowed"
         if : > "$1/denied"; then exit 1; fi
     ' bash "$sibling"
     test -f "$cache/allowed"
+    # The sandboxed Bash expands the variables in this script.
+    # shellcheck disable=SC2016
     run_codex -c 'sandbox_workspace_write.writable_roots=[]' sandbox -- "$bash_bin" -ec '
         test "$XDG_CACHE_HOME" = "$1"
         if : > "$XDG_CACHE_HOME/revoked"; then exit 1; fi
