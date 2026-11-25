@@ -1,12 +1,19 @@
 use crate::{Result, contracts::*, ensure};
+use nix::{
+    errno::Errno,
+    fcntl::{FcntlArg, OFlag, fcntl},
+    poll::{PollFd, PollFlags, PollTimeout, poll},
+};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
-    io::{BufRead, BufReader, Write},
+    io::{self, BufRead, BufReader, Write},
+    os::fd::AsFd,
     path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
+    process::{Child, ChildStdin, Command, ExitStatus, Stdio},
     sync::mpsc::{self, Receiver, Sender},
     thread,
+    time::{Duration, Instant},
 };
 
 pub enum Input {
@@ -21,7 +28,11 @@ pub fn emit(value: &Value) -> Result<()> {
     out.flush()?;
     Ok(())
 }
-fn lines(reader: impl std::io::Read + Send + 'static, tx: Sender<Input>, controller: bool) {
+fn lines(
+    reader: impl std::io::Read + Send + 'static,
+    tx: Sender<Input>,
+    controller: bool,
+) -> thread::JoinHandle<bool> {
     thread::spawn(move || {
         for line in BufReader::new(reader).lines() {
             let input = match line {
@@ -41,7 +52,7 @@ fn lines(reader: impl std::io::Read + Send + 'static, tx: Sender<Input>, control
                 Err(e) => Input::Lost(e.to_string()),
             };
             if tx.send(input).is_err() {
-                return;
+                return false;
             }
         }
         let _ = tx.send(Input::Lost(
@@ -52,7 +63,8 @@ fn lines(reader: impl std::io::Read + Send + 'static, tx: Sender<Input>, control
             }
             .into(),
         ));
-    });
+        true
+    })
 }
 
 #[derive(Default)]
@@ -64,19 +76,43 @@ pub struct TurnResult {
     pub error: Value,
     pub usage: Value,
 }
+
+#[derive(PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrozenThread {
+    root: String,
+    parent_thread_id: Option<String>,
+    session_id: String,
+    cwd: String,
+    pub turns: BTreeMap<String, String>,
+    loaded: bool,
+}
+
+#[derive(PartialEq)]
+enum FreezeState {
+    Unverified,
+    Pending,
+    Confirmed,
+}
+
 /// A connected official App Server, with only the native facts needed for acceptance.
 pub struct Native {
     child: Child,
+    stdout_reader: thread::JoinHandle<bool>,
     stdin: Option<ChildStdin>,
     rx: Receiver<Input>,
     commands: VecDeque<Value>,
     next_id: u64,
     pub pending_turn: Option<(String, String)>,
+    submitted_turns: BTreeSet<String>,
     pub turns: BTreeMap<(String, String), TurnResult>,
     pub usage: BTreeMap<String, Value>,
-    closed: BTreeSet<String>,
+    unloaded: BTreeMap<String, bool>,
     questions: BTreeSet<String>,
     pub roots: BTreeMap<String, Value>,
+    frozen_members: BTreeMap<String, (String, FreezeState)>,
+    archive_deadline: Option<Instant>,
+    archive_members: BTreeSet<String>,
 }
 impl Native {
     pub fn start(
@@ -96,26 +132,31 @@ impl Native {
             .map_err(|e| format!("cannot start selected App Server: {e}"))?;
         let stdin = child.stdin.take();
         let (tx, rx) = mpsc::channel();
-        lines(
+        let stdout_reader = lines(
             child.stdout.take().ok_or("missing native stdout")?,
             tx.clone(),
             false,
         );
         if controller {
-            lines(std::io::stdin(), tx, true);
+            let _ = lines(std::io::stdin(), tx, true);
         }
         let mut client = Self {
             child,
+            stdout_reader,
             stdin,
             rx,
             commands: VecDeque::new(),
             next_id: 0,
             pending_turn: None,
+            submitted_turns: BTreeSet::new(),
             turns: BTreeMap::new(),
             usage: BTreeMap::new(),
-            closed: BTreeSet::new(),
+            unloaded: BTreeMap::new(),
             questions: BTreeSet::new(),
             roots: BTreeMap::new(),
+            frozen_members: BTreeMap::new(),
+            archive_deadline: None,
+            archive_members: BTreeSet::new(),
         };
         client.rpc("initialize",json!({"clientInfo":{"name":"codex_improve","version":"0.20.0"},"capabilities":{"experimentalApi":true}}))?;
         client.send(&json!({"method":"initialized"}))?;
@@ -123,36 +164,65 @@ impl Native {
     }
     fn send(&mut self, v: &Value) -> Result<()> {
         let stdin = self.stdin.as_mut().ok_or("native connection is closed")?;
+        if let Some(deadline) = self.archive_deadline {
+            let mut line = serde_json::to_vec(v)?;
+            line.push(b'\n');
+            let mut bytes = line.as_slice();
+            while !bytes.is_empty() {
+                remaining(deadline)?;
+                match stdin.write(bytes) {
+                    Ok(0) => return Err("native pipe stopped accepting data".into()),
+                    Ok(n) => bytes = &bytes[n..],
+                    Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        let mut fd = [PollFd::new(stdin.as_fd(), PollFlags::POLLOUT)];
+                        match poll(&mut fd, PollTimeout::try_from(remaining(deadline)?)?) {
+                            Ok(_) | Err(Errno::EINTR) => {}
+                            Err(e) => return Err(e.into()),
+                        }
+                    }
+                    Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            return Ok(());
+        }
         serde_json::to_writer(&mut *stdin, v)?;
         writeln!(stdin)?;
         stdin.flush()?;
         Ok(())
     }
     pub fn rpc(&mut self, method: &str, params: Value) -> Result<Value> {
+        rpc_result(method, self.rpc_reply(method, params)?)
+    }
+    fn rpc_reply(&mut self, method: &str, params: Value) -> Result<Value> {
         if method == "turn/start" {
             self.pending_turn = None;
+            self.submitted_turns
+                .insert(string(&params["threadId"])?.into());
         }
         self.next_id += 1;
         let id = self.next_id;
         self.send(&json!({"id":id,"method":method,"params":params}))?;
         loop {
-            match self.rx.recv()? {
+            let input = if let Some(deadline) = self.archive_deadline {
+                let received = self.rx.recv_timeout(remaining(deadline)?);
+                remaining(deadline)?;
+                received?
+            } else {
+                self.rx.recv()?
+            };
+            match input {
                 Input::Lost(reason) => return Err(reason.into()),
                 Input::Command(v) => self.commands.push_back(v),
                 Input::Native(v) => {
                     if v.get("method").is_none() && v["id"] == id {
-                        ensure(
-                            v.get("error").is_none(),
-                            format!("native {method}: {}", v["error"]),
-                        )?;
-                        let result = v
-                            .get("result")
-                            .cloned()
-                            .ok_or("native response lacks result")?;
-                        if method == "turn/start" {
+                        if method == "turn/start"
+                            && v.get("error").is_none()
+                            && v.get("result").is_some()
+                        {
                             self.pending_turn = None;
                         }
-                        return Ok(result);
+                        return Ok(v);
                     }
                     if method == "turn/start"
                         && v["method"] == "turn/started"
@@ -184,6 +254,22 @@ impl Native {
     fn observe(&mut self, v: Value) -> Result<()> {
         let method = string(&v["method"])?;
         let p = &v["params"];
+        if self.archive_deadline.is_some() {
+            let id = p["threadId"].as_str().unwrap_or_default();
+            let unloaded = method == "thread/closed"
+                || method == "thread/status/changed" && p["status"]["type"] == "notLoaded";
+            ensure(
+                v.get("id").is_none()
+                    && method != "model/rerouted"
+                    && (!unloaded || self.archive_members.contains(id))
+                    && !(self.archive_members.contains(id)
+                        && (method == "turn/started"
+                            || method == "thread/status/changed"
+                                && p["status"]["type"] == "active")),
+                "unexpected native activity during archive",
+            )?;
+            return Ok(());
+        }
         if v.get("id").is_some() {
             if method == "item/tool/requestUserInput" {
                 self.questions.insert(v["id"].to_string());
@@ -194,18 +280,40 @@ impl Native {
             }
             return Ok(());
         }
+        if matches!(method, "turn/started" | "turn/completed")
+            || method == "thread/status/changed" && p["status"]["type"] == "active"
+        {
+            let id = string(&p["threadId"])?;
+            if let Some((_, state)) = self.frozen_members.get_mut(id) {
+                // Resuming a child cannot erase an unload that preceded confirmed freeze.
+                if *state == FreezeState::Confirmed
+                    && method != "turn/completed"
+                    && self.unloaded.get(id) == Some(&true)
+                {
+                    self.unloaded.remove(id);
+                }
+                *state = FreezeState::Unverified;
+            }
+        }
         match method {
             "model/rerouted" => {
                 return Err("native model changed; no fallback is authorized".into());
             }
-            "thread/closed" => {
-                self.closed.insert(string(&p["threadId"])?.into());
-            }
-            "thread/status/changed" if p["status"]["type"] == "notLoaded" => {
+            "thread/closed" | "thread/status/changed"
+                if method == "thread/closed" || p["status"]["type"] == "notLoaded" =>
+            {
+                let id = string(&p["threadId"])?;
                 ensure(
-                    !self.roots.contains_key(string(&p["threadId"])?),
+                    !self.roots.contains_key(id),
                     "loaded task root lost; a new budget root requires authorization",
                 )?;
+                ensure(
+                    self.frozen_members
+                        .get(id)
+                        .is_none_or(|(_, state)| *state == FreezeState::Confirmed),
+                    "a descendant unloaded before its freeze was confirmed",
+                )?;
+                *self.unloaded.entry(id.into()).or_default() |= method == "thread/closed";
             }
             "thread/tokenUsage/updated" => {
                 self.usage
@@ -239,10 +347,6 @@ impl Native {
             }
             _ => {}
         }
-        ensure(
-            self.roots.keys().all(|root| !self.closed.contains(root)),
-            "loaded task root lost; a new budget root requires authorization",
-        )?;
         if [
             "turn/started",
             "turn/completed",
@@ -269,7 +373,30 @@ impl Native {
         let mut all = Vec::new();
         let mut cursors = BTreeSet::new();
         loop {
-            let page = self.rpc(method, params.clone())?;
+            let reply = self.rpc_reply(method, params.clone())?;
+            if method == "thread/turns/list"
+                && params.get("cursor").is_none()
+                && reply.get("result").is_none()
+                && reply["error"]["code"] == -32600
+            {
+                let id = string(&params["threadId"])?;
+                if reply["error"]["message"]
+                    == format!(
+                        "thread {id} is not materialized yet; thread/turns/list is unavailable before first user message"
+                    )
+                    && self.roots.contains_key(id)
+                    && !self.submitted_turns.contains(id)
+                {
+                    let thread = self.require_loaded(id)?;
+                    if thread["status"]["type"] == "idle"
+                        && thread["ephemeral"] == false
+                        && self.turns.keys().all(|(thread_id, _)| thread_id != id)
+                    {
+                        return Ok(all);
+                    }
+                }
+            }
+            let page = rpc_result(method, reply)?;
             all.extend(array(&page["data"])?.iter().cloned());
             match page.get("nextCursor") {
                 Some(Value::Null) => return Ok(all),
@@ -282,47 +409,94 @@ impl Native {
             }
         }
     }
-    pub fn require_loaded(&mut self, root: &str) -> Result<()> {
+    pub fn require_loaded(&mut self, root: &str) -> Result<Value> {
         ensure(
             self.pages("thread/loaded/list", json!({}))?
                 .contains(&json!(root)),
             "loaded task root lost; cold resume/fork would reset its budget",
         )?;
-        let read = self.rpc("thread/read", json!({"threadId":root}))?;
+        let thread = self.read_thread(root)?;
         let expected = self.roots.get(root).ok_or("untracked native budget root")?;
         ensure(
             ["sessionId", "model", "reasoningEffort", "cwd"]
                 .iter()
-                .all(|key| read["thread"][key] == expected[key]),
+                .all(|key| thread[key] == expected[key]),
             "loaded task root identity or model/effort changed; budget continuity is unknown",
-        )
+        )?;
+        Ok(thread)
+    }
+    fn list_threads(&mut self, mut filter: Value, archived: bool) -> Result<Vec<Value>> {
+        filter["archived"] = json!(archived);
+        filter["modelProviders"] = json!([]);
+        filter["sourceKinds"] = json!([
+            "cli",
+            "vscode",
+            "exec",
+            "appServer",
+            "subAgent",
+            "subAgentReview",
+            "subAgentCompact",
+            "subAgentThreadSpawn",
+            "subAgentOther",
+            "unknown"
+        ]);
+        self.pages("thread/list", filter)
     }
     fn family(&mut self, root: &str) -> Result<BTreeSet<String>> {
         let mut ids = BTreeSet::from([root.into()]);
         for archived in [false, true] {
-            let threads=self.pages("thread/list",json!({"ancestorThreadId":root,"archived":archived,"modelProviders":[],"sourceKinds":["cli","vscode","exec","appServer","subAgent","subAgentReview","subAgentCompact","subAgentThreadSpawn","subAgentOther","unknown"]}))?;
+            let threads = self.list_threads(json!({"ancestorThreadId":root}), archived)?;
             for thread in threads {
-                ids.insert(string(&thread["id"])?.into());
+                ensure(
+                    ids.insert(string(&thread["id"])?.into()),
+                    "conflicting native family listings",
+                )?;
             }
         }
         Ok(ids)
     }
+    fn confirmed_closed(&self, root: &str, id: &str) -> bool {
+        self.unloaded.get(id) == Some(&true)
+            && self
+                .frozen_members
+                .get(id)
+                .is_some_and(|(owner, state)| owner == root && *state == FreezeState::Confirmed)
+    }
     /// Freeze every writer before candidate capture; interrupt responses alone are not proof.
     pub fn freeze(&mut self, root: &str) -> Result<Vec<String>> {
         self.require_loaded(root)?;
+        let session_id = self.roots[root]["sessionId"].clone();
         let mut previous = BTreeSet::new();
         loop {
             let family = self.family(root)?;
+            ensure(
+                previous.is_subset(&family),
+                "a descendant disappeared before freeze was confirmed",
+            )?;
             let loaded = self.pages("thread/loaded/list", json!({}))?;
             for id in &family {
-                if !loaded.contains(&json!(id)) {
+                let is_loaded = loaded.contains(&json!(id));
+                if !is_loaded || self.unloaded.contains_key(id) {
                     ensure(
-                        self.closed.contains(id),
-                        "descendant disappeared without confirmed native closure; freeze is unknown",
+                        !is_loaded && self.confirmed_closed(root, id),
+                        "a descendant unloaded before its freeze was confirmed",
                     )?;
                     continue;
                 }
-                let read = self.rpc("thread/read", json!({"threadId":id}))?;
+                let thread = self.read_thread(id)?;
+                ensure(
+                    thread["sessionId"] == session_id,
+                    format!("native thread {id} is outside the registered session"),
+                )?;
+                let (owner, state) = self
+                    .frozen_members
+                    .entry(id.clone())
+                    .or_insert_with(|| (root.to_owned(), FreezeState::Unverified));
+                ensure(
+                    owner.as_str() == root,
+                    "native thread changed its freeze owner",
+                )?;
+                *state = FreezeState::Unverified;
                 let turns = self.pages("thread/turns/list", json!({"threadId":id}))?;
                 let active: Vec<_> = turns
                     .iter()
@@ -330,11 +504,11 @@ impl Native {
                     .map(|t| string(&t["id"]).map(str::to_owned))
                     .collect::<Result<_>>()?;
                 ensure(
-                    read["thread"]["status"]["type"] != "active" || !active.is_empty(),
+                    thread["status"]["type"] != "active" || !active.is_empty(),
                     "active native thread has no identifiable turn",
                 )?;
                 ensure(
-                    member(&read["thread"]["status"]["type"], &["idle", "active"]),
+                    member(&thread["status"]["type"], &["idle", "active"]),
                     "native thread state cannot prove quiescence",
                 )?;
                 for turn in active {
@@ -369,15 +543,16 @@ impl Native {
                         "background terminal termination was not confirmed; freeze is unknown",
                     )?;
                 }
+                self.frozen_members.get_mut(id).unwrap().1 = FreezeState::Pending;
                 ensure(
                     self.pages("thread/backgroundTerminals/list", json!({"threadId":id}))?
                         .is_empty(),
                     "background terminals remain; freeze is unknown",
                 )?;
                 let turns = self.pages("thread/turns/list", json!({"threadId":id}))?;
-                let read = self.rpc("thread/read", json!({"threadId":id}))?;
+                let thread = self.read_thread(id)?;
                 ensure(
-                    read["thread"]["status"]["type"] == "idle"
+                    thread["status"]["type"] == "idle"
                         && turns
                             .iter()
                             .all(|t| member(&t["status"], &["completed", "interrupted", "failed"])),
@@ -386,16 +561,379 @@ impl Native {
             }
             self.require_loaded(root)?;
             let after = self.family(root)?;
+            ensure(
+                family.is_subset(&after),
+                "a descendant disappeared before freeze was confirmed",
+            )?;
+            ensure(
+                family
+                    .iter()
+                    .all(|id| !self.unloaded.contains_key(id) || self.confirmed_closed(root, id)),
+                "a descendant unloaded before its freeze was confirmed",
+            )?;
+            ensure(
+                family
+                    .iter()
+                    .all(|id| self.frozen_members[id].1 != FreezeState::Unverified),
+                "new native activity prevents capture",
+            )?;
             if family == after && family == previous {
+                for id in &family {
+                    self.frozen_members.get_mut(id).unwrap().1 = FreezeState::Confirmed;
+                }
                 return Ok(family.into_iter().collect());
             }
             previous = family;
         }
     }
-    pub fn shutdown(mut self) -> Result<()> {
-        self.stdin.take();
-        ensure(self.child.wait()?.success(), "App Server shutdown failed")
+    fn read_thread(&mut self, id: &str) -> Result<Value> {
+        let mut reply = self.rpc("thread/read", json!({"threadId":id}))?;
+        ensure(
+            reply["thread"]["id"] == id,
+            format!("native read returned a different thread for {id}"),
+        )?;
+        Ok(reply["thread"].take())
     }
+    pub fn close_snapshot(&mut self) -> Result<BTreeMap<String, FrozenThread>> {
+        // The history lists can miss loaded threads that have not materialized yet.
+        let mut live = BTreeMap::new();
+        for value in self.pages("thread/loaded/list", json!({}))? {
+            let id = string(&value)?;
+            ensure(
+                live.insert(id.to_owned(), self.read_thread(id)?).is_none(),
+                "duplicate loaded thread ID",
+            )?;
+        }
+        let mut snapshot = BTreeMap::new();
+        for (root, expected) in self.roots.clone() {
+            let session_id = string(&expected["sessionId"])?;
+            let mut family = self.family(&root)?;
+            family.extend(
+                live.iter()
+                    .filter(|(_, thread)| thread["sessionId"] == session_id)
+                    .map(|(id, _)| id.clone()),
+            );
+            loop {
+                let extra: Vec<_> = live
+                    .iter()
+                    .filter(|(id, thread)| {
+                        !family.contains(*id)
+                            && thread["parentThreadId"]
+                                .as_str()
+                                .is_some_and(|parent| family.contains(parent))
+                    })
+                    .map(|(id, _)| id.clone())
+                    .collect();
+                if extra.is_empty() {
+                    break;
+                }
+                family.extend(extra);
+            }
+            for id in &family {
+                let loaded = live.contains_key(id);
+                let thread = match live.get(id) {
+                    Some(thread) => thread.clone(),
+                    None => self.read_thread(id)?,
+                };
+                let parent = thread
+                    .get("parentThreadId")
+                    .ok_or("native parent identity is missing")?;
+                ensure(
+                    thread["ephemeral"] == false
+                        && if id == &root {
+                            parent.is_null() && thread["cwd"] == expected["cwd"]
+                        } else {
+                            parent.as_str().is_some_and(|p| family.contains(p))
+                        },
+                    format!("unverified task ownership for native thread {id}"),
+                )?;
+                ensure(
+                    if loaded {
+                        thread["sessionId"] == session_id && thread["status"]["type"] == "idle"
+                    } else {
+                        // The stored view substitutes the thread ID for sessionId.
+                        // Its parent chain must still reach the registered root.
+                        (self.confirmed_closed(&root, id) || self.archive_members.contains(id))
+                            && thread["sessionId"] == id.as_str()
+                            && thread["status"]["type"] == "notLoaded"
+                    },
+                    format!("unverified session or activity for native thread {id}"),
+                )?;
+                let mut turns = BTreeMap::new();
+                for turn in self.pages("thread/turns/list", json!({"threadId":id}))? {
+                    ensure(
+                        member(&turn["status"], &["completed", "interrupted", "failed"]),
+                        format!("native thread {id} has an active or unknown turn"),
+                    )?;
+                    ensure(
+                        turns
+                            .insert(
+                                string(&turn["id"])?.to_owned(),
+                                string(&turn["status"])?.to_owned(),
+                            )
+                            .is_none(),
+                        "duplicate native turn ID",
+                    )?;
+                }
+                ensure(
+                    !loaded
+                        || self
+                            .pages("thread/backgroundTerminals/list", json!({"threadId":id}))?
+                            .is_empty(),
+                    format!("native thread {id} still has background terminals"),
+                )?;
+                ensure(
+                    !loaded || self.archive_deadline.is_some() || !self.unloaded.contains_key(id),
+                    format!("native thread {id} unloaded before close freeze was confirmed"),
+                )?;
+                let facts = FrozenThread {
+                    root: root.clone(),
+                    parent_thread_id: parent.as_str().map(str::to_owned),
+                    session_id: session_id.into(),
+                    cwd: string(&thread["cwd"])?.into(),
+                    turns,
+                    loaded,
+                };
+                ensure(
+                    snapshot.insert(id.clone(), facts).is_none(),
+                    "native thread belongs to multiple task roots",
+                )?;
+            }
+            for id in &family {
+                ensure(
+                    lineage(&snapshot, id).take(family.len()).last() == Some(root.as_str()),
+                    format!("native parent chain for {id} does not reach {root}"),
+                )?;
+            }
+        }
+        ensure(
+            self.frozen_members
+                .keys()
+                .all(|id| snapshot.contains_key(id)),
+            "a previously frozen thread is missing at close",
+        )?;
+        for (id, facts) in &snapshot {
+            let (_, state) = self
+                .frozen_members
+                .get(id)
+                .filter(|(owner, _)| owner == &facts.root)
+                .ok_or_else(|| format!("native thread {id} has no freeze under its root"))?;
+            ensure(
+                *state == FreezeState::Confirmed,
+                format!("native activity invalidated close freeze for {id}"),
+            )?;
+        }
+        Ok(snapshot)
+    }
+    fn archive_inventory(
+        &mut self,
+        frozen: &BTreeMap<String, FrozenThread>,
+        states: &mut BTreeMap<String, &'static str>,
+        unlisted: &mut BTreeSet<String>,
+    ) -> Result<()> {
+        let mut found = BTreeMap::new();
+        let cwds: BTreeSet<_> = self
+            .roots
+            .values()
+            .map(|root| string(&root["cwd"]).map(str::to_owned))
+            .collect::<Result<_>>()?;
+        let roots: Vec<_> = self.roots.keys().cloned().collect();
+        for archived in [false, true] {
+            let state = if archived { "archived" } else { "unarchived" };
+            let mut add = |id: &str| -> Result<()> {
+                if found.insert(id.to_owned(), state).is_some() {
+                    states.insert(id.to_owned(), "unknown");
+                    return Err(format!("conflicting archive listings for {id}").into());
+                }
+                Ok(())
+            };
+            for thread in self.list_threads(json!({"cwd":cwds}), archived)? {
+                let id = string(&thread["id"])?;
+                if self.roots.contains_key(id) {
+                    add(id)?;
+                }
+            }
+            for root in &roots {
+                for thread in self.list_threads(json!({"ancestorThreadId":root}), archived)? {
+                    let id = string(&thread["id"])?;
+                    ensure(
+                        frozen
+                            .get(id)
+                            .is_some_and(|f| &f.root == root && id != root.as_str()),
+                        format!("native archive family changed for {root}: {id}"),
+                    )?;
+                    add(id)?;
+                }
+            }
+        }
+        for id in frozen.keys() {
+            match found.get(id) {
+                Some(&"archived") => {}
+                Some(&"unarchived") if states[id] != "archived" => {}
+                None if unlisted.contains(id) => {}
+                _ => {
+                    states.insert(id.clone(), "unknown");
+                    return Err(format!("missing or conflicting archive state for {id}").into());
+                }
+            }
+        }
+        remaining(self.archive_deadline.unwrap())?;
+        unlisted.retain(|id| !found.contains_key(id));
+        states.extend(found);
+        Ok(())
+    }
+    pub fn archive(
+        &mut self,
+        frozen: &BTreeMap<String, FrozenThread>,
+        states: &mut BTreeMap<String, &'static str>,
+    ) -> Result<()> {
+        self.archive_deadline = Some(Instant::now() + Duration::from_secs(30));
+        self.archive_members = frozen.keys().cloned().collect();
+        let stdin = self.stdin.as_ref().ok_or("native connection is closed")?;
+        let flags = OFlag::from_bits_truncate(fcntl(stdin, FcntlArg::F_GETFL)?);
+        fcntl(stdin, FcntlArg::F_SETFL(flags | OFlag::O_NONBLOCK))?;
+
+        // A fresh persistent thread is absent until its first turn or explicit archive.
+        let mut unlisted: BTreeSet<_> = frozen
+            .iter()
+            .filter(|(_, f)| f.loaded && f.turns.is_empty())
+            .map(|(id, _)| id.clone())
+            .collect();
+        self.archive_inventory(frozen, states, &mut unlisted)?;
+        let mut rejection = None;
+        for round in 0..2 {
+            if round == 1 {
+                let current = self.close_snapshot()?;
+                ensure(
+                    current.len() == frozen.len()
+                        && current.iter().all(|(id, now)| {
+                            frozen.get(id).is_some_and(|was| {
+                                now.root == was.root
+                                    && now.parent_thread_id == was.parent_thread_id
+                                    && now.session_id == was.session_id
+                                    && now.cwd == was.cwd
+                                    && now.turns == was.turns
+                                    && (!now.loaded || was.loaded)
+                            })
+                        }),
+                    "native ownership or freeze changed before archive retry",
+                )?;
+                self.archive_inventory(frozen, states, &mut unlisted)?;
+            }
+            let mut pending: BTreeSet<_> = states
+                .iter()
+                .filter(|(_, state)| **state != "archived")
+                .map(|(id, _)| id.clone())
+                .collect();
+            while let Some(id) = pending
+                .iter()
+                .min_by_key(|id| {
+                    let depth = lineage(frozen, id).count();
+                    // An ancestor can unload an unmaterialized child or fail to archive a remaining child.
+                    if round == 1 || unlisted.contains(*id) {
+                        (false, frozen.len() - depth)
+                    } else {
+                        (true, depth)
+                    }
+                })
+                .cloned()
+            {
+                for (member, state) in states.iter_mut() {
+                    if lineage(frozen, member).any(|p| p == id) {
+                        pending.remove(member);
+                        unlisted.remove(member);
+                        if *state != "archived" {
+                            *state = "unknown";
+                        }
+                    }
+                }
+                let reply = self.rpc_reply("thread/archive", json!({"threadId":id}))?;
+                if let Some(error) = reply.get("error") {
+                    ensure(
+                        error["code"].is_i64()
+                            && error["message"].is_string()
+                            && reply.get("result").is_none(),
+                        "malformed native archive error response",
+                    )?;
+                    rejection = Some(format!("native thread/archive for {id}: {error}"));
+                } else {
+                    ensure(
+                        reply["result"].is_object(),
+                        "malformed native archive response",
+                    )?;
+                }
+                self.archive_inventory(frozen, states, &mut unlisted)?;
+                pending.retain(|member| states[member] != "archived");
+            }
+            if states.values().all(|state| *state == "archived") {
+                return Ok(());
+            }
+        }
+        Err(rejection
+            .unwrap_or_else(|| "native archive left unarchived threads".into())
+            .into())
+    }
+    pub fn shutdown(mut self) -> Value {
+        self.stdin.take();
+        let mut exit = self.wait_child(Duration::from_secs(5));
+        let mut killed = None;
+        if matches!(exit, Ok(None)) {
+            killed = Some(self.child.kill());
+            exit = self.wait_child(Duration::from_millis(250));
+        }
+        // The launcher can exit while its App Server still holds stdout open.
+        if matches!(exit, Ok(Some(_)))
+            && (!self.stdout_reader.is_finished() || !matches!(self.stdout_reader.join(), Ok(true)))
+        {
+            return json!({"status":"unknown","error":"App Server stdout closure could not be confirmed"});
+        }
+        match exit {
+            Ok(Some(status)) if status.success() => json!({"status":"exited"}),
+            Ok(Some(status)) if matches!(killed, Some(Ok(()))) => {
+                json!({"status":"terminated","exit":status.to_string()})
+            }
+            Ok(Some(status)) => json!({"status":"failed","error":status.to_string()}),
+            Err(error) => json!({"status":"unknown","error":error.to_string()}),
+            Ok(None) => json!({"status":"unknown","error":killed.and_then(|result| result.err())
+                .map_or_else(|| "App Server exit could not be confirmed".into(), |error| error.to_string())}),
+        }
+    }
+    fn wait_child(&mut self, window: Duration) -> io::Result<Option<ExitStatus>> {
+        let deadline = Instant::now() + window;
+        loop {
+            let result = self.child.try_wait()?;
+            let delay = deadline.saturating_duration_since(Instant::now());
+            if delay.is_zero() || result.is_some() && self.stdout_reader.is_finished() {
+                return Ok(result);
+            }
+            thread::sleep(delay.min(Duration::from_millis(10)));
+        }
+    }
+}
+fn rpc_result(method: &str, reply: Value) -> Result<Value> {
+    ensure(
+        reply.get("error").is_none(),
+        format!("native {method}: {}", reply["error"]),
+    )?;
+    reply
+        .get("result")
+        .cloned()
+        .ok_or_else(|| "native response lacks result".into())
+}
+
+fn lineage<'a>(
+    frozen: &'a BTreeMap<String, FrozenThread>,
+    id: &'a str,
+) -> impl Iterator<Item = &'a str> {
+    std::iter::successors(Some(id), |current| {
+        frozen[*current].parent_thread_id.as_deref()
+    })
+}
+fn remaining(deadline: Instant) -> Result<Duration> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .filter(|time| !time.is_zero())
+        .ok_or_else(|| "native archive exceeded its 30-second deadline".into())
 }
 fn final_text(turn: &mut TurnResult, item: &Value) -> Result<()> {
     if item["type"] == "agentMessage"

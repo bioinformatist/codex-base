@@ -41,6 +41,9 @@ one loaded implementation root. JSON lines on stdin control the task. Stdout
 carries readiness, operation results, native events, questions and terminal
 reports. Wait for each result before sending dependent commands. Preserve the
 returned task/workspace/native IDs, actual model/effort/permissions and usage.
+Root registrations are saved before start and updated as soon as a reliable
+response supplies thread and session IDs. If the response is lost, use
+`inspect` to see the unknown attempt. Only a start response establishes an ID.
 
 ```json
 {"op":"turn"}
@@ -131,6 +134,8 @@ review root. `previousReview` retains only that immediately preceding review's
 identity, binding, native result, raw/parsed report and diagnostics. It is
 handoff context, never approval. Code observations without an exact mapping to
 current inputs remain questions for the new reviewer to check independently.
+Use `inspect` for earlier review rounds in `reviewHistory` and the current
+`review`.
 
 ```json
 {"op":"review","tree":"TREE","dossier":"/private/review.json"}
@@ -230,11 +235,20 @@ acceptance, then return control unless monitoring was explicitly requested.
 ```
 
 Cancellation uses native interruption and confirmed freeze. Unknown termination
-stays unknown with artifacts preserved. `close` freezes both trees and closes
-the connection, ending budget continuity. Connection or loaded-root loss is a
-STOP: preserve workspace, last confirmed usage and evidence. A cold resume, fork
-or replacement root cannot silently reset the budget; a new root needs explicit
-authority.
+stays unknown with artifacts preserved. Use `close` when work on the connected
+task is finished. A ready task or a captured task awaiting review can also close.
+The client freezes every registered root and verifies descendant ownership and
+that turns and terminals have stopped. Archive begins once the terminal records,
+bindings, frozen thread IDs and `closed` state are durable.
+
+Read the `close` result and use `inspect` to recover per-ID archive status and
+the App Server shutdown result. Archive reconciliation uses both paginated
+archive lists and one 30-second deadline. A failed or unconfirmed cleanup can
+leave `archive.status` at `partial` or `unknown` on a closed task. The client gives
+its App Server five seconds to exit after closing stdin, then terminates that
+child if needed. Closing ends budget continuity. Connection or loaded-root loss
+during implementation or review is a STOP. Preserve the workspace, last
+confirmed usage and evidence. A new root needs explicit authority.
 
 All finish paths save cached report material, including failed turns, active
 cancellation and connection/root/model errors. `status`, `finished`, `stopped`
