@@ -68,6 +68,7 @@ let
   filesOff = hmOff.config.home.file;
   activation = hm.config.home.activation.codex-base-config.data;
   hmClosure = pkgs.closureInfo { rootPaths = [ hm.activationPackage ]; };
+  cacheLifecycle = import ../tests/codex-cache-lifecycle.nix { inherit inputs pkgs self; };
 in {
   codex-package-selection =
     assert hm.config.programs.codexBase.package == packages.codex;
@@ -457,6 +458,8 @@ subprocess.check_call([
 ])
 PY
       cmp ${generatedSkills}/docs-routing/SKILL.md ${files.".agents/skills/docs-routing".source}/SKILL.md
+      printf '%s\n' ${pkgs.lib.escapeShellArg (builtins.toJSON cacheLifecycle)} > "$TMPDIR/codex-cache-lifecycle.json"
+      bash ${srcRoot}/tests/codex-cache-lifecycle.bash "$TMPDIR/codex-cache-lifecycle.json"
       touch $out
     '';
   plugin-smoke = mkTest "plugin-smoke" [ packages.codex packages.codex-improve python pkgs.bash pkgs.coreutils pkgs.jq ] ''
